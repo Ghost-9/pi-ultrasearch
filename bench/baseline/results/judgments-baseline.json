@@ -2,10 +2,10 @@
   "meta": {
     "suite": "judgments",
     "wave": "wave1/baseline",
-    "generated_at": "2026-10-17T04:06:12.657Z",
-    "date_short": "2026-10-17",
-    "commit": "42104cb73f6e5e5f107280b18b1dadd5718720d0",
-    "branch": "main",
+    "generated_at": "2026-10-14T20:38:50.603Z",
+    "date_short": "2026-10-14",
+    "commit": "0a16e5055002c2d80feed47afecc2e0416afd1a2",
+    "branch": "wave1/baseline",
     "machine": {
       "chip": "Apple M1 Pro",
       "model": "MacBookPro18,1",
@@ -19,64 +19,26 @@
       "cpuCount": 10,
       "totalMemBytes": 17179869184,
       "loadavg_at_start": [
-        5.29833984375,
-        16.47509765625,
-        18.67822265625
+        7.83251953125,
+        5.5908203125,
+        5.005859375
       ]
     },
     "daemon": {
-      "compactions": 1,
-      "compactions_postponed": 0,
-      "content_bytes": 194747200,
-      "content_docs": 156454,
+      "content_bytes": 142315072,
+      "content_docs": 129704,
       "content_pending": 0,
-      "content_policy": {
-        "configured": false,
-        "extensions": null,
-        "max_file_bytes": null,
-        "roots": null,
-        "source": null,
-        "warm": 0
-      },
-      "content_segments": 50,
-      "deny_configured": false,
-      "deny_rules": 0,
-      "dirs": 881509,
-      "entries": 5039377,
-      "event_id": 5774564076,
-      "event_lag": 1,
+      "content_segments": 38,
+      "dirs": 630228,
+      "entries": 3924305,
+      "event_id": 5678118891,
       "full_disk_access": true,
       "id": 1,
-      "index_bytes": 147143872,
-      "last_compact_bytes": 147143872,
-      "last_compact_entries": 5039377,
-      "last_compact_ms": 2498,
-      "last_compact_secs_ago": 0,
-      "last_event_id": 5774564077,
-      "lock_pid": 864,
+      "index_bytes": 125001088,
       "ok": true,
-      "overlay": 4817,
+      "overlay": 301,
       "owner": true,
-      "pid": 864,
-      "queries_in_flight": 0,
-      "removed": 2703,
-      "replay_in_progress": false,
-      "socket": "/Users/batra/Library/Application Support/UltraSearch/ultrasearch.sock",
-      "socket_dev": 16777230,
-      "socket_ino": 43641386,
-      "staleness_ms": 0,
-      "uptime_ms": 634172,
-      "daemon_health": {
-        "pid": 864,
-        "uptime_ms": 634172,
-        "socket": "/Users/batra/Library/Application Support/UltraSearch/ultrasearch.sock",
-        "socket_owners": [
-          864
-        ],
-        "lock_pid": 864,
-        "duplicate_suspected": false,
-        "duplicates": []
-      }
+      "removed": 122
     },
     "judgments": {
       "path": "/Users/batra/.pi/agent/extensions/pi-ultrasearch/bench/judgments/wave1-judgments.json",
@@ -95,7 +57,7 @@
       "clean_archive": {
         "files": 33,
         "tree_sha256": "98e299a63f5dca90692cf73571c370ed54385b787f4af54efd0fc669aed6149d",
-        "generated_at": "2026-10-17T04:04:45.358Z"
+        "generated_at": "2026-10-14T20:38:41.530Z"
       },
       "files_found": 33,
       "files_declared": 33,
@@ -125,72 +87,84 @@
       "gate_rule": "AC power AND 1-min load < 1.5 AND no cargo/rustc process",
       "gate_load1_max": 1.5,
       "checks": {
-        "ac_power": true,
+        "ac_power": false,
         "load1_lt_gate": false,
-        "no_cargo_rustc": true
+        "no_cargo_rustc": false
       },
       "power": {
-        "on_ac": true,
-        "percent": 100,
-        "discharging": false,
-        "raw": "Now drawing from 'AC Power' |  -InternalBattery-0 (id=23527523)\t100%; charged; 0:00 remaining present: true"
+        "on_ac": false,
+        "percent": 19,
+        "discharging": true,
+        "raw": "Now drawing from 'Battery Power' |  -InternalBattery-0 (id=23003235)\t19%; discharging; 0:36 remaining present: true"
       },
       "loadavg": [
-        5.29833984375,
-        16.47509765625,
-        18.67822265625
+        7.83251953125,
+        5.5908203125,
+        5.005859375
       ],
-      "competing_processes": [],
+      "competing_processes": [
+        "22412 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+        "22414 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc",
+        "23431 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc",
+        "23433 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc",
+        "23435 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc"
+      ],
       "daemon_processes": [
-        "864 /Applications/UltraSearch.app/Contents/MacOS/UltraSearch serve"
+        "19684 /Applications/UltraSearch.app/Contents/MacOS/UltraSearch serve"
       ],
-      "daemon_pid": "864",
+      "daemon_pid": "19684",
       "daemon_status": {
         "ok": true,
-        "entries": 5039377,
-        "content_docs": 156454,
+        "entries": 3924305,
+        "content_docs": 129704,
         "content_pending": 0,
-        "index_bytes": 147143872,
-        "content_bytes": 194747200,
+        "index_bytes": 125001088,
+        "content_bytes": 142315072,
         "full_disk_access": true
       },
-      "checked_at": "2026-10-17T04:06:12.656Z",
+      "checked_at": "2026-10-14T20:38:50.601Z",
       "pre_run": {
         "status": "provisional",
         "gate_pass": false,
         "gate_rule": "AC power AND 1-min load < 1.5 AND no cargo/rustc process",
         "gate_load1_max": 1.5,
         "checks": {
-          "ac_power": true,
+          "ac_power": false,
           "load1_lt_gate": false,
-          "no_cargo_rustc": true
+          "no_cargo_rustc": false
         },
         "power": {
-          "on_ac": true,
-          "percent": 100,
-          "discharging": false,
-          "raw": "Now drawing from 'AC Power' |  -InternalBattery-0 (id=23527523)\t100%; charged; 0:00 remaining present: true"
+          "on_ac": false,
+          "percent": 19,
+          "discharging": true,
+          "raw": "Now drawing from 'Battery Power' |  -InternalBattery-0 (id=23003235)\t19%; discharging; 0:36 remaining present: true"
         },
         "loadavg": [
-          5.29833984375,
-          16.47509765625,
-          18.67822265625
+          7.83251953125,
+          5.5908203125,
+          5.005859375
         ],
-        "competing_processes": [],
+        "competing_processes": [
+          "22412 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+          "22414 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc",
+          "23431 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc",
+          "23433 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc",
+          "23435 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc"
+        ],
         "daemon_processes": [
-          "864 /Applications/UltraSearch.app/Contents/MacOS/UltraSearch serve"
+          "19684 /Applications/UltraSearch.app/Contents/MacOS/UltraSearch serve"
         ],
-        "daemon_pid": "864",
+        "daemon_pid": "19684",
         "daemon_status": {
           "ok": true,
-          "entries": 5039377,
-          "content_docs": 156454,
+          "entries": 3924305,
+          "content_docs": 129704,
           "content_pending": 0,
-          "index_bytes": 147143872,
-          "content_bytes": 194747200,
+          "index_bytes": 125001088,
+          "content_bytes": 142315072,
           "full_disk_access": true
         },
-        "checked_at": "2026-10-17T04:06:12.656Z"
+        "checked_at": "2026-10-14T20:38:50.601Z"
       },
       "end_of_run": {
         "status": "provisional",
@@ -198,61 +172,61 @@
         "gate_rule": "AC power AND 1-min load < 1.5 AND no cargo/rustc process",
         "gate_load1_max": 1.5,
         "checks": {
-          "ac_power": true,
+          "ac_power": false,
           "load1_lt_gate": false,
           "no_cargo_rustc": true
         },
         "power": {
-          "on_ac": true,
-          "percent": 100,
-          "discharging": false,
-          "raw": "Now drawing from 'AC Power' |  -InternalBattery-0 (id=23527523)\t100%; charged; 0:00 remaining present: true"
+          "on_ac": false,
+          "percent": 19,
+          "discharging": true,
+          "raw": "Now drawing from 'Battery Power' |  -InternalBattery-0 (id=23003235)\t19%; discharging; 0:36 remaining present: true"
         },
         "loadavg": [
-          4.55810546875,
-          15.04833984375,
-          18.068359375
+          5.69140625,
+          5.27880859375,
+          4.91162109375
         ],
         "competing_processes": [],
         "daemon_processes": [
-          "864 /Applications/UltraSearch.app/Contents/MacOS/UltraSearch serve"
+          "19684 /Applications/UltraSearch.app/Contents/MacOS/UltraSearch serve"
         ],
-        "daemon_pid": "864",
+        "daemon_pid": "19684",
         "daemon_status": {
           "ok": true,
-          "entries": 5039377,
-          "content_docs": 156454,
+          "entries": 3924305,
+          "content_docs": 129704,
           "content_pending": 0,
-          "index_bytes": 147143872,
-          "content_bytes": 194747200,
+          "index_bytes": 125001088,
+          "content_bytes": 142315072,
           "full_disk_access": true
         },
-        "checked_at": "2026-10-17T04:06:45.149Z"
+        "checked_at": "2026-10-14T20:39:22.877Z"
       },
-      "degraded_during_run": false
+      "degraded_during_run": true
     }
   },
   "aggregates": {
     "must_hit_queries": 26,
     "negatives": 4,
-    "recall_at_1": 0.5266025641025641,
-    "recall_at_3": 0.6160256410256412,
-    "recall_at_5": 0.6733974358974358,
-    "recall_at_10": 0.7961538461538461,
-    "success_recall_at_10": 0.9615384615384616,
-    "mrr_at_10_rel1": 0.9692307692307692,
-    "mrr_at_10_rel2": 0.9692307692307692,
-    "ndcg_at_10": 0.9120703849896526,
-    "ndcg_at_10_linear": 0.869628898967163,
-    "zero_result_rate": 0,
-    "false_positive_rate": 0,
-    "reformulation_signal": 0.038461538461538464,
+    "recall_at_1": 0.4881410256410257,
+    "recall_at_3": 0.5987179487179487,
+    "recall_at_5": 0.6240384615384615,
+    "recall_at_10": 0.6737179487179487,
+    "success_recall_at_10": 0.75,
+    "mrr_at_10_rel1": 0.9134615384615384,
+    "mrr_at_10_rel2": 0.7099358974358976,
+    "ndcg_at_10": 0.7049628673114833,
+    "ndcg_at_10_linear": 0.6991242618971595,
+    "zero_result_rate": 0.038461538461538464,
+    "false_positive_rate": 0.5,
+    "reformulation_signal": 0.34615384615384615,
     "reformulation_by_lane": {
       "path": 0,
-      "grep-literal": 0,
-      "grep-regex": 0,
-      "symbol": 0,
-      "semantic": 0.2,
+      "grep-literal": 0.4,
+      "grep-regex": 0.5,
+      "symbol": 0.25,
+      "semantic": 1,
       "ranking-frecency": 0,
       "ranking-proximity": 0,
       "ranking-boost-ab": 0,
@@ -260,54 +234,54 @@
     },
     "ndcg_by_lane": {
       "path": 0.9174054120491127,
-      "grep-literal": 0.9834638825425914,
-      "grep-regex": 0.9940283442155129,
-      "symbol": 0.8659526309842432,
-      "semantic": 0.8313442974252547,
+      "grep-literal": 0.8577147704812331,
+      "grep-regex": 0.6690609917958155,
+      "symbol": 0.636622777806004,
+      "semantic": 0.19358514107060285,
       "ranking-frecency": 0.9173194127129571,
       "ranking-proximity": 0.8609101556836468,
       "ranking-boost-ab": 0.9052598568324595,
       "ranking-symbol-intrafile": 1
     },
-    "semantic_ndcg_at_10": 0.8313442974252547,
+    "semantic_ndcg_at_10": 0.19358514107060285,
     "acceptance_gates": {
       "recall@10 == 1.00 on all must_hit queries": {
-        "observed": 0.7961538461538461,
+        "observed": 0.6737179487179487,
         "pass": false
       },
       "zero_result_rate == 0.00 on must_hit queries": {
-        "observed": 0,
-        "pass": true
+        "observed": 0.038461538461538464,
+        "pass": false
       },
       "false_positive_rate == 0.00 on the 4 negative queries (spec text says 5)": {
-        "observed": 0,
-        "pass": true
+        "observed": 0.5,
+        "pass": false
       },
       "nDCG@10 >= 0.75 overall": {
-        "observed": 0.9120703849896526,
-        "pass": true
+        "observed": 0.7049628673114833,
+        "pass": false
       },
       "nDCG@10 >= 0.60 semantic lane": {
-        "observed": 0.8313442974252547,
-        "pass": true
+        "observed": 0.19358514107060285,
+        "pass": false
       },
       "reformulation_signal <= 0.20 overall": {
-        "observed": 0.038461538461538464,
-        "pass": true
+        "observed": 0.34615384615384615,
+        "pass": false
       },
       "reformulation_signal <= 0.35 per lane": {
         "observed": {
           "path": 0,
-          "grep-literal": 0,
-          "grep-regex": 0,
-          "symbol": 0,
-          "semantic": 0.2,
+          "grep-literal": 0.4,
+          "grep-regex": 0.5,
+          "symbol": 0.25,
+          "semantic": 1,
           "ranking-frecency": 0,
           "ranking-proximity": 0,
           "ranking-boost-ab": 0,
           "ranking-symbol-intrafile": 0
         },
-        "pass": true
+        "pass": false
       }
     },
     "acceptance_all_pass": false,
@@ -332,7 +306,7 @@
         "limit": 10
       },
       "call": "search(\"package.json\", in=<root>, limit=10)",
-      "ms": 16.72124999999869,
+      "ms": 9.172999999998865,
       "us_source": null,
       "us_error": null,
       "retrieved": [
@@ -375,7 +349,7 @@
         "limit": 10
       },
       "call": "search(\"ci.yml\", in=<root>, limit=10)",
-      "ms": 3.9358329999995476,
+      "ms": 3.643707999999606,
       "us_source": null,
       "us_error": null,
       "retrieved": [
@@ -418,7 +392,7 @@
         "limit": 10
       },
       "call": "search(\"client.ts\", in=<root>, limit=10)",
-      "ms": 2.260667000002286,
+      "ms": 2.458542000000307,
       "us_source": null,
       "us_error": null,
       "retrieved": [
@@ -461,7 +435,7 @@
         "limit": 10
       },
       "call": "search(\"bench\", in=<root>, limit=10)",
-      "ms": 1.9602500000000873,
+      "ms": 2.511624999999185,
       "us_source": null,
       "us_error": null,
       "retrieved": [
@@ -516,7 +490,7 @@
         "limit": 10
       },
       "call": "search(\"codemode\", in=<root>, limit=10)",
-      "ms": 1.9332499999982247,
+      "ms": 2.6365829999995185,
       "us_source": null,
       "us_error": null,
       "retrieved": [
@@ -559,7 +533,7 @@
         "limit": 30
       },
       "call": "search(\"src/**/*.ts\", in=<root>, limit=30)",
-      "ms": 2.4590830000015558,
+      "ms": 1.7759580000019923,
       "us_source": null,
       "us_error": null,
       "retrieved": [
@@ -658,7 +632,7 @@
         "limit": 10
       },
       "call": "search(\"kubectl_helm_chart_values\", in=<root>, limit=10)",
-      "ms": 1.880250000001979,
+      "ms": 2.1205840000002354,
       "us_source": null,
       "us_error": null,
       "retrieved": [],
@@ -679,12 +653,12 @@
         "limit": 10
       },
       "call": "grep(\"estimateTokensSaved\", in=<root>, mode=literal, limit=10)",
-      "ms": 3.8542080000006536,
+      "ms": 3.3892500000001746,
       "us_source": "scan",
       "us_error": null,
       "retrieved": [
-        "src/telemetry.ts",
-        "AUDIT-2026-10-14.md"
+        "AUDIT-2026-10-14.md",
+        "src/telemetry.ts"
       ],
       "retrieved_count": 2,
       "control": null,
@@ -693,13 +667,13 @@
         "top10": [
           {
             "rank": 1,
-            "path": "src/telemetry.ts",
-            "grade": 3
+            "path": "AUDIT-2026-10-14.md",
+            "grade": 1
           },
           {
             "rank": 2,
-            "path": "AUDIT-2026-10-14.md",
-            "grade": 1
+            "path": "src/telemetry.ts",
+            "grade": 3
           }
         ],
         "recall_at_1": 0.5,
@@ -708,11 +682,11 @@
         "recall_at_10": 1,
         "success_recall_at_10": 1,
         "mrr_at_10_rel1": 1,
-        "mrr_at_10_rel2": 1,
-        "ndcg_at_10": 1,
-        "ndcg_at_10_linear": 1,
-        "top1_grade": 3,
-        "reformulation_signal": false
+        "mrr_at_10_rel2": 0.5,
+        "ndcg_at_10": 0.7098097413968655,
+        "ndcg_at_10_linear": 0.7967075809905066,
+        "top1_grade": 1,
+        "reformulation_signal": true
       },
       "zero_result": false,
       "false_positive": null
@@ -728,7 +702,7 @@
         "limit": 10
       },
       "call": "grep(\"enforceExactQuery\", in=<root>, mode=literal, limit=10)",
-      "ms": 2.0128330000006827,
+      "ms": 1.8493749999979627,
       "us_source": "scan",
       "us_error": null,
       "retrieved": [
@@ -771,7 +745,7 @@
         "limit": 10
       },
       "call": "grep(\"SYMBOL_REGEX\", in=<root>, mode=literal, limit=10)",
-      "ms": 8.212290999999823,
+      "ms": 1.2559590000018943,
       "us_source": "scan",
       "us_error": null,
       "retrieved": [
@@ -814,12 +788,12 @@
         "limit": 10
       },
       "call": "grep(\"fsearch.sock\", in=<root>, mode=literal, limit=10)",
-      "ms": 3.2368339999993623,
+      "ms": 1.0032500000015716,
       "us_source": "scan",
       "us_error": null,
       "retrieved": [
-        "src/client.ts",
-        "CHANGELOG.md"
+        "CHANGELOG.md",
+        "src/client.ts"
       ],
       "retrieved_count": 2,
       "control": null,
@@ -828,26 +802,26 @@
         "top10": [
           {
             "rank": 1,
-            "path": "src/client.ts",
-            "grade": 3
+            "path": "CHANGELOG.md",
+            "grade": 0
           },
           {
             "rank": 2,
-            "path": "CHANGELOG.md",
-            "grade": 0
+            "path": "src/client.ts",
+            "grade": 3
           }
         ],
-        "recall_at_1": 0.5,
+        "recall_at_1": 0,
         "recall_at_3": 0.5,
         "recall_at_5": 0.5,
         "recall_at_10": 0.5,
         "success_recall_at_10": 1,
-        "mrr_at_10_rel1": 1,
-        "mrr_at_10_rel2": 1,
-        "ndcg_at_10": 0.9173194127129571,
-        "ndcg_at_10_linear": 0.8262346571285599,
-        "top1_grade": 3,
-        "reformulation_signal": false
+        "mrr_at_10_rel1": 0.5,
+        "mrr_at_10_rel2": 0.5,
+        "ndcg_at_10": 0.5787641110093001,
+        "ndcg_at_10_linear": 0.52129602861432,
+        "top1_grade": 0,
+        "reformulation_signal": true
       },
       "zero_result": false,
       "false_positive": null
@@ -863,7 +837,7 @@
         "limit": 10
       },
       "call": "grep(\"150 + hitCount\", in=<root>, mode=literal, limit=10)",
-      "ms": 2.357540999997582,
+      "ms": 1.5253750000010768,
       "us_source": "scan",
       "us_error": null,
       "retrieved": [
@@ -906,7 +880,7 @@
         "limit": 10
       },
       "call": "grep(\"SUPERCALIFRAGILISTIC_TOKEN_ZZZ\", in=<root>, mode=literal, limit=10)",
-      "ms": 1.9217500000013388,
+      "ms": 1.3082909999975527,
       "us_source": "scan",
       "us_error": null,
       "retrieved": [],
@@ -928,7 +902,7 @@
         "limit": 10
       },
       "call": "grep(\"class\\\\s+\\\\w+Client\", in=<root>, mode=regex, limit=10)",
-      "ms": 3.1346250000024156,
+      "ms": 2.735625000001164,
       "us_source": "scan",
       "us_error": null,
       "retrieved": [
@@ -978,20 +952,20 @@
         "limit": 10
       },
       "call": "grep(\"(startAutoCompaction|recordMistake|loadIgnoreRules)\", in=<root>, mode=regex, limit=10)",
-      "ms": 2.629625000001397,
+      "ms": 1.2422919999989972,
       "us_source": "scan",
       "us_error": null,
       "retrieved": [
-        "src/recursive-learning.ts",
-        "src/compactor.ts",
-        "src/sanitize.ts",
         "AUDIT-2026-10-14.md",
-        "src/observer.ts",
-        "test/client.test.ts",
+        "CHANGELOG.md",
         "OPTIMIZATIONS.md",
+        "README.md",
+        "ROADMAP.md",
         "index.ts",
         "src/client.ts",
-        "ROADMAP.md"
+        "src/compactor.ts",
+        "src/observer.ts",
+        "src/recursive-learning.ts"
       ],
       "retrieved_count": 10,
       "control": null,
@@ -1000,66 +974,66 @@
         "top10": [
           {
             "rank": 1,
-            "path": "src/recursive-learning.ts",
-            "grade": 3
-          },
-          {
-            "rank": 2,
-            "path": "src/compactor.ts",
-            "grade": 3
-          },
-          {
-            "rank": 3,
-            "path": "src/sanitize.ts",
-            "grade": 3
-          },
-          {
-            "rank": 4,
             "path": "AUDIT-2026-10-14.md",
             "grade": 1
           },
           {
-            "rank": 5,
-            "path": "src/observer.ts",
+            "rank": 2,
+            "path": "CHANGELOG.md",
             "grade": 0
           },
           {
-            "rank": 6,
-            "path": "test/client.test.ts",
-            "grade": 2
-          },
-          {
-            "rank": 7,
+            "rank": 3,
             "path": "OPTIMIZATIONS.md",
             "grade": 1
           },
           {
-            "rank": 8,
+            "rank": 4,
+            "path": "README.md",
+            "grade": 0
+          },
+          {
+            "rank": 5,
+            "path": "ROADMAP.md",
+            "grade": 0
+          },
+          {
+            "rank": 6,
             "path": "index.ts",
             "grade": 0
           },
           {
-            "rank": 9,
+            "rank": 7,
             "path": "src/client.ts",
             "grade": 0
           },
           {
-            "rank": 10,
-            "path": "ROADMAP.md",
+            "rank": 8,
+            "path": "src/compactor.ts",
+            "grade": 3
+          },
+          {
+            "rank": 9,
+            "path": "src/observer.ts",
             "grade": 0
+          },
+          {
+            "rank": 10,
+            "path": "src/recursive-learning.ts",
+            "grade": 3
           }
         ],
         "recall_at_1": 0.16666666666666666,
-        "recall_at_3": 0.5,
-        "recall_at_5": 0.6666666666666666,
-        "recall_at_10": 1,
-        "success_recall_at_10": 1,
+        "recall_at_3": 0.3333333333333333,
+        "recall_at_5": 0.3333333333333333,
+        "recall_at_10": 0.6666666666666666,
+        "success_recall_at_10": 0.5,
         "mrr_at_10_rel1": 1,
-        "mrr_at_10_rel2": 1,
-        "ndcg_at_10": 0.9880566884310259,
-        "ndcg_at_10_linear": 0.9839957976645133,
-        "top1_grade": 3,
-        "reformulation_signal": false
+        "mrr_at_10_rel2": 0.125,
+        "ndcg_at_10": 0.338121983591631,
+        "ndcg_at_10_linear": 0.4143435360898708,
+        "top1_grade": 1,
+        "reformulation_signal": true
       },
       "zero_result": false,
       "false_positive": null
@@ -1076,18 +1050,21 @@
         "limit": 10
       },
       "call": "grep(\"(a+)+$\", in=<root>, mode=regex, limit=10)",
-      "ms": 0.11495800000193412,
-      "us_source": null,
-      "us_error": "rejected regex pattern: a quantified group contains an inner quantifier (e.g. \"(a+)+$\"), which can backtrack exponentially on long inputs. Narrow the pattern or use mode: \"literal\".",
-      "retrieved": [],
-      "retrieved_count": 0,
+      "ms": 1.489041000000725,
+      "us_source": "scan",
+      "us_error": null,
+      "retrieved": [
+        "AUDIT-2026-10-14.md",
+        "LICENSE"
+      ],
+      "retrieved_count": 2,
       "control": null,
       "extra": null,
-      "zero_result": true,
-      "error_class": "error_returned",
-      "false_positive": false,
-      "audit_row_present": false,
-      "reached_socket_or_recorder": false
+      "zero_result": false,
+      "error_class": "no_error",
+      "false_positive": true,
+      "audit_row_present": true,
+      "reached_socket_or_recorder": true
     },
     {
       "id": "S1",
@@ -1101,13 +1078,14 @@
         "limit": 10
       },
       "call": "grep(\"FSearchClient\", in=<root>, mode=symbol, limit=10)",
-      "ms": 7.694208000000799,
+      "ms": 1.5709999999999127,
       "us_source": "scan",
       "us_error": null,
       "retrieved": [
-        "src/client.ts"
+        "src/client.ts",
+        "test/benchmark-gate.test.ts"
       ],
-      "retrieved_count": 1,
+      "retrieved_count": 2,
       "control": null,
       "extra": null,
       "score": {
@@ -1116,6 +1094,11 @@
             "rank": 1,
             "path": "src/client.ts",
             "grade": 3
+          },
+          {
+            "rank": 2,
+            "path": "test/benchmark-gate.test.ts",
+            "grade": 0
           }
         ],
         "recall_at_1": 0.2,
@@ -1145,7 +1128,7 @@
         "limit": 10
       },
       "call": "grep(\"detectSymbolTag\", in=<root>, mode=symbol, limit=10)",
-      "ms": 5.6368340000008175,
+      "ms": 2.085291999999754,
       "us_source": "scan",
       "us_error": null,
       "retrieved": [
@@ -1189,36 +1172,28 @@
         "limit": 10
       },
       "call": "grep(\"applyProximityRanking\", in=<root>, mode=symbol, limit=10)",
-      "ms": 5.11016699999891,
+      "ms": 1.3304580000003625,
       "us_source": "scan",
       "us_error": null,
-      "retrieved": [
-        "src/client.ts"
-      ],
-      "retrieved_count": 1,
+      "retrieved": [],
+      "retrieved_count": 0,
       "control": null,
       "extra": null,
       "score": {
-        "top10": [
-          {
-            "rank": 1,
-            "path": "src/client.ts",
-            "grade": 3
-          }
-        ],
-        "recall_at_1": 0.5,
-        "recall_at_3": 0.5,
-        "recall_at_5": 0.5,
-        "recall_at_10": 0.5,
-        "success_recall_at_10": 1,
-        "mrr_at_10_rel1": 1,
-        "mrr_at_10_rel2": 1,
-        "ndcg_at_10": 0.9173194127129571,
-        "ndcg_at_10_linear": 0.8262346571285599,
-        "top1_grade": 3,
-        "reformulation_signal": false
+        "top10": [],
+        "recall_at_1": 0,
+        "recall_at_3": 0,
+        "recall_at_5": 0,
+        "recall_at_10": 0,
+        "success_recall_at_10": 0,
+        "mrr_at_10_rel1": 0,
+        "mrr_at_10_rel2": 0,
+        "ndcg_at_10": 0,
+        "ndcg_at_10_linear": 0,
+        "top1_grade": 0,
+        "reformulation_signal": true
       },
-      "zero_result": false,
+      "zero_result": true,
       "false_positive": null
     },
     {
@@ -1233,7 +1208,7 @@
         "limit": 10
       },
       "call": "grep(\"resolveWorktreeRoot\", in=<root>, mode=symbol, limit=10)",
-      "ms": 5.52324999999837,
+      "ms": 1.247457999998005,
       "us_source": "scan",
       "us_error": null,
       "retrieved": [
@@ -1277,102 +1252,114 @@
         "limit": 10
       },
       "call": "searchSemanticIntent(\"where are credentials scrubbed before results reach the model\", in=<root>, limit=10)",
-      "ms": 62.178875000001426,
+      "ms": 7.242041999998037,
       "us_source": "semantic_intent",
       "us_error": null,
       "retrieved": [
-        "src/sanitize.ts",
-        "src/mcp.ts",
-        "src/formatter.ts",
+        "AUDIT-2026-10-14.md",
         "CHANGELOG.md",
-        "src/semantic.ts",
-        "src/recursive-learning.ts",
+        "LICENSE",
         "OPTIMIZATIONS.md",
+        "ROADMAP.md",
+        "src/observer.ts",
         "test/client.test.ts",
+        "CONTRIBUTING.md",
+        "README.md",
+        "bin/cli.ts",
+        "index.ts",
+        "package.json",
+        "src/recursive-learning.ts",
+        "src/sanitize.ts",
+        "src/tui.ts",
         "test/empirical-10-tests.ts",
-        "AUDIT-2026-10-14.md"
+        "src/formatter.ts",
+        "src/compactor.ts",
+        "src/types.ts",
+        "src/client.ts",
+        "src/codemode.ts",
+        "src/mcp.ts",
+        "src/semantic.ts",
+        ".corpus-meta.json"
       ],
-      "retrieved_count": 10,
+      "retrieved_count": 24,
       "control": null,
       "extra": {
         "expanded_terms": [
-          "credential",
-          "secret",
-          "sanitize",
-          "scrub",
-          "redact",
-          "mask",
-          "dlp",
-          "passwd",
-          "password",
-          "auth"
+          "where",
+          "are",
+          "credentials",
+          "scrubbed",
+          "before",
+          "results",
+          "reach",
+          "the"
         ],
-        "confidence": 0.8539015822087903
+        "confidence": 1
       },
       "score": {
         "top10": [
           {
             "rank": 1,
-            "path": "src/sanitize.ts",
-            "grade": 3
+            "path": "AUDIT-2026-10-14.md",
+            "grade": 1
           },
           {
             "rank": 2,
-            "path": "src/mcp.ts",
-            "grade": 0
-          },
-          {
-            "rank": 3,
-            "path": "src/formatter.ts",
-            "grade": 2
-          },
-          {
-            "rank": 4,
             "path": "CHANGELOG.md",
             "grade": 0
           },
           {
-            "rank": 5,
-            "path": "src/semantic.ts",
+            "rank": 3,
+            "path": "LICENSE",
             "grade": 0
           },
           {
-            "rank": 6,
-            "path": "src/recursive-learning.ts",
-            "grade": 0
-          },
-          {
-            "rank": 7,
+            "rank": 4,
             "path": "OPTIMIZATIONS.md",
             "grade": 0
           },
           {
-            "rank": 8,
+            "rank": 5,
+            "path": "ROADMAP.md",
+            "grade": 0
+          },
+          {
+            "rank": 6,
+            "path": "src/observer.ts",
+            "grade": 0
+          },
+          {
+            "rank": 7,
             "path": "test/client.test.ts",
             "grade": 0
           },
           {
+            "rank": 8,
+            "path": "CONTRIBUTING.md",
+            "grade": 0
+          },
+          {
             "rank": 9,
-            "path": "test/empirical-10-tests.ts",
-            "grade": 1
+            "path": "README.md",
+            "grade": 0
           },
           {
             "rank": 10,
-            "path": "AUDIT-2026-10-14.md",
-            "grade": 1
+            "path": "bin/cli.ts",
+            "grade": 0
           }
         ],
         "recall_at_1": 0.25,
-        "recall_at_3": 0.5,
-        "recall_at_5": 0.5,
-        "recall_at_10": 1,
-        "success_recall_at_10": 1,
+        "recall_at_3": 0.25,
+        "recall_at_5": 0.25,
+        "recall_at_10": 0.25,
+        "success_recall_at_10": 0,
         "mrr_at_10_rel1": 1,
-        "mrr_at_10_rel2": 1,
-        "ndcg_at_10": 0.9253449841090406,
-        "ndcg_at_10_linear": 0.883979382007558,
-        "top1_grade": 3,
-        "reformulation_signal": false
+        "mrr_at_10_rel2": 0,
+        "ndcg_at_10": 0.1017970661726598,
+        "ndcg_at_10_linear": 0.1925841221785221,
+        "top1_grade": 1,
+        "reformulation_signal": true
       },
       "zero_result": false,
       "false_positive": null
@@ -1389,69 +1376,78 @@
         "limit": 10
       },
       "call": "searchSemanticIntent(\"how is the token savings number computed\", in=<root>, limit=10)",
-      "ms": 17.568499999997584,
+      "ms": 5.2994999999973516,
       "us_source": "semantic_intent",
       "us_error": null,
       "retrieved": [
-        "src/telemetry.ts",
-        "src/codemode.ts",
-        "src/tui.ts",
-        "src/recursive-learning.ts",
-        "test/deep-bench.ts",
-        "OPTIMIZATIONS.md",
-        "src/mcp.ts",
-        "README.md",
         "AUDIT-2026-10-14.md",
-        "src/semantic.ts"
+        "CHANGELOG.md",
+        "LICENSE",
+        "OPTIMIZATIONS.md",
+        "index.ts",
+        "src/formatter.ts",
+        "src/mcp.ts",
+        "src/tui.ts",
+        "test/client.test.ts",
+        ".corpus-meta.json",
+        "CONTRIBUTING.md",
+        "README.md",
+        "ROADMAP.md",
+        "bin/cli.ts",
+        "src/client.ts",
+        "src/codemode.ts",
+        "package.json",
+        "src/sanitize.ts",
+        "src/semantic.ts",
+        "test/empirical-10-tests.ts",
+        "src/telemetry.ts"
       ],
-      "retrieved_count": 10,
+      "retrieved_count": 21,
       "control": null,
       "extra": {
         "expanded_terms": [
+          "how",
+          "the",
           "token",
           "auth",
-          "session",
-          "credential",
-          "save",
-          "estimate",
-          "telemetry",
-          "metric",
-          "number",
-          "compute"
+          "login",
+          "jwt",
+          "password",
+          "session"
         ],
-        "confidence": 0.9002803329285604
+        "confidence": 1
       },
       "score": {
         "top10": [
           {
             "rank": 1,
-            "path": "src/telemetry.ts",
-            "grade": 3
+            "path": "AUDIT-2026-10-14.md",
+            "grade": 0
           },
           {
             "rank": 2,
-            "path": "src/codemode.ts",
+            "path": "CHANGELOG.md",
             "grade": 0
           },
           {
             "rank": 3,
-            "path": "src/tui.ts",
+            "path": "LICENSE",
             "grade": 0
           },
           {
             "rank": 4,
-            "path": "src/recursive-learning.ts",
-            "grade": 0
+            "path": "OPTIMIZATIONS.md",
+            "grade": 1
           },
           {
             "rank": 5,
-            "path": "test/deep-bench.ts",
+            "path": "index.ts",
             "grade": 0
           },
           {
             "rank": 6,
-            "path": "OPTIMIZATIONS.md",
-            "grade": 1
+            "path": "src/formatter.ts",
+            "grade": 0
           },
           {
             "rank": 7,
@@ -1460,31 +1456,31 @@
           },
           {
             "rank": 8,
-            "path": "README.md",
-            "grade": 2
+            "path": "src/tui.ts",
+            "grade": 0
           },
           {
             "rank": 9,
-            "path": "AUDIT-2026-10-14.md",
+            "path": "test/client.test.ts",
             "grade": 0
           },
           {
             "rank": 10,
-            "path": "src/semantic.ts",
+            "path": ".corpus-meta.json",
             "grade": 0
           }
         ],
-        "recall_at_1": 0.3333333333333333,
-        "recall_at_3": 0.3333333333333333,
+        "recall_at_1": 0,
+        "recall_at_3": 0,
         "recall_at_5": 0.3333333333333333,
-        "recall_at_10": 1,
-        "success_recall_at_10": 1,
-        "mrr_at_10_rel1": 1,
-        "mrr_at_10_rel2": 1,
-        "ndcg_at_10": 0.8839335778767115,
-        "ndcg_at_10_linear": 0.8373067148870454,
-        "top1_grade": 3,
-        "reformulation_signal": false
+        "recall_at_10": 0.3333333333333333,
+        "success_recall_at_10": 0,
+        "mrr_at_10_rel1": 0.25,
+        "mrr_at_10_rel2": 0,
+        "ndcg_at_10": 0.045851828048001766,
+        "ndcg_at_10_linear": 0.09044293671986055,
+        "top1_grade": 0,
+        "reformulation_signal": true
       },
       "zero_result": false,
       "false_positive": null
@@ -1501,64 +1497,69 @@
         "limit": 10
       },
       "call": "searchSemanticIntent(\"what happens when the daemon socket dies mid-session\", in=<root>, limit=10)",
-      "ms": 18.156499999997322,
+      "ms": 4.799917000000278,
       "us_source": "semantic_intent",
       "us_error": null,
       "retrieved": [
-        "src/client.ts",
-        "src/telemetry.ts",
-        "src/tui.ts",
         "AUDIT-2026-10-14.md",
+        "LICENSE",
         "README.md",
-        "OPTIMIZATIONS.md",
         "ROADMAP.md",
+        "CONTRIBUTING.md",
+        "OPTIMIZATIONS.md",
+        "index.ts",
+        "src/formatter.ts",
+        "src/telemetry.ts",
+        ".corpus-meta.json",
         "CHANGELOG.md",
-        "test/benchmark-gate.test.ts",
-        "bin/cli.ts"
+        "bin/cli.ts",
+        "package.json",
+        "src/client.ts",
+        "src/recursive-learning.ts",
+        "src/tui.ts",
+        "test/bench.ts"
       ],
-      "retrieved_count": 10,
+      "retrieved_count": 17,
       "control": null,
       "extra": {
         "expanded_terms": [
-          "happen",
+          "what",
+          "happens",
+          "when",
+          "the",
           "daemon",
-          "resident",
-          "serve",
           "socket",
-          "sock",
-          "spawn",
-          "reconnect",
-          "retry",
-          "fallback"
+          "dies",
+          "mid"
         ],
-        "confidence": 0.8584141192858336
+        "confidence": 1
       },
       "score": {
         "top10": [
           {
             "rank": 1,
-            "path": "src/client.ts",
-            "grade": 3
-          },
-          {
-            "rank": 2,
-            "path": "src/telemetry.ts",
-            "grade": 0
-          },
-          {
-            "rank": 3,
-            "path": "src/tui.ts",
-            "grade": 0
-          },
-          {
-            "rank": 4,
             "path": "AUDIT-2026-10-14.md",
             "grade": 1
           },
           {
-            "rank": 5,
+            "rank": 2,
+            "path": "LICENSE",
+            "grade": 0
+          },
+          {
+            "rank": 3,
             "path": "README.md",
             "grade": 1
+          },
+          {
+            "rank": 4,
+            "path": "ROADMAP.md",
+            "grade": 0
+          },
+          {
+            "rank": 5,
+            "path": "CONTRIBUTING.md",
+            "grade": 0
           },
           {
             "rank": 6,
@@ -1567,36 +1568,36 @@
           },
           {
             "rank": 7,
-            "path": "ROADMAP.md",
+            "path": "index.ts",
             "grade": 0
           },
           {
             "rank": 8,
-            "path": "CHANGELOG.md",
+            "path": "src/formatter.ts",
             "grade": 0
           },
           {
             "rank": 9,
-            "path": "test/benchmark-gate.test.ts",
+            "path": "src/telemetry.ts",
             "grade": 0
           },
           {
             "rank": 10,
-            "path": "bin/cli.ts",
+            "path": ".corpus-meta.json",
             "grade": 0
           }
         ],
         "recall_at_1": 0.3333333333333333,
-        "recall_at_3": 0.3333333333333333,
-        "recall_at_5": 1,
-        "recall_at_10": 1,
-        "success_recall_at_10": 1,
+        "recall_at_3": 0.6666666666666666,
+        "recall_at_5": 0.6666666666666666,
+        "recall_at_10": 0.6666666666666666,
+        "success_recall_at_10": 0,
         "mrr_at_10_rel1": 1,
-        "mrr_at_10_rel2": 1,
-        "ndcg_at_10": 0.9614557747069621,
-        "ndcg_at_10_linear": 0.924133208028394,
-        "top1_grade": 3,
-        "reformulation_signal": false
+        "mrr_at_10_rel2": 0,
+        "ndcg_at_10": 0.18448074764649575,
+        "ndcg_at_10_linear": 0.3631143808977028,
+        "top1_grade": 1,
+        "reformulation_signal": true
       },
       "zero_result": false,
       "false_positive": null
@@ -1613,101 +1614,107 @@
         "limit": 10
       },
       "call": "searchSemanticIntent(\"what does CI run on every push\", in=<root>, limit=10)",
-      "ms": 29.841749999999593,
+      "ms": 3.8841670000001614,
       "us_source": "semantic_intent",
       "us_error": null,
       "retrieved": [
-        "src/compactor.ts",
-        "src/tui.ts",
-        "src/telemetry.ts",
-        "src/client.ts",
-        ".github/workflows/ci.yml",
         "AUDIT-2026-10-14.md",
-        "src/formatter.ts",
-        "test/benchmark-gate.test.ts",
+        "LICENSE",
         "README.md",
-        "ROADMAP.md"
+        "ROADMAP.md",
+        "src/compactor.ts",
+        ".github/workflows/ci.yml",
+        "CHANGELOG.md",
+        "CONTRIBUTING.md",
+        "OPTIMIZATIONS.md",
+        "bin/cli.ts",
+        "bin/tui.ts",
+        "index.ts",
+        "src/client.ts",
+        "test/empirical-10-tests.ts",
+        "src/formatter.ts",
+        "src/recursive-learning.ts",
+        "src/sanitize.ts",
+        "src/telemetry.ts",
+        "src/tui.ts",
+        "test/bench.ts",
+        "test/benchmark-gate.test.ts"
       ],
-      "retrieved_count": 10,
+      "retrieved_count": 21,
       "control": null,
       "extra": {
         "expanded_terms": [
-          "ci",
-          "workflow",
-          "github",
-          "action",
-          "pipeline",
-          "push",
-          "job",
-          "matrix",
+          "what",
+          "does",
           "run",
-          "catastrophic"
+          "every",
+          "push"
         ],
-        "confidence": 0.7792174827961781
+        "confidence": 1
       },
       "score": {
         "top10": [
           {
             "rank": 1,
-            "path": "src/compactor.ts",
-            "grade": 0
-          },
-          {
-            "rank": 2,
-            "path": "src/tui.ts",
-            "grade": 0
-          },
-          {
-            "rank": 3,
-            "path": "src/telemetry.ts",
-            "grade": 0
-          },
-          {
-            "rank": 4,
-            "path": "src/client.ts",
-            "grade": 0
-          },
-          {
-            "rank": 5,
-            "path": ".github/workflows/ci.yml",
-            "grade": 3
-          },
-          {
-            "rank": 6,
             "path": "AUDIT-2026-10-14.md",
             "grade": 1
           },
           {
-            "rank": 7,
-            "path": "src/formatter.ts",
+            "rank": 2,
+            "path": "LICENSE",
             "grade": 0
           },
           {
-            "rank": 8,
-            "path": "test/benchmark-gate.test.ts",
-            "grade": 0
-          },
-          {
-            "rank": 9,
+            "rank": 3,
             "path": "README.md",
             "grade": 2
           },
           {
-            "rank": 10,
+            "rank": 4,
             "path": "ROADMAP.md",
+            "grade": 0
+          },
+          {
+            "rank": 5,
+            "path": "src/compactor.ts",
+            "grade": 0
+          },
+          {
+            "rank": 6,
+            "path": ".github/workflows/ci.yml",
+            "grade": 3
+          },
+          {
+            "rank": 7,
+            "path": "CHANGELOG.md",
+            "grade": 0
+          },
+          {
+            "rank": 8,
+            "path": "CONTRIBUTING.md",
+            "grade": 0
+          },
+          {
+            "rank": 9,
+            "path": "OPTIMIZATIONS.md",
+            "grade": 0
+          },
+          {
+            "rank": 10,
+            "path": "bin/cli.ts",
             "grade": 0
           }
         ],
-        "recall_at_1": 0,
-        "recall_at_3": 0,
-        "recall_at_5": 0.3333333333333333,
+        "recall_at_1": 0.3333333333333333,
+        "recall_at_3": 0.6666666666666666,
+        "recall_at_5": 0.6666666666666666,
         "recall_at_10": 1,
         "success_recall_at_10": 1,
-        "mrr_at_10_rel1": 0.2,
-        "mrr_at_10_rel2": 0.2,
-        "ndcg_at_10": 0.42237366501290213,
-        "ndcg_at_10_linear": 0.4449576046839086,
-        "top1_grade": 0,
+        "mrr_at_10_rel1": 1,
+        "mrr_at_10_rel2": 0.3333333333333333,
+        "ndcg_at_10": 0.531625928268338,
+        "ndcg_at_10_linear": 0.6444166520916993,
+        "top1_grade": 1,
         "reformulation_signal": true
       },
       "zero_result": false,
@@ -1725,102 +1732,107 @@
         "limit": 10
       },
       "call": "searchSemanticIntent(\"keep search results inside the repository boundary\", in=<root>, limit=10)",
-      "ms": 31.03083400000105,
+      "ms": 4.686375000001135,
       "us_source": "semantic_intent",
       "us_error": null,
       "retrieved": [
-        "src/sanitize.ts",
-        "index.ts",
-        "src/mcp.ts",
-        "src/types.ts",
-        "src/client.ts",
         "AUDIT-2026-10-14.md",
         "CHANGELOG.md",
-        "README.md",
+        "LICENSE",
         "OPTIMIZATIONS.md",
-        "bin/cli.ts"
+        "README.md",
+        "bin/cli.ts",
+        ".corpus-meta.json",
+        "CONTRIBUTING.md",
+        "ROADMAP.md",
+        "bin/mcp-server.ts",
+        "index.ts",
+        "src/client.ts",
+        "src/codemode.ts",
+        "src/mcp.ts",
+        "package.json",
+        "src/sanitize.ts",
+        "test/client.test.ts",
+        "test/empirical-10-tests.ts"
       ],
-      "retrieved_count": 10,
+      "retrieved_count": 18,
       "control": null,
       "extra": {
         "expanded_terms": [
           "keep",
           "search",
-          "result",
+          "results",
           "inside",
-          "within",
-          "outside",
-          "pathsafe",
-          "scope",
-          "boundary",
-          "contain"
+          "the",
+          "repository",
+          "boundary"
         ],
-        "confidence": 0.8590519676393562
+        "confidence": 1
       },
       "score": {
         "top10": [
           {
             "rank": 1,
-            "path": "src/sanitize.ts",
-            "grade": 3
-          },
-          {
-            "rank": 2,
-            "path": "index.ts",
-            "grade": 3
-          },
-          {
-            "rank": 3,
-            "path": "src/mcp.ts",
-            "grade": 0
-          },
-          {
-            "rank": 4,
-            "path": "src/types.ts",
-            "grade": 0
-          },
-          {
-            "rank": 5,
-            "path": "src/client.ts",
-            "grade": 2
-          },
-          {
-            "rank": 6,
             "path": "AUDIT-2026-10-14.md",
             "grade": 1
           },
           {
-            "rank": 7,
+            "rank": 2,
             "path": "CHANGELOG.md",
             "grade": 0
           },
           {
-            "rank": 8,
-            "path": "README.md",
+            "rank": 3,
+            "path": "LICENSE",
             "grade": 0
           },
           {
-            "rank": 9,
+            "rank": 4,
             "path": "OPTIMIZATIONS.md",
             "grade": 1
           },
           {
-            "rank": 10,
+            "rank": 5,
+            "path": "README.md",
+            "grade": 0
+          },
+          {
+            "rank": 6,
             "path": "bin/cli.ts",
+            "grade": 0
+          },
+          {
+            "rank": 7,
+            "path": ".corpus-meta.json",
+            "grade": 0
+          },
+          {
+            "rank": 8,
+            "path": "CONTRIBUTING.md",
+            "grade": 0
+          },
+          {
+            "rank": 9,
+            "path": "ROADMAP.md",
+            "grade": 0
+          },
+          {
+            "rank": 10,
+            "path": "bin/mcp-server.ts",
             "grade": 0
           }
         ],
         "recall_at_1": 0.2,
-        "recall_at_3": 0.4,
-        "recall_at_5": 0.6,
-        "recall_at_10": 1,
-        "success_recall_at_10": 1,
+        "recall_at_3": 0.2,
+        "recall_at_5": 0.4,
+        "recall_at_10": 0.4,
+        "success_recall_at_10": 0,
         "mrr_at_10_rel1": 1,
-        "mrr_at_10_rel2": 1,
-        "ndcg_at_10": 0.9636134854206578,
-        "ndcg_at_10_linear": 0.9423892381849525,
-        "top1_grade": 3,
-        "reformulation_signal": false
+        "mrr_at_10_rel2": 0,
+        "ndcg_at_10": 0.10417013521751892,
+        "ndcg_at_10_linear": 0.21320545831092064,
+        "top1_grade": 1,
+        "reformulation_signal": true
       },
       "zero_result": false,
       "false_positive": null
@@ -1837,25 +1849,45 @@
         "limit": 10
       },
       "call": "searchSemanticIntent(\"kubernetes helm chart values for a redis cluster\", in=<root>, limit=10)",
-      "ms": 10.395291000000725,
+      "ms": 4.004875000002357,
       "us_source": "semantic_intent",
       "us_error": null,
-      "retrieved": [],
-      "retrieved_count": 0,
+      "retrieved": [
+        "README.md",
+        "src/client.ts",
+        "src/recursive-learning.ts",
+        "src/telemetry.ts",
+        "src/tui.ts",
+        "AUDIT-2026-10-14.md",
+        "CHANGELOG.md",
+        "CONTRIBUTING.md",
+        "LICENSE",
+        "OPTIMIZATIONS.md",
+        "ROADMAP.md",
+        "bin/cli.ts",
+        "index.ts",
+        "package.json",
+        "src/sanitize.ts",
+        "src/semantic.ts",
+        ".corpus-meta.json"
+      ],
+      "retrieved_count": 17,
       "control": null,
       "extra": {
         "expanded_terms": [
-          "kubernet",
+          "kubernetes",
           "helm",
           "chart",
-          "value",
-          "redi",
-          "cluster"
+          "values",
+          "for",
+          "redis",
+          "cache",
+          "memoize"
         ],
-        "confidence": 0
+        "confidence": 1
       },
-      "zero_result": true,
-      "false_positive": false
+      "zero_result": false,
+      "false_positive": true
     },
     {
       "id": "K1",
@@ -1868,7 +1900,7 @@
         "limit": 10
       },
       "call": "search(\"readme\", in=<root>, limit=10)",
-      "ms": 2.1339590000025055,
+      "ms": 2.297374999998283,
       "us_source": null,
       "us_error": null,
       "retrieved": [
@@ -1912,7 +1944,7 @@
         "limit": 10
       },
       "call": "search(\"sanitize\", in=<root>, limit=10, near=/Users/batra/.cache/pi-ultrasearch-bench/corpus-0a16e50/src/formatter.ts)",
-      "ms": 2.0351250000021537,
+      "ms": 3.2630000000026484,
       "us_source": null,
       "us_error": null,
       "retrieved": [
@@ -1956,7 +1988,7 @@
         "boost": true
       },
       "call": "search(\"client\", in=<root>, limit=10, boost=true)",
-      "ms": 1.7985829999997804,
+      "ms": 2.2283339999994496,
       "us_source": null,
       "us_error": null,
       "retrieved": [
@@ -1969,7 +2001,7 @@
           "boost": false
         },
         "call": "boost=false",
-        "ms": 0.8863749999982247,
+        "ms": 2.023332999997365,
         "retrieved": [
           "src/client.ts",
           "test/client.test.ts"
@@ -2043,13 +2075,14 @@
         "limit": 10
       },
       "call": "grep(\"FSearchClient\", in=<root>, mode=symbol, limit=10)",
-      "ms": 6.3915000000015425,
+      "ms": 1.8802910000013071,
       "us_source": "scan",
       "us_error": null,
       "retrieved": [
-        "src/client.ts"
+        "src/client.ts",
+        "test/benchmark-gate.test.ts"
       ],
-      "retrieved_count": 1,
+      "retrieved_count": 2,
       "control": null,
       "extra": null,
       "score": {
@@ -2058,6 +2091,11 @@
             "rank": 1,
             "path": "src/client.ts",
             "grade": 3
+          },
+          {
+            "rank": 2,
+            "path": "test/benchmark-gate.test.ts",
+            "grade": 0
           }
         ],
         "recall_at_1": 1,

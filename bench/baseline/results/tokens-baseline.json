@@ -2,10 +2,10 @@
   "meta": {
     "suite": "tokens",
     "wave": "wave1/baseline",
-    "generated_at": "2026-10-17T04:06:09.535Z",
-    "date_short": "2026-10-17",
-    "commit": "42104cb73f6e5e5f107280b18b1dadd5718720d0",
-    "branch": "main",
+    "generated_at": "2026-10-14T20:36:02.439Z",
+    "date_short": "2026-10-14",
+    "commit": "0a16e5055002c2d80feed47afecc2e0416afd1a2",
+    "branch": "wave1/baseline",
     "machine": {
       "chip": "Apple M1 Pro",
       "model": "MacBookPro18,1",
@@ -19,64 +19,26 @@
       "cpuCount": 10,
       "totalMemBytes": 17179869184,
       "loadavg_at_start": [
-        5.29833984375,
-        16.47509765625,
-        18.67822265625
+        5.44482421875,
+        5.1162109375,
+        4.8115234375
       ]
     },
     "daemon": {
-      "compactions": 1,
-      "compactions_postponed": 0,
-      "content_bytes": 194726912,
-      "content_docs": 156454,
+      "content_bytes": 142221952,
+      "content_docs": 129654,
       "content_pending": 0,
-      "content_policy": {
-        "configured": false,
-        "extensions": null,
-        "max_file_bytes": null,
-        "roots": null,
-        "source": null,
-        "warm": 0
-      },
-      "content_segments": 49,
-      "deny_configured": false,
-      "deny_rules": 0,
-      "dirs": 881509,
-      "entries": 5039377,
-      "event_id": 5774563912,
-      "event_lag": 1,
+      "content_segments": 40,
+      "dirs": 629510,
+      "entries": 3919708,
+      "event_id": 5678039533,
       "full_disk_access": true,
       "id": 1,
-      "index_bytes": 147143872,
-      "last_compact_bytes": 147143872,
-      "last_compact_entries": 5039377,
-      "last_compact_ms": 2498,
-      "last_compact_secs_ago": 0,
-      "last_event_id": 5774563913,
-      "lock_pid": 864,
+      "index_bytes": 124888128,
       "ok": true,
-      "overlay": 4814,
+      "overlay": 429,
       "owner": true,
-      "pid": 864,
-      "queries_in_flight": 0,
-      "removed": 2703,
-      "replay_in_progress": false,
-      "socket": "/Users/batra/Library/Application Support/UltraSearch/ultrasearch.sock",
-      "socket_dev": 16777230,
-      "socket_ino": 43641386,
-      "staleness_ms": 0,
-      "uptime_ms": 631046,
-      "daemon_health": {
-        "pid": 864,
-        "uptime_ms": 631046,
-        "socket": "/Users/batra/Library/Application Support/UltraSearch/ultrasearch.sock",
-        "socket_owners": [
-          864
-        ],
-        "lock_pid": 864,
-        "duplicate_suspected": false,
-        "duplicates": []
-      }
+      "removed": 231
     },
     "estimator": {
       "formula": "ceil(characters / 4)",
@@ -90,7 +52,7 @@
     "tasks": [
       {
         "id": "t01",
-        "tool": "ultrasearch_query",
+        "tool": "fsearch_query",
         "params": {
           "query": "package.json",
           "limit": 30
@@ -98,7 +60,7 @@
       },
       {
         "id": "t02",
-        "tool": "ultrasearch_query",
+        "tool": "fsearch_query",
         "params": {
           "query": "module_01232.ts",
           "limit": 30
@@ -106,7 +68,7 @@
       },
       {
         "id": "t03",
-        "tool": "ultrasearch_query",
+        "tool": "fsearch_query",
         "params": {
           "query": "zzz_absent_alpha_9c3f.ts",
           "limit": 30
@@ -114,7 +76,7 @@
       },
       {
         "id": "t04",
-        "tool": "ultrasearch_grep",
+        "tool": "fsearch_grep",
         "params": {
           "pattern": "FSearchClient",
           "limit": 30,
@@ -124,7 +86,7 @@
       },
       {
         "id": "t05",
-        "tool": "ultrasearch_grep",
+        "tool": "fsearch_grep",
         "params": {
           "pattern": "ULTRAMARKER_1232",
           "limit": 30,
@@ -134,7 +96,7 @@
       },
       {
         "id": "t06",
-        "tool": "ultrasearch_grep",
+        "tool": "fsearch_grep",
         "params": {
           "pattern": "zzz_absent_token_9c3f",
           "limit": 30,
@@ -144,7 +106,7 @@
       },
       {
         "id": "t07",
-        "tool": "ultrasearch_multi_grep",
+        "tool": "fsearch_multi_grep",
         "params": {
           "patterns": [
             "recordAudit",
@@ -155,7 +117,7 @@
       },
       {
         "id": "t08",
-        "tool": "ultrasearch_multi_grep",
+        "tool": "fsearch_multi_grep",
         "params": {
           "patterns": [
             "ULTRAMARKER_1232",
@@ -166,7 +128,7 @@
       },
       {
         "id": "t09",
-        "tool": "ultrasearch_locate",
+        "tool": "fsearch_locate",
         "params": {
           "filename": "package.json",
           "global": true,
@@ -175,7 +137,7 @@
       },
       {
         "id": "t10",
-        "tool": "ultrasearch_recent",
+        "tool": "fsearch_recent",
         "params": {
           "limit": 15
         }
@@ -188,72 +150,82 @@
       "gate_rule": "AC power AND 1-min load < 1.5 AND no cargo/rustc process",
       "gate_load1_max": 1.5,
       "checks": {
-        "ac_power": true,
+        "ac_power": false,
         "load1_lt_gate": false,
-        "no_cargo_rustc": true
+        "no_cargo_rustc": false
       },
       "power": {
-        "on_ac": true,
-        "percent": 100,
-        "discharging": false,
-        "raw": "Now drawing from 'AC Power' |  -InternalBattery-0 (id=23527523)\t100%; charged; 0:00 remaining present: true"
+        "on_ac": false,
+        "percent": 23,
+        "discharging": true,
+        "raw": "Now drawing from 'Battery Power' |  -InternalBattery-0 (id=23003235)\t23%; discharging; 0:52 remaining present: true"
       },
       "loadavg": [
-        5.29833984375,
-        16.47509765625,
-        18.67822265625
+        5.44482421875,
+        5.1162109375,
+        4.8115234375
       ],
-      "competing_processes": [],
+      "competing_processes": [
+        "14358 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+        "15169 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+        "15174 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc",
+        "15263 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc"
+      ],
       "daemon_processes": [
-        "864 /Applications/UltraSearch.app/Contents/MacOS/UltraSearch serve"
+        "13298 /Applications/UltraSearch.app/Contents/MacOS/UltraSearch serve"
       ],
-      "daemon_pid": "864",
+      "daemon_pid": "13298",
       "daemon_status": {
         "ok": true,
-        "entries": 5039377,
-        "content_docs": 156454,
+        "entries": 3919708,
+        "content_docs": 129654,
         "content_pending": 0,
-        "index_bytes": 147143872,
-        "content_bytes": 194726912,
+        "index_bytes": 124888128,
+        "content_bytes": 142221952,
         "full_disk_access": true
       },
-      "checked_at": "2026-10-17T04:06:09.534Z",
+      "checked_at": "2026-10-14T20:36:02.438Z",
       "pre_run": {
         "status": "provisional",
         "gate_pass": false,
         "gate_rule": "AC power AND 1-min load < 1.5 AND no cargo/rustc process",
         "gate_load1_max": 1.5,
         "checks": {
-          "ac_power": true,
+          "ac_power": false,
           "load1_lt_gate": false,
-          "no_cargo_rustc": true
+          "no_cargo_rustc": false
         },
         "power": {
-          "on_ac": true,
-          "percent": 100,
-          "discharging": false,
-          "raw": "Now drawing from 'AC Power' |  -InternalBattery-0 (id=23527523)\t100%; charged; 0:00 remaining present: true"
+          "on_ac": false,
+          "percent": 23,
+          "discharging": true,
+          "raw": "Now drawing from 'Battery Power' |  -InternalBattery-0 (id=23003235)\t23%; discharging; 0:52 remaining present: true"
         },
         "loadavg": [
-          5.29833984375,
-          16.47509765625,
-          18.67822265625
+          5.44482421875,
+          5.1162109375,
+          4.8115234375
         ],
-        "competing_processes": [],
+        "competing_processes": [
+          "14358 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+          "15169 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+          "15174 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc",
+          "15263 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc"
+        ],
         "daemon_processes": [
-          "864 /Applications/UltraSearch.app/Contents/MacOS/UltraSearch serve"
+          "13298 /Applications/UltraSearch.app/Contents/MacOS/UltraSearch serve"
         ],
-        "daemon_pid": "864",
+        "daemon_pid": "13298",
         "daemon_status": {
           "ok": true,
-          "entries": 5039377,
-          "content_docs": 156454,
+          "entries": 3919708,
+          "content_docs": 129654,
           "content_pending": 0,
-          "index_bytes": 147143872,
-          "content_bytes": 194726912,
+          "index_bytes": 124888128,
+          "content_bytes": 142221952,
           "full_disk_access": true
         },
-        "checked_at": "2026-10-17T04:06:09.534Z"
+        "checked_at": "2026-10-14T20:36:02.438Z"
       },
       "end_of_run": {
         "status": "provisional",
@@ -261,72 +233,77 @@
         "gate_rule": "AC power AND 1-min load < 1.5 AND no cargo/rustc process",
         "gate_load1_max": 1.5,
         "checks": {
-          "ac_power": true,
+          "ac_power": false,
           "load1_lt_gate": false,
-          "no_cargo_rustc": true
+          "no_cargo_rustc": false
         },
         "power": {
-          "on_ac": true,
-          "percent": 100,
-          "discharging": false,
-          "raw": "Now drawing from 'AC Power' |  -InternalBattery-0 (id=23527523)\t100%; charged; 0:00 remaining present: true"
+          "on_ac": false,
+          "percent": 23,
+          "discharging": true,
+          "raw": "Now drawing from 'Battery Power' |  -InternalBattery-0 (id=23003235)\t23%; discharging; 0:52 remaining present: true"
         },
         "loadavg": [
-          5.29833984375,
-          16.47509765625,
-          18.67822265625
+          5.44482421875,
+          5.1162109375,
+          4.8115234375
         ],
-        "competing_processes": [],
+        "competing_processes": [
+          "14358 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+          "15169 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+          "15174 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc",
+          "15263 /Users/batra/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc"
+        ],
         "daemon_processes": [
-          "864 /Applications/UltraSearch.app/Contents/MacOS/UltraSearch serve"
+          "13298 /Applications/UltraSearch.app/Contents/MacOS/UltraSearch serve"
         ],
-        "daemon_pid": "864",
+        "daemon_pid": "13298",
         "daemon_status": {
           "ok": true,
-          "entries": 5039377,
-          "content_docs": 156454,
+          "entries": 3919708,
+          "content_docs": 129654,
           "content_pending": 0,
-          "index_bytes": 147143872,
-          "content_bytes": 194726912,
+          "index_bytes": 124888128,
+          "content_bytes": 142221952,
           "full_disk_access": true
         },
-        "checked_at": "2026-10-17T04:06:09.858Z"
+        "checked_at": "2026-10-14T20:36:02.759Z"
       },
-      "degraded_during_run": false
+      "degraded_during_run": true
     }
   },
   "summary": {
     "tasks": 10,
-    "total_tool_text_chars": 24506,
-    "total_estimated_tokens": 6130,
-    "max_task_tokens": 2800,
-    "median_task_tokens": 65
+    "total_tool_text_chars": 14724,
+    "total_estimated_tokens": 3684,
+    "max_task_tokens": 1721,
+    "median_task_tokens": 67
   },
   "tasks": [
     {
       "id": "t01",
-      "tool": "ultrasearch_query",
-      "scope": "/Users/batra/.pi/agent/extensions/pi-ultrasearch",
+      "tool": "fsearch_query",
+      "scope": "/Users/batra/ultrasearch-waves/baseline",
       "params": {
         "query": "package.json",
         "limit": 30
       },
       "ok": true,
       "us_source": null,
-      "took_us": 327,
-      "hit_count": 1,
-      "tool_text_chars": 58,
-      "tool_text_lines": 2,
-      "estimated_tokens": 15,
+      "took_us": 232,
+      "hit_count": 4,
+      "tool_text_chars": 268,
+      "tool_text_lines": 5,
+      "estimated_tokens": 67,
       "formatter_token_count": null,
-      "raw_json_chars": 478,
+      "raw_json_chars": 670,
       "dynamic_hint_possible": false,
-      "tool_text_sample": "Found 1 matches in 0.33ms:\npackage.json (file, score: 102)",
+      "tool_text_sample": "Found 4 matches in 0.23ms:\npackage.json (file, score: 118)\nnode_modules/@types/node/package.json [git:ignored] (file, score: 69)\nnode_modules/typescript/package.json [git:ignored] (file, score: 69)\nnode_modules/undici-types/package.json [git:ignored] (file, score: 69)",
       "tool_text_sample_truncated": false
     },
     {
       "id": "t02",
-      "tool": "ultrasearch_query",
+      "tool": "fsearch_query",
       "scope": "/Users/batra/.cache/pi-ultrasearch-bench/fixture-5k",
       "params": {
         "query": "module_01232.ts",
@@ -334,42 +311,42 @@
       },
       "ok": true,
       "us_source": null,
-      "took_us": 190,
+      "took_us": 135,
       "hit_count": 1,
       "tool_text_chars": 67,
       "tool_text_lines": 2,
       "estimated_tokens": 17,
       "formatter_token_count": null,
-      "raw_json_chars": 492,
+      "raw_json_chars": 211,
       "dynamic_hint_possible": false,
-      "tool_text_sample": "Found 1 matches in 0.19ms:\ndir_12/module_01232.ts (file, score: 69)",
+      "tool_text_sample": "Found 1 matches in 0.14ms:\ndir_12/module_01232.ts (file, score: 73)",
       "tool_text_sample_truncated": false
     },
     {
       "id": "t03",
-      "tool": "ultrasearch_query",
-      "scope": "/Users/batra/.pi/agent/extensions/pi-ultrasearch",
+      "tool": "fsearch_query",
+      "scope": "/Users/batra/ultrasearch-waves/baseline",
       "params": {
         "query": "zzz_absent_alpha_9c3f.ts",
         "limit": 30
       },
       "ok": true,
       "us_source": null,
-      "took_us": 107,
+      "took_us": 75,
       "hit_count": 0,
       "tool_text_chars": 82,
       "tool_text_lines": 1,
       "estimated_tokens": 21,
       "formatter_token_count": null,
-      "raw_json_chars": 337,
+      "raw_json_chars": 78,
       "dynamic_hint_possible": true,
       "tool_text_sample": "No files matching \"zzz_absent_alpha_9c3f.ts\" found (zero typo tolerance enforced).",
       "tool_text_sample_truncated": false
     },
     {
       "id": "t04",
-      "tool": "ultrasearch_grep",
-      "scope": "/Users/batra/.pi/agent/extensions/pi-ultrasearch",
+      "tool": "fsearch_grep",
+      "scope": "/Users/batra/ultrasearch-waves/baseline",
       "params": {
         "pattern": "FSearchClient",
         "limit": 30,
@@ -377,21 +354,21 @@
         "mode": "literal"
       },
       "ok": true,
-      "us_source": "index",
-      "took_us": 928,
-      "hit_count": 30,
-      "tool_text_chars": 11199,
-      "tool_text_lines": 84,
-      "estimated_tokens": 2800,
-      "formatter_token_count": 2786,
-      "raw_json_chars": 16078,
+      "us_source": "scan",
+      "took_us": 3273,
+      "hit_count": 27,
+      "tool_text_chars": 6883,
+      "tool_text_lines": 69,
+      "estimated_tokens": 1721,
+      "formatter_token_count": 1707,
+      "raw_json_chars": 11200,
       "dynamic_hint_possible": false,
-      "tool_text_sample": "Found matches across 30 files in 0.93ms (~2786 tokens):\nbench/baseline/results/tokens-baseline.json:119: \"pattern\": \"FSearchClient\",\nbench/baseline/results/tokens-baseline.json:374: \"pattern\": \"FSearchClient\",\nbench/baseline/results/tokens-baseline.json:389: \"tool_text_sample\": \"Found matches across 30 files in 0.96ms (~2751 tokens):\\nbench/judgments/wave1-judgments.v2.json:496: \\\"query\\\": \\\"FSearchClient\\\",\\nbench/judgments/wave1-judgments.v2.json:540: \\\"query\\\": \\\"FSearchClient\\\",\\nbench/judgments/wave1-judgments.v2.json:549: \\\"query\\\": \\\"FSearchClient\\\"\\nbench/judgments/wave1-judgments.v2.json:1086: \\\"query\\\": \\\"FSearchClient\\\",\\nbench/judgme\nbench/judgments/wave1-judgments.v2.json:496: \"query\": \"FSearchClient\",\nbench/judgments/wave1-judgments.v2.json:540: \"query\": \"FSearchClient\",\nbench/judgments/wave1-judgments.v2.json:549: \"query\": \"FSearchClient\"\nbench/judgments/wave1-judgments.v2.json:1086: \"query\": \"FSearchClient\",\nbench/judgments/wave1-judgments.v2.json:1313: \"query\": \"FSearchClient\",\nbench/wave4/companion-probe.json:71: \"import { FSearchClient } from \\\"../src/client.ts\\\";\",\nbench/wave4/companion-probe.json:76: \"import { FSearchClient } from \\\"../src/client.ts\\\";\",\nbench/wave4/companion-probe.json:81: \"import { FSearchClient } from \\\"../src/client.ts\\\";\"\nbench/wave4/companion-probe.json:84: \"import { FSearchClient } from \\\"./src/client.ts\\\";\"\nbench/wave4/companion-probe.json:87: \"import type { FSearchClient } from \\\"./client.ts\\\";\"\nbench/wave4/results/v1-expectation",
+      "tool_text_sample": "Found matches across 27 files in 3.27ms (~1707 tokens):\nbench/baseline/results/equivalence-golden.json:944: \"query\": \"FSearchClient\",\nbench/baseline/results/latency-2026-10-14.json:199: \"grep\": \"FSearchClient\",\nbench/baseline/results/latency-2026-10-14.json:431: \"native_cmd\": \"rg -l --no-messages --color never FSearchClient /Users/batra/ultrasearch-waves/baseline\"\nbench/baseline/results/latency-2026-10-14.json:1403: \"note\": \"node bin/cli.ts grep FSearchClient (repo), n=10\"\nbench/baseline/lib.mjs:47: const { FSearchClient } = globalThis.__US_MOD__;\nbench/baseline/lib.mjs:48: return new FSearchClient({ timeoutMs: 15000, ...overrides });\nbench/baseline/judgments.mjs:199: rec.extra.first_match_is_class_decl = /class\\s+FSearchClient/.test(ms[0]?.text ?? \"\");\nbench/baseline/equivalence.mjs:64: { id: \"g01\", kind: \"grep\", scope: \"repo\", q: \"FSearchClient\" },\nbench/baseline/latency.mjs:51: grep: \"FSearchClient\",\nbench/baseline/latency.mjs:355: timeExec(\"node\", [\"--experimental-strip-types\", cli, \"grep\", \"FSearchClient\", \"--in\", REPO_ROOT], {\nbench/baseline/latency.mjs:368: timeExec(\"node\", [\"--experimental-strip-types\", cli, \"grep\", \"FSearchClient\", \"--in\", REPO_ROOT], {\nbench/baseline/latency.mjs:387: cli_e2e_grep: { ...stats(cliSamples.grep, \"cli_e2e_grep\"), note: \"node bin/cli.ts grep FSearchClient (repo), n=10\" },\nbench/baseline/tokens.mjs:68: params: { pattern: \"FSearchClient\", limit: 30, context: 0, mode: \"literal\" },\nbench/baseline/tokens.mjs:70: c.grep(\"FSearchClient\", { in: R",
       "tool_text_sample_truncated": true
     },
     {
       "id": "t05",
-      "tool": "ultrasearch_grep",
+      "tool": "fsearch_grep",
       "scope": "/Users/batra/.cache/pi-ultrasearch-bench/fixture-5k",
       "params": {
         "pattern": "ULTRAMARKER_1232",
@@ -401,20 +378,20 @@
       },
       "ok": true,
       "us_source": "scan",
-      "took_us": 39357,
+      "took_us": 39701,
       "hit_count": 1,
       "tool_text_chars": 127,
       "tool_text_lines": 2,
       "estimated_tokens": 32,
       "formatter_token_count": 19,
-      "raw_json_chars": 637,
+      "raw_json_chars": 346,
       "dynamic_hint_possible": false,
-      "tool_text_sample": "Found matches across 1 files in 39.36ms (~19 tokens):\ndir_12/module_01232.ts:33: export const marker_1232 = \"ULTRAMARKER_1232\";",
+      "tool_text_sample": "Found matches across 1 files in 39.70ms (~19 tokens):\ndir_12/module_01232.ts:33: export const marker_1232 = \"ULTRAMARKER_1232\";",
       "tool_text_sample_truncated": false
     },
     {
       "id": "t06",
-      "tool": "ultrasearch_grep",
+      "tool": "fsearch_grep",
       "scope": "/Users/batra/.cache/pi-ultrasearch-bench/fixture-5k",
       "params": {
         "pattern": "zzz_absent_token_9c3f",
@@ -424,21 +401,21 @@
       },
       "ok": true,
       "us_source": "scan",
-      "took_us": 35331,
+      "took_us": 40552,
       "hit_count": 0,
       "tool_text_chars": 48,
       "tool_text_lines": 1,
       "estimated_tokens": 12,
       "formatter_token_count": null,
-      "raw_json_chars": 444,
+      "raw_json_chars": 156,
       "dynamic_hint_possible": false,
       "tool_text_sample": "No occurrences of \"zzz_absent_token_9c3f\" found.",
       "tool_text_sample_truncated": false
     },
     {
       "id": "t07",
-      "tool": "ultrasearch_multi_grep",
-      "scope": "/Users/batra/.pi/agent/extensions/pi-ultrasearch",
+      "tool": "fsearch_multi_grep",
+      "scope": "/Users/batra/ultrasearch-waves/baseline",
       "params": {
         "patterns": [
           "recordAudit",
@@ -447,21 +424,21 @@
         "limit": 30
       },
       "ok": true,
-      "us_source": "native_fallback",
-      "took_us": 3020,
-      "hit_count": 30,
-      "tool_text_chars": 10743,
-      "tool_text_lines": 85,
-      "estimated_tokens": 2686,
-      "formatter_token_count": 2673,
-      "raw_json_chars": 25894,
+      "us_source": "index",
+      "took_us": 6480,
+      "hit_count": 19,
+      "tool_text_chars": 5314,
+      "tool_text_lines": 60,
+      "estimated_tokens": 1329,
+      "formatter_token_count": 1316,
+      "raw_json_chars": 14636,
       "dynamic_hint_possible": false,
-      "tool_text_sample": "Multi-grep matched 30 files in 3.02ms (~2673 tokens):\nsrc/telemetry.ts:175: export function recordAudit(row: UltraSearchAuditRow): void {\nbench/verification/backlog/checks/telemetry-31-38.mjs:55: const { summarizeAuditViews, summarizeAudit, loadAudit, recordAudit } = await import(path.join(REPO, \"src\", \"telemetry.ts\"));\nbench/verification/backlog/checks/telemetry-31-38.mjs:63: const { recordAudit: rec2 } = await import(path.join(REPO, \"src\", \"telemetry.ts\"));\nbench/verification/backlog/checks/telemetry-31-38.mjs:94: if (stamped?.origin !== \"synthetic\") telDefects.push(`recordAudit origin=${stamped?.origin}, expected synthetic`);\nbench/verification/backlog/checks/telemetry-31-38.mjs:95: if (!stamped?.harness) telDefects.push(\"recordAudit did not stamp a harness tag\");\nbench/verification/backlog/checks/telemetry-31-38.mjs:117: `recordAudit under PI_ULTRASEARCH_TEST stamped origin=${stamped?.origin} harness=${stamped?.harness}; ` +\ntest/telemetry-harness.test.ts:8: recordAudit,\ntest/telemetry-harness.test.ts:92: test(\"harness: recordAudit stamps harness; storedHarness never consults the current env\", () => {\ntest/telemetry-harness.test.ts:97: recordAudit({ ts: Date.now(), tool: \"ultrasearch_query\", query: \"prov\", ms: 1, ok: true, hitCount: 1, source: \"index\" });\ntest/telemetry-harness.test.ts:101: recordAudit({ ts: Date.now(), tool: \"ultrasearch_query\", query: \"explicit\", ms: 1, ok: true, hitCount: 1, source: \"index\", harness: \"pi\" });\ntest/telemetry-harness.test.ts:106: recordA",
+      "tool_text_sample": "Multi-grep matched 19 files in 6.48ms (~1316 tokens):\nbench/baseline/results/equivalence-golden.json:1247: \"query\": \"recordAudit\",\nbench/baseline/results/equivalence-golden.json:3040: \"recordAudit\",\nbench/baseline/results/equivalence-golden.json:1337: \"query\": \"formatGrepFiles\",\nbench/baseline/results/equivalence-golden.json:3041: \"formatGrepFiles\"\nbench/baseline/results/latency-2026-10-14.json:201: \"recordAudit\",\nbench/baseline/results/latency-2026-10-14.json:532: \"native_cmd\": \"rg -l --no-messages -e recordAudit -e formatGrepFiles /Users/batra/ultrasearch-waves/baseline\"\nbench/baseline/results/latency-2026-10-14.json:202: \"formatGrepFiles\"\nbench/baseline/equivalence.mjs:67: { id: \"g04\", kind: \"grep\", scope: \"repo\", q: \"recordAudit\" },\nbench/baseline/equivalence.mjs:79: { id: \"m01\", kind: \"multi\", scope: \"repo\", patterns: [\"recordAudit\", \"formatGrepFiles\"] },\nbench/baseline/equivalence.mjs:68: { id: \"g05\", kind: \"grep\", scope: \"repo\", q: \"formatGrepFiles\" },\nbench/baseline/latency.mjs:52: multi: [\"recordAudit\", \"formatGrepFiles\"],\nbench/baseline/tokens.mjs:92: params: { patterns: [\"recordAudit\", \"formatGrepFiles\"], limit: 30 },\nbench/baseline/tokens.mjs:93: run: (c) => c.multiGrep([\"recordAudit\", \"formatGrepFiles\"], { in: REPO_ROOT, limit: 30 }),\nbench/baseline/tokens.mjs:150: const formatted = formatter.formatGrepFiles(files, {\nbench/baseline/tokens.mjs:170: const formatted = formatter.formatGrepFiles(files, {\nbench/baseline/TOKENS.md:29: | t07 | fsearch_multi_grep | ~/ultr",
       "tool_text_sample_truncated": true
     },
     {
       "id": "t08",
-      "tool": "ultrasearch_multi_grep",
+      "tool": "fsearch_multi_grep",
       "scope": "/Users/batra/.cache/pi-ultrasearch-bench/fixture-5k",
       "params": {
         "patterns": [
@@ -471,21 +448,21 @@
         "limit": 30
       },
       "ok": true,
-      "us_source": "native_fallback",
-      "took_us": 73190,
-      "hit_count": 19,
-      "tool_text_chars": 1415,
-      "tool_text_lines": 20,
-      "estimated_tokens": 354,
-      "formatter_token_count": 341,
-      "raw_json_chars": 6712,
+      "us_source": "index",
+      "took_us": 50600,
+      "hit_count": 16,
+      "tool_text_chars": 1199,
+      "tool_text_lines": 17,
+      "estimated_tokens": 300,
+      "formatter_token_count": 287,
+      "raw_json_chars": 5377,
       "dynamic_hint_possible": false,
-      "tool_text_sample": "Multi-grep matched 19 files in 73.19ms (~341 tokens):\ndir_12/module_01232.ts:33: export const marker_1232 = \"ULTRAMARKER_1232\";\ndir_00/module_00007.ts:33: export const marker_7 = \"ULTRAMARKER_7\";\ndir_00/module_00070.ts:33: export const marker_70 = \"ULTRAMARKER_70\";\ndir_00/module_00077.ts:33: export const marker_77 = \"ULTRAMARKER_77\";\ndir_07/module_00700.ts:33: export const marker_700 = \"ULTRAMARKER_700\";\ndir_07/module_00707.ts:33: export const marker_707 = \"ULTRAMARKER_707\";\ndir_07/module_00714.ts:33: export const marker_714 = \"ULTRAMARKER_714\";\ndir_07/module_00721.ts:33: export const marker_721 = \"ULTRAMARKER_721\";\ndir_07/module_00728.ts:33: export const marker_728 = \"ULTRAMARKER_728\";\ndir_07/module_00735.ts:33: export const marker_735 = \"ULTRAMARKER_735\";\ndir_07/module_00742.ts:33: export const marker_742 = \"ULTRAMARKER_742\";\ndir_07/module_00749.ts:33: export const marker_749 = \"ULTRAMARKER_749\";\ndir_07/module_00756.ts:33: export const marker_756 = \"ULTRAMARKER_756\";\ndir_07/module_00763.ts:33: export const marker_763 = \"ULTRAMARKER_763\";\ndir_07/module_00770.ts:33: export const marker_770 = \"ULTRAMARKER_770\";\ndir_07/module_00777.ts:33: export const marker_777 = \"ULTRAMARKER_777\";\ndir_07/module_00784.ts:33: export const marker_784 = \"ULTRAMARKER_784\";\ndir_07/module_00791.ts:33: export const marker_791 = \"ULTRAMARKER_791\";\ndir_07/module_00798.ts:33: export const marker_798 = \"ULTRAMARKER_798\";",
+      "tool_text_sample": "Multi-grep matched 16 files in 50.60ms (~287 tokens):\ndir_12/module_01232.ts:33: export const marker_1232 = \"ULTRAMARKER_1232\";\ndir_00/module_00007.ts:33: export const marker_7 = \"ULTRAMARKER_7\";\ndir_00/module_00070.ts:33: export const marker_70 = \"ULTRAMARKER_70\";\ndir_00/module_00077.ts:33: export const marker_77 = \"ULTRAMARKER_77\";\ndir_07/module_00700.ts:33: export const marker_700 = \"ULTRAMARKER_700\";\ndir_07/module_00707.ts:33: export const marker_707 = \"ULTRAMARKER_707\";\ndir_07/module_00714.ts:33: export const marker_714 = \"ULTRAMARKER_714\";\ndir_07/module_00721.ts:33: export const marker_721 = \"ULTRAMARKER_721\";\ndir_07/module_00728.ts:33: export const marker_728 = \"ULTRAMARKER_728\";\ndir_07/module_00735.ts:33: export const marker_735 = \"ULTRAMARKER_735\";\ndir_07/module_00742.ts:33: export const marker_742 = \"ULTRAMARKER_742\";\ndir_07/module_00749.ts:33: export const marker_749 = \"ULTRAMARKER_749\";\ndir_07/module_00756.ts:33: export const marker_756 = \"ULTRAMARKER_756\";\ndir_07/module_00763.ts:33: export const marker_763 = \"ULTRAMARKER_763\";\ndir_07/module_00770.ts:33: export const marker_770 = \"ULTRAMARKER_770\";\ndir_07/module_00777.ts:33: export const marker_777 = \"ULTRAMARKER_777\";",
       "tool_text_sample_truncated": false
     },
     {
       "id": "t09",
-      "tool": "ultrasearch_locate",
+      "tool": "fsearch_locate",
       "scope": null,
       "params": {
         "filename": "package.json",
@@ -494,21 +471,21 @@
       },
       "ok": true,
       "us_source": null,
-      "took_us": 644,
+      "took_us": 679,
       "hit_count": 10,
-      "tool_text_chars": 509,
+      "tool_text_chars": 511,
       "tool_text_lines": 11,
       "estimated_tokens": 128,
       "formatter_token_count": null,
-      "raw_json_chars": 1589,
+      "raw_json_chars": 1243,
       "dynamic_hint_possible": false,
-      "tool_text_sample": "Located:\n/Users/batra/bonsai-bench/llama.cpp/tools/ui/package.json\n/Users/batra/bonsai-bench/llama.cpp/tools/ui/src/lib/vendors/package.json\n/Users/batra/Samarohh/package.json\n/Users/batra/Samarohh/ui/package.json\n/Users/batra/avartanalabs/package.json\n/Users/batra/fikr/third_party/flutter_gemma/web/rag/package.json\n/Users/batra/my-design-app/package.json\n/Users/batra/ultrasearch-verify/package.json\n/Users/batra/ultrasearch-waves2/advisor2/package.json\n/Users/batra/ultrasearch-waves2/interop/package.json",
+      "tool_text_sample": "Located:\n/Users/batra/ultrasearch-waves/baseline/package.json\n/Users/batra/ultrasearch-waves/foundation/package.json\n/Users/batra/ultrasearch-waves/measure/package.json\n/Users/batra/Samarohh/package.json\n/Users/batra/Samarohh/ui/package.json\n/Users/batra/avartanalabs/package.json\n/Users/batra/fikr/third_party/flutter_gemma/web/rag/package.json\n/Users/batra/ultrasearch-waves/advisor/package.json\n/Users/batra/ultrasearch-waves/engine/package.json\n/Users/batra/Downloads/Github/anvay/main-frontend/package.json",
       "tool_text_sample_truncated": false
     },
     {
       "id": "t10",
-      "tool": "ultrasearch_recent",
-      "scope": "/Users/batra/.pi/agent/extensions/pi-ultrasearch",
+      "tool": "fsearch_recent",
+      "scope": "/Users/batra/ultrasearch-waves/baseline",
       "params": {
         "limit": 15
       },
@@ -516,13 +493,13 @@
       "us_source": null,
       "took_us": 0,
       "hit_count": 15,
-      "tool_text_chars": 258,
+      "tool_text_chars": 225,
       "tool_text_lines": 16,
-      "estimated_tokens": 65,
+      "estimated_tokens": 57,
       "formatter_token_count": null,
-      "raw_json_chars": 2440,
+      "raw_json_chars": 1871,
       "dynamic_hint_possible": false,
-      "tool_text_sample": "Recent workspace files:\npackage.json\nsrc/client.ts\ntest/client.test.ts\nindex.ts\nREADME.md\nsrc/mcp.ts\nbin/cli.ts\nsrc/types.ts\nsrc/tui.ts\nsrc/telemetry.ts\nCHANGELOG.md\ntest/benchmark-gate.test.ts\nsrc/formatter.ts\nROADMAP.md\nbench/harness-smoke/antigravity.json",
+      "tool_text_sample": "Recent workspace files:\ntest/client.test.ts\nsrc/client.ts\nindex.ts\npackage.json\nsrc/mcp.ts\nsrc/tui.ts\nsrc/telemetry.ts\nsrc/types.ts\nCHANGELOG.md\nREADME.md\nbin/cli.ts\nsrc/formatter.ts\nsrc/sanitize.ts\nROADMAP.md\nsrc/observer.ts",
       "tool_text_sample_truncated": false
     }
   ]
