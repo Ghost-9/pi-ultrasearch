@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ## [2026-10-20] — scan-mode grep stops reading what git ignores
+### Upstream check (noahdunnagan/fsearch)
+- **No new upstream commits:** `origin/main` is still `v0.2.1` (`88e63fd`, 2026-10-12, 2,147 stars).
+- **Ported PR #33** (15 lines, `src/engine.rs`): when fseventsd re-bases its journal, a saved event id can sit *ahead* of the new head; a stream created `since` it replays nothing and every change made while the daemon was away is lost silently. The loader now re-stamps the head and relists changed folders. Attribution kept in the code comment. Build + 39 Rust / 44 engine / 276 npm tests pass.
+- **PR #34 is the next port** (304 lines, 5 files): greps that name a single file still read it even when the content index skips its text (large JSON, lockfiles, minified files, logs). This matters: in the session audit, 1,062 of 6,966 native searches are file-scoped, and UltraSearch cannot serve them today.
+- Upstream issue #35 (display current version) is cosmetic.
+
+### Evaluation (session audit, 2026-10-20)
+- 462 Pi sessions: 6,721 shell search calls, 2,564,262 tool-output tokens (4 chars/token), median 181 ms, p95 43.8 s.
+- 38 Codex sessions: 245 search calls, 336,942 tokens, median 226 ms.
+- Only **20.9 %** of that output (606,762 tokens) is a clearly addressable directory/path search; 17.7 % is file-scoped, 14.1 % external/piped, 33.6 % missing scope.
+- Replay of 48 real directory commands: 41.7 % returned nothing where native returned output; where both returned (n=27), the median output ratio is **1.48× [0.745, 1.95]** — not a proven token win. Native median 33 ms vs 1.35 ms in-process; the latency difference is real but the comparison excludes agent tool overhead.
+- Product usage in those sessions: **13 calls in 6 sessions** (0.19 % of searches); 0 in Codex, 0 in Claude. The 672 audit rows are mostly CLI/dev runs (`harness: none`), and their 2.35 M `tokensSaved` is the legacy formula, not a measurement.
+
+
 
 ### Fixed
 - **A scan-mode grep read gitignored trees before filtering them (#59).** When the content index does
