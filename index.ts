@@ -233,6 +233,8 @@ export default function piUltraSearchExtension(pi: ExtensionAPI): void {
     parameters: Type.Object({
       pattern: Type.String({ description: "Text or identifier to search" }),
       path_filter: Type.Optional(Type.String({ description: "Subfolder or file filter (e.g. 'src/')" })),
+      file: Type.Optional(Type.String({ description: "Read one named file directly (large JSON, lockfiles, logs)" })),
+      case: Type.Optional(Type.Union([Type.Literal("smart"), Type.Literal("sensitive"), Type.Literal("insensitive")], { description: "Case handling (default smart)" })),
       mode: Type.Optional(Type.Union([Type.Literal("literal"), Type.Literal("regex"), Type.Literal("symbol"), Type.Literal("semantic")], {
         description: "literal (default) | regex | symbol (defs first) | semantic (intent)",
       })),
@@ -244,15 +246,20 @@ export default function piUltraSearchExtension(pi: ExtensionAPI): void {
       tag_symbols: Type.Optional(Type.Boolean({ description: "Tag AST definitions ([def:fn], [def:class])" })),
       budget_ms: Type.Optional(Type.Number({ description: "Deadline (ms); partial results set complete:false" })),
     }),
-    execute: async (_toolCallId: string, params: { pattern: string; path_filter?: string; mode?: "literal" | "regex" | "symbol" | "semantic"; limit?: number; global?: boolean; compact?: boolean; max_tokens?: number; context?: number; tag_symbols?: boolean; budget_ms?: number }) => {
+    execute: async (_toolCallId: string, params: { pattern: string; path_filter?: string; file?: string; case?: "smart" | "sensitive" | "insensitive"; mode?: "literal" | "regex" | "symbol" | "semantic"; limit?: number; global?: boolean; compact?: boolean; max_tokens?: number; context?: number; tag_symbols?: boolean; budget_ms?: number }) => {
       try {
         const worktreeRoot = resolveWorktreeRoot();
         const baseScope = params.global ? undefined : worktreeRoot;
-        const searchScope = params.path_filter
-          ? (path.isAbsolute(params.path_filter) ? params.path_filter : path.join(worktreeRoot, params.path_filter))
-          : baseScope;
+        const file = params.file
+          ? (path.isAbsolute(params.file) ? params.file : path.join(worktreeRoot, params.file))
+          : undefined;
+        const searchScope = file
+          ? path.dirname(file)
+          : params.path_filter
+            ? (path.isAbsolute(params.path_filter) ? params.path_filter : path.join(worktreeRoot, params.path_filter))
+            : baseScope;
 
-        if (searchScope && !isPathSafe(searchScope, worktreeRoot) && !params.global) {
+        if ((file && !isPathSafe(file, worktreeRoot)) || (searchScope && !isPathSafe(searchScope, worktreeRoot) && !params.global)) {
           return { content: [{ type: "text", text: "Security violation: path filter cannot escape workspace root." }] };
         }
 
@@ -278,6 +285,8 @@ export default function piUltraSearchExtension(pi: ExtensionAPI): void {
         } else {
           const res = await client.grep(params.pattern, {
             in: searchScope,
+            file,
+            case: params.case,
             root: params.global ? undefined : worktreeRoot,
             mode: (params.mode ?? "literal") as "literal" | "regex" | "symbol",
             limit: params.limit ?? 30,

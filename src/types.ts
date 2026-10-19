@@ -237,6 +237,10 @@ export interface SearchOptions {
 }
 
 export interface GrepOptions {
+  /** One file to read directly, even when the content index skipped its text. */
+  file?: string;
+  /** Case handling; default smart (lowercase pattern = insensitive). */
+  case?: "smart" | "sensitive" | "insensitive";
   in?: string;
   mode?: "literal" | "regex" | "symbol";
   limit?: number;

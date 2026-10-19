@@ -1015,8 +1015,12 @@ export class UltraSearchClient {
     const mode = options.mode ?? "literal";
     const budgetMs = options.budget_ms ?? DEFAULT_GREP_BUDGET_MS;
     const respectIgnore = options.respectIgnore !== false;
-    const scoped = typeof options.in === "string" && options.in.length > 0;
-    const overscan = this.overscanLimit(limit, respectIgnore, options.in, "grep");
+    const file = options.file
+      ? (() => { try { return fs.realpathSync(path.resolve(options.file)); } catch { return path.resolve(options.file); } })()
+      : undefined;
+    const inScope = file ? path.dirname(file) : options.in;
+    const scoped = typeof inScope === "string" && inScope.length > 0;
+    const overscan = this.overscanLimit(limit, respectIgnore, inScope, "grep");
 
     // Issue #36: reject invalid regex client-side; never reach the socket.
     let warning: string | undefined;
@@ -1048,7 +1052,9 @@ export class UltraSearchClient {
       const payload: Record<string, any> = {
         op: "grep",
         pattern,
-        in: options.in,
+        file,
+        case: options.case,
+        in: inScope,
         // The engine refuses a scope outside `root` and drops hits outside it
         // (#23), so a caller bug cannot widen a search.
         root: options.root,
@@ -1069,6 +1075,18 @@ export class UltraSearchClient {
 
       let res: UltraSearchGrepResponse = await this.request<UltraSearchGrepResponse>(payload, deadlineOpts);
       let usedFallback = false;
+
+      // The engine's regex crate has no look-around or backreferences. Those are
+      // valid ripgrep patterns with --pcre2, so a regex-engine gap must fall
+      // back rather than become a silent zero (#64 follow-up).
+      const regexGap = !res.ok && /look-?around|lookbehind|backreference|regex parse error/i.test(String(res.error ?? ""));
+      if (regexGap && this.enableFallback) {
+        const fallbackRes = await this.nativeFallbackGrep(pattern, options, budgetMs, true);
+        if (fallbackRes.ok) {
+          res = fallbackRes;
+          usedFallback = true;
+        }
+      }
 
       if (
         res.ok &&
@@ -1091,10 +1109,10 @@ export class UltraSearchClient {
 
       if (res.ok && files.length > 0 && respectIgnore && scoped) {
         const before = files.length;
-        files = this.filterIgnoredFiles(files, options.in!);
+        files = this.filterIgnoredFiles(files, inScope!);
         filteredCount += before - files.length;
       }
-      this.noteIgnoreDensity(options.in, rawFiles.length, filteredCount);
+      this.noteIgnoreDensity(inScope, rawFiles.length, filteredCount);
 
       // Filter first, then limit (issue #25). The bounded over-fetch above gives
       // the filter room; when a high ignore density still pushes the result below
@@ -1128,7 +1146,7 @@ export class UltraSearchClient {
           ts: Date.now(),
           tool: options.auditTool ?? "ultrasearch_grep",
           pattern,
-          scope: options.in,
+          scope: inScope,
           ms: elapsed,
           ok: res.ok,
           hitCount: totalMatches,
@@ -1165,7 +1183,7 @@ export class UltraSearchClient {
             ts: Date.now(),
             tool: options.auditTool ?? "ultrasearch_grep",
             pattern,
-            scope: options.in,
+            scope: inScope,
             ms: elapsed,
             ok: false,
             hitCount: 0,
@@ -1183,7 +1201,7 @@ export class UltraSearchClient {
             ts: Date.now(),
             tool: options.auditTool ?? "ultrasearch_grep",
             pattern,
-            scope: options.in,
+            scope: inScope,
             ms: elapsed,
             ok: fallbackRes.ok,
             hitCount: fallbackRes.files?.reduce((acc, f) => acc + f.matches.length, 0) ?? 0,
@@ -1593,10 +1611,11 @@ export class UltraSearchClient {
   private async nativeFallbackGrep(
     pattern: string,
     options: GrepOptions,
-    budgetMs?: number
+    budgetMs?: number,
+    pcre2 = false
   ): Promise<UltraSearchGrepResponse> {
     const start = performance.now();
-    const scope = options.in ? path.resolve(options.in) : process.cwd();
+    const scope = options.file ? path.resolve(options.file) : options.in ? path.resolve(options.in) : process.cwd();
     const limit = options.limit ?? 30;
     const overscan = this.overscanLimit(limit, options.respectIgnore !== false, options.in, "grep");
     const remaining = this.remainingBudget(budgetMs, 0);
@@ -1612,6 +1631,10 @@ export class UltraSearchClient {
         "-n", "--no-heading", "--color", "never",
         "--glob", "!.git", "--glob", "!node_modules",
         "--glob", "!target", "--glob", "!dist", "--glob", "!build",
+        ...(options.mode === "literal" || options.mode === undefined ? ["--fixed-strings"] : []),
+        ...(options.case === "insensitive" ? ["-i"] : []),
+        ...(pcre2 ? ["--pcre2"] : []),
+        ...(options.file ? ["-H"] : []),
         pattern, scope,
       ];
       const grepArgs = [
@@ -1621,6 +1644,9 @@ export class UltraSearchClient {
         "--exclude-dir=target",
         "--exclude-dir=dist",
         "--exclude-dir=build",
+        ...(options.mode === "literal" || options.mode === undefined ? ["-F"] : []),
+        ...(options.case === "insensitive" ? ["-i"] : []),
+        ...(pcre2 ? ["-P"] : []),
         pattern,
         scope,
       ];

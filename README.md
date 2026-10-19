@@ -184,6 +184,25 @@ Node.js ≥ 22.18 through native TypeScript type-stripping. `ultrasearch init` r
 
 ---
 
+## Drop-in `us-rg` (ripgrep stays the fallback)
+
+`scripts/us-rg` is a conservative ripgrep front-end. It accelerates exactly one case — a plain
+literal content search over a directory or one named file — and sends **everything else** to the
+real ripgrep unchanged: `--files`, `-l`, `-c`, `--json`, globs, types, context, regex, PCRE2. It
+never shadows `rg`; install it under its own name:
+
+```bash
+ln -sf "$PWD/scripts/us-rg" ~/.local/bin/us-rg
+us-rg "needle" src/                 # accelerated, ripgrep-compatible output
+us-rg "needle" package-lock.json    # reads the named file even if the index skipped its text
+us-rg --files src/                  # real ripgrep (correct semantics, still fast)
+us-rg "a.*b" src/                   # regex → real ripgrep
+```
+
+Exit status follows ripgrep (`0` matches, `1` none, `2` fallback/error). Ripgrep must be installed;
+`ULTRASEARCH_RG` overrides the binary path. A failed socket falls back to ripgrep, never to a silent
+empty result.
+
 ## Interop & ergonomics (v0.5.0)
 
 ### Watch mode (#27)

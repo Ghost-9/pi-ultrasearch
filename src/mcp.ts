@@ -379,12 +379,31 @@ export class UltraSearchMcpServer {
       if (typeof args.pattern !== "string" || args.pattern.length === 0) {
         return text("Invalid params: 'pattern' must be a non-empty string", true);
       }
-      const searchScope = args.global ? undefined : args.path_filter ? path.resolve(activeRoot, args.path_filter) : activeRoot;
+      const file = typeof args.file === "string" && args.file.length > 0 ? path.resolve(activeRoot, args.file) : undefined;
+      const searchScope = file ? path.dirname(file) : args.global ? undefined : args.path_filter ? path.resolve(activeRoot, args.path_filter) : activeRoot;
       const ctxCount = typeof args.context === "number" ? args.context : 0;
       let files: any[] = [];
       let resultMeta: any = undefined;
       let grepRootNote = "";
-      if (!args.global && !args.path_filter && this.roots.length > 0) {
+      if (file) {
+        // A named file is read directly (upstream PR #34's purpose): the index may
+        // have skipped its text (large JSON, lockfiles, logs), and a grep must not.
+        const res = await this.client.grep(args.pattern, {
+          in: searchScope,
+          file,
+          root: activeRoot,
+          case: args.case,
+          mode: args.mode ?? "literal",
+          limit: args.limit ?? 30,
+          context: ctxCount,
+          budget_ms: args.budget_ms,
+        });
+        if (!res.ok && res.error) {
+          return text(`grep error: ${res.error}`, true, { ...(res.meta ?? { complete: false }), tool: "ultrasearch_grep", error: res.error });
+        }
+        files = res.files ?? [];
+        resultMeta = res.meta;
+      } else if (!args.global && !args.path_filter && this.roots.length > 0) {
         // Multi-root grep (#28): merge by realpath, prefer the active worktree.
         const merged = await multiRootGrep(args.pattern, {
           activeRoot,
@@ -405,6 +424,7 @@ export class UltraSearchMcpServer {
       } else {
         const res = await this.client.grep(args.pattern, {
           in: searchScope,
+          case: args.case,
           mode: args.mode ?? "literal",
           limit: args.limit ?? 30,
           context: ctxCount,

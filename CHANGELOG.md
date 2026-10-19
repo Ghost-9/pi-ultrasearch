@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 ## [2026-10-20] — scan-mode grep stops reading what git ignores
+### Added — file-scoped grep, regex fallback, `us-rg`
+- **A named file is read directly.** `file` is now on the client, Pi tool, MCP schema and CLI
+  (`ultrasearch grep <pattern> --file <path>`); `case` is exposed alongside it. This implements the
+  behaviour upstream PR #34 exists for without taking its index-format patch: 1,062 of 6,966 native
+  searches in the session audit are file-scoped, and the content index may skip their text.
+- **Regex-engine gaps fall back to ripgrep.** Look-around and backreferences are valid `rg --pcre2`
+  patterns but not valid in the engine's regex crate; the client now retries those with the real
+  ripgrep instead of returning a silent zero. Literal fallbacks pass `--fixed-strings` so they do not
+  silently change meaning.
+- **`scripts/us-rg`**: conservative ripgrep front-end. Accelerates only plain literal directory/file
+  searches; `--files`, `-l`, `-c`, `--json`, globs, types, context and regex go to the real ripgrep.
+  Does not shadow `rg`; requires ripgrep installed; exit codes match rg.
+- Tests: 277 npm (new file-scope control), 44 engine, 39 + 9 Rust.
+
 ### Upstream check (noahdunnagan/fsearch)
 - **No new upstream commits:** `origin/main` is still `v0.2.1` (`88e63fd`, 2026-10-12, 2,147 stars).
 - **Ported PR #33** (15 lines, `src/engine.rs`): when fseventsd re-bases its journal, a saved event id can sit *ahead* of the new head; a stream created `since` it replays nothing and every change made while the daemon was away is lost silently. The loader now re-stamps the head and relists changed folders. Attribution kept in the code comment. Build + 39 Rust / 44 engine / 276 npm tests pass.

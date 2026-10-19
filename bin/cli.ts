@@ -76,19 +76,33 @@ async function main() {
       case "grep": {
         const pattern = args[1];
         if (!pattern) {
-          console.error("Usage: ultrasearch grep <pattern> [--in <dir>]");
+          console.error("Usage: ultrasearch grep <pattern> [--in <dir>] [--file <path>] [--case smart|sensitive|insensitive] [--mode literal|regex|symbol]");
           process.exit(1);
         }
         let scope = process.cwd();
+        let file: string | undefined;
+        let caseMode: "smart" | "sensitive" | "insensitive" | undefined;
+        let grepMode: "literal" | "regex" | "symbol" | undefined;
         for (let i = 2; i < args.length; i++) {
           if (args[i] === "--in" && args[i + 1]) scope = path.resolve(args[i + 1]);
+          if (args[i] === "--file" && args[i + 1]) { file = path.resolve(args[i + 1]); scope = path.dirname(file); }
+          if (args[i] === "--case" && args[i + 1] && ["smart", "sensitive", "insensitive"].includes(args[i + 1])) caseMode = args[i + 1] as any;
+          if (args[i] === "--mode" && args[i + 1] && ["literal", "regex", "symbol"].includes(args[i + 1])) grepMode = args[i + 1] as any;
+        }
+        if (file) {
+          const r = await client.grep(pattern, { in: scope, file, case: caseMode, mode: grepMode });
+          if (!r.ok) { console.error(`Grep error: ${r.error ?? "unknown"}`); process.exit(1); }
+          const formatted = formatGrepFiles(r.files ?? [], { worktreeRoot: scope, compact: true });
+          if (formatted.text) console.log(formatted.text);
+          recordQuery("ultrasearch_grep", pattern, r.files?.length ?? 0, scope);
+          break;
         }
         const rootConfig = loadRootConfig();
         const result = await multiRootGrep(pattern, {
           activeRoot: scope,
           roots: rootConfig.roots,
           preferActiveWorktree: rootConfig.preferActiveWorktree,
-          grep: (p, root) => client.grep(p, { in: root }),
+          grep: (p, root) => client.grep(p, { in: root, case: caseMode, mode: grepMode }),
         });
         if (result.files.length === 0 && result.errors.length > 0) {
           for (const err of result.errors) console.error(`Grep error (${err.root}): ${err.error}`);

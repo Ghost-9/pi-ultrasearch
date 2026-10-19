@@ -27,6 +27,7 @@
     "type-stubs.d.ts",
     "engine/rebrand.sh",
     "scripts/install.sh",
+    "scripts/us-rg",
     "docs",
     "README.md",
     "CHANGELOG.md",

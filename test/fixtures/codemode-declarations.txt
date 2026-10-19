@@ -1,7 +1,7 @@
 
 declare namespace tools {
   /**
-   * Exact indexed path search (<0.1ms, no typo tolerance). Accepts a name, glob (src/**/*.{ts,tsx}), extension filter (*.rs), or git status filter (git:modified, git:staged, git:untracked). `near` re-ranks by folder proximity. Scoped to the worktree unless global=true.
+   * Exact indexed path search (<0.1ms). Name, glob, extension or git-status filter; `near` re-ranks by proximity; worktree unless global.
    */
   function ultrasearch_query(args: {
     /** Name, glob, or filter (e.g. 'git:modified', 'src/**/*.{ts,tsx} !test/') */
@@ -33,11 +33,15 @@ declare namespace tools {
   function ultrasearch_grep(args: {
     /** Text or identifier to search */
     pattern: string;
-    /** Subfolder or file filter (e.g. 'src/') */
+    /** Subfolder or file filter */
     path_filter?: string;
+    /** Read one file directly (JSON, lockfiles, logs) */
+    file?: string;
+    /** Case handling (default smart) */
+    case?: "smart" | "sensitive" | "insensitive";
     /** Whole disk instead of the current scope */
     global?: boolean;
-    /** literal (default) | regex | symbol (defs first) | semantic (intent keyword expansion; EXPERIMENTAL and unreliable — measured semantic nDCG@10 0.194, paraphrase recall@10 0.175, FP 1.00. Do not use it to gate a decision; prefer literal or symbol) */
+    /** literal (default) | regex | symbol (defs first) | semantic (EXPERIMENTAL: nDCG 0.194, paraphrase recall 0.175, FP 1.00 — do not gate on it) */
     mode?: "literal" | "regex" | "symbol" | "semantic";
     /** Max files (default 30) */
     limit?: number;

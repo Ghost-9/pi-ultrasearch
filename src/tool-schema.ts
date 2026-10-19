@@ -38,7 +38,7 @@ export interface UltraSearchToolSchema {
 const QUERY: UltraSearchToolSchema = {
   name: "ultrasearch_query",
   description:
-    "Exact indexed path search (<0.1ms, no typo tolerance). Accepts a name, glob (src/**/*.{ts,tsx}), extension filter (*.rs), or git status filter (git:modified, git:staged, git:untracked). `near` re-ranks by folder proximity. Scoped to the worktree unless global=true.",
+    "Exact indexed path search (<0.1ms). Name, glob, extension or git-status filter; `near` re-ranks by proximity; worktree unless global.",
   params: {
     query: { type: "string", description: "Name, glob, or filter (e.g. 'git:modified', 'src/**/*.{ts,tsx} !test/')" },
     limit: { type: "number", description: "Max results (default 30)" },
@@ -57,9 +57,11 @@ const GREP: UltraSearchToolSchema = {
     "Indexed content search (<1ms) with compact 'file:line: match' output; credentials are DLP-scrubbed.",
   params: {
     pattern: { type: "string", description: "Text or identifier to search" },
-    path_filter: { type: "string", description: "Subfolder or file filter (e.g. 'src/')" },
+    path_filter: { type: "string", description: "Subfolder or file filter" },
+    file: { type: "string", description: "Read one file directly (JSON, lockfiles, logs)" },
+    case: { type: "string", enum: ["smart", "sensitive", "insensitive"], description: "Case handling (default smart)" },
     global: { type: "boolean", description: "Whole disk instead of the current scope" },
-    mode: { type: "string", enum: ["literal", "regex", "symbol", "semantic"], description: "literal (default) | regex | symbol (defs first) | semantic (intent keyword expansion; EXPERIMENTAL and unreliable — measured semantic nDCG@10 0.194, paraphrase recall@10 0.175, FP 1.00. Do not use it to gate a decision; prefer literal or symbol)" },
+    mode: { type: "string", enum: ["literal", "regex", "symbol", "semantic"], description: "literal (default) | regex | symbol (defs first) | semantic (EXPERIMENTAL: nDCG 0.194, paraphrase recall 0.175, FP 1.00 — do not gate on it)" },
     limit: { type: "number", description: "Max files (default 30)" },
     compact: { type: "boolean", description: "One-line 'file:line: match' (default true)" },
     max_tokens: { type: "number", description: "Output token budget" },

@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# us-rg — a conservative ripgrep front-end backed by the UltraSearch daemon.
+#
+# It accelerates exactly one case: a plain literal content search over a directory
+# or one file, with no output-shaping flags. Everything else — --files, -l, -c,
+# --json, globs, types, context, regex, PCRE2 — goes to the real ripgrep unchanged.
+# That is deliberate: a shim that changes what the output means is worse than no
+# shim. Ripgrep stays installed and is the fallback for every unsupported case.
+#
+# Exit status follows ripgrep: 0 = matches, 1 = no matches, 2 = error/fallback.
+set -uo pipefail
+
+self_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REAL_RG=""
+for cand in "${ULTRASEARCH_RG:-}" /opt/homebrew/bin/rg /usr/local/bin/rg "$(command -v rg 2>/dev/null || true)"; do
+  [ -n "$cand" ] || continue
+  cand="$(command -v "$cand" 2>/dev/null || true)"
+  [ -n "$cand" ] || continue
+  cand_dir="$(cd -- "$(dirname -- "$cand")" 2>/dev/null && pwd)" || continue
+  [ "$cand_dir" = "$self_dir" ] && continue
+  [ -x "$cand" ] && { REAL_RG="$cand"; break; }
+done
+if [ -z "$REAL_RG" ]; then
+  echo "us-rg: no real ripgrep found; install ripgrep or set ULTRASEARCH_RG" >&2
+  exit 2
+fi
+ORIG=("$@")
+[ $# -eq 0 ] && exec "$REAL_RG" "${ORIG[@]}"
+
+case "${1:-}" in
+  --version|-V)
+    echo "$("$REAL_RG" --version | head -1) (us-rg: literal directory/file content search via UltraSearch; other flags pass through)"
+    exit 0 ;;
+  --help|-h) exec "$REAL_RG" "${ORIG[@]}" ;;
+esac
+
+# Only these flags are honoured. Anything that shapes output or matching beyond a
+# case-insensitive literal goes to ripgrep.
+insensitive=0; literal=0; pattern=""; target=""
+args=("$@"); i=0
+while [ $i -lt ${#args[@]} ]; do
+  a="${args[$i]}"
+  case "$a" in
+    -n|--line-number|--no-heading|--color=never|--color=auto|--color=always) ;;
+    --color) i=$((i+1)); [ "${args[$i]:-}" = "never" ] || exec "$REAL_RG" "${ORIG[@]}" ;;
+    -i|--ignore-case) insensitive=1 ;;
+    -F|--fixed-strings) literal=1 ;;
+    -e) i=$((i+1)); pattern="${args[$i]:-}" ;;
+    --) i=$((i+1)); while [ $i -lt ${#args[@]} ]; do
+          if [ -z "$pattern" ]; then pattern="${args[$i]}"; elif [ -z "$target" ]; then target="${args[$i]}"; else exec "$REAL_RG" "${ORIG[@]}"; fi
+          i=$((i+1)); done; break ;;
+    -*) exec "$REAL_RG" "${ORIG[@]}" ;;
+    *) if [ -z "$pattern" ]; then pattern="$a"; elif [ -z "$target" ]; then target="$a"; else exec "$REAL_RG" "${ORIG[@]}"; fi ;;
+  esac
+  i=$((i+1))
+done
+[ -z "$pattern" ] && exec "$REAL_RG" "${ORIG[@]}"
+
+# A regex pattern must not be treated as a literal. -F says it is one.
+if [ "$literal" -eq 0 ]; then
+  case "$pattern" in
+    *[\*\?\+\|\[\]\(\)\{\}\^\\\$\.]*) exec "$REAL_RG" "${ORIG[@]}" ;;
+  esac
+fi
+command -v ultrasearch >/dev/null 2>&1 || exec "$REAL_RG" "${ORIG[@]}"
+
+if [ -n "$target" ] && [ -f "$target" ]; then
+  out="$(ultrasearch grep "$pattern" --file "$target" ${insensitive:+--case insensitive} 2>/dev/null)"
+  rc=$?
+else
+  out="$(ultrasearch grep "$pattern" --in "${target:-.}" ${insensitive:+--case insensitive} 2>/dev/null)"
+  rc=$?
+fi
+if [ $rc -ne 0 ]; then exec "$REAL_RG" "${ORIG[@]}"; fi
+if [ -n "$out" ]; then printf '%s\n' "$out"; exit 0; fi
+exit 1

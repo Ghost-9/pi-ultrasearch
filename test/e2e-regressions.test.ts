@@ -221,6 +221,24 @@ test("semantic mode: natural-language query expands to code tokens before dispat
   }
 });
 
+test("file scope: _grep sends the named file instead of a directory scope", async () => {
+  const daemon = await newMock({
+    reply: (req) =>
+      req.op === "grep"
+        ? { ok: true, source: "file", files: [{ path: path.join(process.cwd(), "package.json"), matches: [{ line: 2, text: '  "name": "pi-ultrasearch",' }] }] }
+        : { ok: true, files: [] },
+  });
+  const harness = await loadPiHarness({ socketPath: daemon.socketPath });
+  const file = path.join(process.cwd(), "package.json");
+
+  const result = await harness.callTool("_grep", { pattern: '"name"', file, limit: 5 });
+
+  const op = daemon.lastOp("grep");
+  assert.ok(op, "no grep request reached the daemon");
+  assert.equal(op.file, fs.realpathSync(file), "the file must be sent as `file`, not only as a dirname scope");
+  assert.match(result.content?.[0]?.text ?? "", /package\.json/, "the match must be rendered");
+});
+
 test("semantic mode: the Pi surface refuses it without the explicit opt-in", async () => {
   const daemon = await newMock({ reply: () => ({ ok: true, files: [] }) });
   const harness = await loadPiHarness({ socketPath: daemon.socketPath });
