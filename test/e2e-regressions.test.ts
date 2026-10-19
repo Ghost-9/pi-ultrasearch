@@ -198,17 +198,48 @@ test("semantic mode: natural-language query expands to code tokens before dispat
   });
   const harness = await loadPiHarness({ socketPath: daemon.socketPath });
 
-  const result = await harness.callTool("_grep", {
-    pattern: "where is the user authentication and login logic",
-    mode: "semantic",
-    limit: 10,
-  });
+  // The expansion contract is only reachable behind the opt-in (see the refusal control below).
+  const saved = process.env.ULTRASEARCH_EXPERIMENTAL_SEMANTIC;
+  process.env.ULTRASEARCH_EXPERIMENTAL_SEMANTIC = "1";
+  try {
+    const result = await harness.callTool("_grep", {
+      pattern: "where is the user authentication and login logic",
+      mode: "semantic",
+      limit: 10,
+    });
 
-  const op = daemon.lastOp("multi_grep");
-  assert.ok(op, "semantic mode must dispatch multi_grep with expanded tokens");
-  assert.ok(op.patterns.includes("auth"), `expected 'auth' in expanded tokens, got ${JSON.stringify(op.patterns)}`);
-  assert.ok(op.patterns.includes("login"));
-  assert.ok(op.patterns.includes("token"));
-  assert.equal(daemon.countOps("grep"), 0, "semantic mode must not fall back to a raw literal grep");
-  assert.ok((result.content?.[0]?.text ?? "").includes("semantic"));
+    const op = daemon.lastOp("multi_grep");
+    assert.ok(op, "semantic mode must dispatch multi_grep with expanded tokens");
+    assert.ok(op.patterns.includes("auth"), `expected 'auth' in expanded tokens, got ${JSON.stringify(op.patterns)}`);
+    assert.ok(op.patterns.includes("login"));
+    assert.ok(op.patterns.includes("token"));
+    assert.equal(daemon.countOps("grep"), 0, "semantic mode must not fall back to a raw literal grep");
+    assert.ok((result.content?.[0]?.text ?? "").includes("semantic"));
+  } finally {
+    if (saved === undefined) delete process.env.ULTRASEARCH_EXPERIMENTAL_SEMANTIC;
+    else process.env.ULTRASEARCH_EXPERIMENTAL_SEMANTIC = saved;
+  }
+});
+
+test("semantic mode: the Pi surface refuses it without the explicit opt-in", async () => {
+  const daemon = await newMock({ reply: () => ({ ok: true, files: [] }) });
+  const harness = await loadPiHarness({ socketPath: daemon.socketPath });
+
+  const saved = process.env.ULTRASEARCH_EXPERIMENTAL_SEMANTIC;
+  delete process.env.ULTRASEARCH_EXPERIMENTAL_SEMANTIC;
+  try {
+    const result = await harness.callTool("_grep", {
+      pattern: "where is the user authentication and login logic",
+      mode: "semantic",
+      limit: 5,
+    });
+
+    const text = result.content?.[0]?.text ?? "";
+    assert.match(text, /disabled by default/, "a refused semantic call must say so");
+    assert.match(text, /ULTRASEARCH_EXPERIMENTAL_SEMANTIC=1/, "the refusal must name the opt-in");
+    assert.equal(daemon.countOps("multi_grep"), 0, "a refused semantic call must not reach the daemon");
+  } finally {
+    if (saved === undefined) delete process.env.ULTRASEARCH_EXPERIMENTAL_SEMANTIC;
+    else process.env.ULTRASEARCH_EXPERIMENTAL_SEMANTIC = saved;
+  }
 });

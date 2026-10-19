@@ -719,5 +719,29 @@ export function clearSemanticCaches(): void {
   infoCache.clear();
 }
 
+/**
+ * Semantic mode is gated OFF by default. It is intent keyword expansion, not vector
+ * search, and it does not perform: on this repo's own gold fixtures semantic nDCG@10 is
+ * 0.194, paraphrase recall@10 is 0.175, and the false-positive rate is 1.00 — it returns
+ * candidates for every paraphrase query, including ones with no matching subject.
+ *
+ * It is not removed: closing a 0.194 nDCG is research, not a patch, and the capability is
+ * worth keeping while that happens. But it must not be reachable by accident, because an
+ * agent that trusts a confident-looking ten-file result is worse off than one that gets an
+ * honest error. Both the MCP and Pi surfaces share this gate so they cannot drift.
+ */
+export const SEMANTIC_OPT_IN_ENV = "ULTRASEARCH_EXPERIMENTAL_SEMANTIC";
+
+export const SEMANTIC_REFUSAL =
+  `semantic mode is disabled by default: it is intent keyword expansion, not vector ` +
+  `search, and it measures badly on this project's own fixtures (nDCG@10 0.194, ` +
+  `paraphrase recall@10 0.175, false-positive rate 1.00).\n` +
+  `Use mode "literal" or "symbol". To use semantic anyway, set ` +
+  `${SEMANTIC_OPT_IN_ENV}=1.`;
+
+export function semanticEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env[SEMANTIC_OPT_IN_ENV] === "1";
+}
+
 // Re-export for callers that want declaration detection without the AST module.
 export { extractSymbolsRegex };

@@ -7,7 +7,7 @@ import { isPathSafe, unsafeQueryScope, scrubSecrets } from "./src/sanitize.ts";
 import { formatGrepFiles, explainReasonTags } from "./src/formatter.ts";
 import { summarizeAudit, formatAuditSummary, resetAudit } from "./src/telemetry.ts";
 import { analyzeCommandForBypass, diagnoseEmptyQuery } from "./src/observer.ts";
-import { searchSemanticIntent } from "./src/semantic.ts";
+import { searchSemanticIntent, semanticEnabled, SEMANTIC_REFUSAL } from "./src/semantic.ts";
 import { recordMistake } from "./src/recursive-learning.ts";
 import { PrefetchController } from "./src/prefetch.ts";
 
@@ -262,6 +262,11 @@ export default function piUltraSearchExtension(pi: ExtensionAPI): void {
         let resultMeta: any = undefined;
 
         if (params.mode === "semantic") {
+          // The same gate as the MCP surface. The schema still lists semantic so the refusal can
+          // explain itself; an agent that picks it must not silently get a confident-looking answer.
+          if (!semanticEnabled()) {
+            return { content: [{ type: "text", text: SEMANTIC_REFUSAL }], details: { tool: "ultrasearch_grep", mode: "semantic", refused: "experimental_opt_in" } };
+          }
           const t0 = performance.now();
           const semantic = await searchSemanticIntent(client, params.pattern, {
             in: searchScope,

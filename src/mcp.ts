@@ -2,7 +2,7 @@ import * as readline from "node:readline";
 import * as path from "node:path";
 import { UltraSearchClient } from "./client.ts";
 import { formatGrepFiles, explainReasonTags } from "./formatter.ts";
-import { searchSemanticIntent } from "./semantic.ts";
+import { searchSemanticIntent, semanticEnabled, SEMANTIC_REFUSAL } from "./semantic.ts";
 import { summarizeAudit, formatAuditSummary } from "./telemetry.ts";
 import { diagnoseEmptyQuery } from "./observer.ts";
 import { TOOL_SCHEMAS, toolJsonSchema } from "./tool-schema.ts";
@@ -395,25 +395,10 @@ export class UltraSearchMcpServer {
         resultMeta = { complete: false, roots: merged.roots.length, duplicates: merged.duplicates, ...(merged.errors.length ? { errors: merged.errors } : {}) };
         grepRootNote = merged.duplicates > 0 ? `\n# ${merged.duplicates} duplicate file(s) collapsed across ${merged.roots.length} roots` : "";
       } else if (args.mode === "semantic") {
-        // Semantic mode is gated OFF by default. It is intent keyword expansion, not vector
-        // search, and it does not perform: on this repo's own gold fixtures semantic nDCG@10 is
-        // 0.194, paraphrase recall@10 is 0.175, and the false-positive rate is 1.00 — it returns
-        // candidates for every paraphrase query, including ones with no matching subject.
-        //
-        // It is not removed: closing a 0.194 nDCG is research, not a patch, and the capability is
-        // worth keeping while that happens. But it must not be reachable by accident, because an
-        // agent that trusts a confident-looking ten-file result is worse off than one that gets an
-        // honest error. Set ULTRASEARCH_EXPERIMENTAL_SEMANTIC=1 to use it anyway.
-        if (process.env.ULTRASEARCH_EXPERIMENTAL_SEMANTIC !== "1") {
-          return {
-            content: [{ type: "text", text:
-              `semantic mode is disabled by default: it is intent keyword expansion, not vector ` +
-              `search, and it measures badly on this project's own fixtures (nDCG@10 0.194, ` +
-              `paraphrase recall@10 0.175, false-positive rate 1.00).\n` +
-              `Use mode "literal" or "symbol". To use semantic anyway, set ` +
-              `ULTRASEARCH_EXPERIMENTAL_SEMANTIC=1.` }],
-            isError: true,
-          } as any;
+        // Shared gate with the Pi surface (src/semantic.ts): see SEMANTIC_REFUSAL for the
+        // measured numbers and why the capability is kept rather than removed.
+        if (!semanticEnabled()) {
+          return { content: [{ type: "text", text: SEMANTIC_REFUSAL }], isError: true } as any;
         }
         const semantic = await searchSemanticIntent(this.client, args.pattern, { in: searchScope, limit: args.limit ?? 30, auditTool: "ultrasearch_grep" });
         files = semantic.files ?? [];
