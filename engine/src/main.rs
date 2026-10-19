@@ -167,7 +167,7 @@ fn bench(qs: &str) {
         let r = if q.scope.as_ref().is_none_or(|s| ultrasearch::content::in_scope(s, home.as_bytes())) {
             pool.install(|| c.search(g, &q))
         } else {
-            let paths = pool.install(|| ultrasearch::content::scan_paths(&live, q.clone_for_scan()));
+            let paths = pool.install(|| ultrasearch::content::scan_paths(&live, q.clone_for_scan(), home.as_bytes(), false));
             ultrasearch::content::verify(g, &paths, q.limit)
         };
         let first = |f: &ultrasearch::FileMatches| f.lines.first().map_or(String::new(), |(n, t)| format!("{n}: {}", t.trim()));

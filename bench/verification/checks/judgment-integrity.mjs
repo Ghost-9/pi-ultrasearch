@@ -67,6 +67,14 @@ export function isGoverned(relpath) {
   if (posix === MANIFEST_RELPATH) return false;
   if (posix.split("/").some((s) => BUILD_DIRS.includes(s))) return false;
   if (posix.startsWith(`${JUDGMENTS_DIR}/`) && posix.endsWith(".json")) return true;
+  // Fixed-name evidence and scorecards outside the judgment dir. The
+  // equivalence golden is an instrument (it is the frozen 30-query answer
+  // set, cited as final by docs/sla.md) and was overwritten in 4bc510e while
+  // this gate stayed silent because it only matched `*-baseline.json` (#61).
+  if (posix === "bench/baseline/results/equivalence-golden.json") return true;
+  if (/^bench\/verification\/(before|after)\/equivalence-golden\.json$/.test(posix)) return true;
+  if (/^bench\/wave\d+\/[^/]+\.json$/.test(posix)) return true;
+  if (/^bench\/verification\/[^/]+\.json$/.test(posix)) return true;
   return posix.endsWith("-baseline.json");
 }
 
@@ -166,7 +174,8 @@ export function buildManifest({ repoRoot = REPO_ROOT, reason, previous = null, n
     generated_at: now.toISOString().replace(/\.\d{3}Z$/, "Z"),
     amend_command: "node bench/verification/checks/judgment-integrity.mjs --amend-judgments --reason \"<why>\"",
     note:
-      "Content hashes of the versioned judgment sets and every *-baseline.json measurement artifact. " +
+      "Content hashes of the versioned judgment sets, the equivalence golden, the scorecards and every " +
+      "*-baseline.json measurement artifact. " +
       "Any change fails the integrity gate unless it is amended deliberately with --amend-judgments --reason.",
     amendments: [
       ...(previous?.amendments ?? []),

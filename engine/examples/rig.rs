@@ -195,7 +195,7 @@ fn grep_search(live: &Live, content: &Content, pool: &rayon::ThreadPool, q: &str
     let r = if indexed {
         pool.install(|| content.search(&g, &q))
     } else {
-        let paths = pool.install(|| content::scan_paths(live, q.clone_for_scan()));
+        let paths = pool.install(|| content::scan_paths(live, q.clone_for_scan(), home.as_bytes(), false));
         content::verify(&g, &paths, q.limit)
     };
     let took = ms(t.elapsed());

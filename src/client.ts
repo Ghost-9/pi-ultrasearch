@@ -1053,6 +1053,10 @@ export class UltraSearchClient {
         // (#23), so a caller bug cannot widen a search.
         root: options.root,
         mode,
+        // #59: ask the engine to prune ignored trees before reading them,
+        // rather than transferring hits this client would drop anyway. The
+        // client-side filter stays as the safety net for older daemons.
+        ignored: respectIgnore ? false : true,
         limit: overscan,
         budget_ms: budgetMs,
         context: options.context ?? 1,

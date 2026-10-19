@@ -1,0 +1,864 @@
+{
+  "generated_at": "2026-10-19T20:55:52.364Z",
+  "pattern": "NEEDLE_IGNORED_9f3a2b",
+  "n": 30,
+  "scope": "/Users/batra/us-bench-wt",
+  "home": "/tmp/us-bench-home",
+  "daemons": {
+    "prune": {
+      "compactions": 0,
+      "compactions_postponed": 0,
+      "content_bytes": 0,
+      "content_docs": 0,
+      "content_pending": 0,
+      "content_policy": {
+        "configured": false,
+        "extensions": null,
+        "max_file_bytes": null,
+        "roots": null,
+        "source": null,
+        "warm": 0
+      },
+      "content_segments": 0,
+      "deny_configured": false,
+      "deny_rules": 0,
+      "dirs": 61,
+      "entries": 2071,
+      "event_id": 5799665831,
+      "event_lag": 92,
+      "full_disk_access": false,
+      "id": null,
+      "index_bytes": 96384,
+      "last_compact_bytes": 0,
+      "last_compact_entries": 0,
+      "last_compact_ms": 0,
+      "last_compact_secs_ago": 0,
+      "last_event_id": 5799665923,
+      "lock_pid": 9059,
+      "ok": true,
+      "overlay": 0,
+      "owner": true,
+      "pid": 9059,
+      "protocol_version": "1.0",
+      "queries_in_flight": 0,
+      "removed": 0,
+      "replay_in_progress": false,
+      "socket": "/var/folders/_s/8tbk7qt16cl4tb8z7bphvzz80000gn/T/us59-prune-5chSK1/ultrasearch.sock",
+      "socket_dev": 16777230,
+      "socket_ino": 45217552,
+      "staleness_ms": 0,
+      "uptime_ms": 98
+    },
+    "noprune": {
+      "compactions": 0,
+      "compactions_postponed": 0,
+      "content_bytes": 0,
+      "content_docs": 0,
+      "content_pending": 0,
+      "content_policy": {
+        "configured": false,
+        "extensions": null,
+        "max_file_bytes": null,
+        "roots": null,
+        "source": null,
+        "warm": 0
+      },
+      "content_segments": 0,
+      "deny_configured": false,
+      "deny_rules": 0,
+      "dirs": 61,
+      "entries": 2071,
+      "event_id": 5799665831,
+      "event_lag": 92,
+      "full_disk_access": false,
+      "id": null,
+      "index_bytes": 96384,
+      "last_compact_bytes": 0,
+      "last_compact_entries": 0,
+      "last_compact_ms": 0,
+      "last_compact_secs_ago": 0,
+      "last_event_id": 5799665923,
+      "lock_pid": 9060,
+      "ok": true,
+      "overlay": 0,
+      "owner": true,
+      "pid": 9060,
+      "protocol_version": "1.0",
+      "queries_in_flight": 0,
+      "removed": 0,
+      "replay_in_progress": false,
+      "socket": "/var/folders/_s/8tbk7qt16cl4tb8z7bphvzz80000gn/T/us59-noprune-irwK1e/ultrasearch.sock",
+      "socket_dev": 16777230,
+      "socket_ino": 45217555,
+      "staleness_ms": 0,
+      "uptime_ms": 97
+    }
+  },
+  "sources": {
+    "prune": "scan",
+    "noprune": "scan"
+  },
+  "results": {
+    "prune": {
+      "median_ms": 1.092,
+      "p50": 1.091,
+      "p95": 1.309,
+      "min": 0.831,
+      "max": 1.347
+    },
+    "noprune": {
+      "median_ms": 44.832,
+      "p50": 44.728,
+      "p95": 49.219,
+      "min": 5.833,
+      "max": 71.682
+    },
+    "speedup_median": 39.588,
+    "speedup_ci95_bca": [
+      34.995,
+      42.109
+    ],
+    "pairs": 30,
+    "daemon_rows_identical": true,
+    "tool_visible_identical": true,
+    "ignored_rows_returned": {
+      "prune": 0,
+      "noprune": 90
+    },
+    "samples": [
+      {
+        "i": 0,
+        "tag": "p",
+        "ms": 1.3092499999999916,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 902,
+        "complete": true
+      },
+      {
+        "i": 0,
+        "tag": "n",
+        "ms": 6.871542000000005,
+        "files": 10,
+        "paths": [
+          "/Users/batra/us-bench-wt/engine/target/ig/f0000.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0001.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0002.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0003.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0004.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0005.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0006.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0007.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0008.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0009.txt"
+        ],
+        "ok": true,
+        "took_us": 6469,
+        "complete": true
+      },
+      {
+        "i": 1,
+        "tag": "n",
+        "ms": 5.832625000000007,
+        "files": 10,
+        "paths": [
+          "/Users/batra/us-bench-wt/engine/target/ig/f0000.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0001.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0002.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0003.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0004.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0005.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0006.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0007.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0008.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0009.txt"
+        ],
+        "ok": true,
+        "took_us": 5383,
+        "complete": true
+      },
+      {
+        "i": 1,
+        "tag": "p",
+        "ms": 1.2513340000000142,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 880,
+        "complete": true
+      },
+      {
+        "i": 2,
+        "tag": "p",
+        "ms": 0.8978749999999991,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 695,
+        "complete": true
+      },
+      {
+        "i": 2,
+        "tag": "n",
+        "ms": 7.2665409999999895,
+        "files": 10,
+        "paths": [
+          "/Users/batra/us-bench-wt/engine/target/ig/f0000.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0001.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0002.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0003.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0004.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0005.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0006.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0007.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0008.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0009.txt"
+        ],
+        "ok": true,
+        "took_us": 6895,
+        "complete": true
+      },
+      {
+        "i": 3,
+        "tag": "n",
+        "ms": 6.448165999999986,
+        "files": 10,
+        "paths": [
+          "/Users/batra/us-bench-wt/engine/target/ig/f0000.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0001.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0002.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0003.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0004.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0005.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0006.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0007.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0008.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0009.txt"
+        ],
+        "ok": true,
+        "took_us": 6018,
+        "complete": true
+      },
+      {
+        "i": 3,
+        "tag": "p",
+        "ms": 1.2232500000000073,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 907,
+        "complete": true
+      },
+      {
+        "i": 4,
+        "tag": "p",
+        "ms": 0.9877500000000055,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 729,
+        "complete": true
+      },
+      {
+        "i": 4,
+        "tag": "n",
+        "ms": 6.422875000000005,
+        "files": 10,
+        "paths": [
+          "/Users/batra/us-bench-wt/engine/target/ig/f0000.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0001.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0002.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0003.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0004.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0005.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0006.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0007.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0008.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0009.txt"
+        ],
+        "ok": true,
+        "took_us": 6051,
+        "complete": true
+      },
+      {
+        "i": 5,
+        "tag": "n",
+        "ms": 7.638374999999996,
+        "files": 10,
+        "paths": [
+          "/Users/batra/us-bench-wt/engine/target/ig/f0000.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0001.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0002.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0003.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0004.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0005.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0006.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0007.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0008.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0009.txt"
+        ],
+        "ok": true,
+        "took_us": 7165,
+        "complete": true
+      },
+      {
+        "i": 5,
+        "tag": "p",
+        "ms": 1.3465419999999995,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 914,
+        "complete": true
+      },
+      {
+        "i": 6,
+        "tag": "p",
+        "ms": 1.0884160000000236,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 757,
+        "complete": true
+      },
+      {
+        "i": 6,
+        "tag": "n",
+        "ms": 6.955083000000002,
+        "files": 10,
+        "paths": [
+          "/Users/batra/us-bench-wt/engine/target/ig/f0000.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0001.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0002.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0003.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0004.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0005.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0006.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0007.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0008.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0009.txt"
+        ],
+        "ok": true,
+        "took_us": 6525,
+        "complete": true
+      },
+      {
+        "i": 7,
+        "tag": "n",
+        "ms": 7.2073330000000055,
+        "files": 10,
+        "paths": [
+          "/Users/batra/us-bench-wt/engine/target/ig/f0000.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0001.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0002.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0003.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0004.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0005.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0006.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0007.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0008.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0009.txt"
+        ],
+        "ok": true,
+        "took_us": 6758,
+        "complete": true
+      },
+      {
+        "i": 7,
+        "tag": "p",
+        "ms": 1.2150000000000034,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 878,
+        "complete": true
+      },
+      {
+        "i": 8,
+        "tag": "p",
+        "ms": 1.079999999999984,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 794,
+        "complete": true
+      },
+      {
+        "i": 8,
+        "tag": "n",
+        "ms": 7.436791999999997,
+        "files": 10,
+        "paths": [
+          "/Users/batra/us-bench-wt/engine/target/ig/f0000.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0001.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0002.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0003.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0004.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0005.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0006.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0007.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0008.txt",
+          "/Users/batra/us-bench-wt/engine/target/ig/f0009.txt"
+        ],
+        "ok": true,
+        "took_us": 6884,
+        "complete": true
+      },
+      {
+        "i": 9,
+        "tag": "n",
+        "ms": 44.943917,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 44472,
+        "complete": true
+      },
+      {
+        "i": 9,
+        "tag": "p",
+        "ms": 1.2619169999999826,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 927,
+        "complete": true
+      },
+      {
+        "i": 10,
+        "tag": "p",
+        "ms": 1.0913750000000277,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 826,
+        "complete": true
+      },
+      {
+        "i": 10,
+        "tag": "n",
+        "ms": 44.43879099999998,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 43989,
+        "complete": true
+      },
+      {
+        "i": 11,
+        "tag": "n",
+        "ms": 71.68241699999999,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 71248,
+        "complete": true
+      },
+      {
+        "i": 11,
+        "tag": "p",
+        "ms": 1.171124999999961,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 859,
+        "complete": true
+      },
+      {
+        "i": 12,
+        "tag": "p",
+        "ms": 1.2351659999999924,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 703,
+        "complete": true
+      },
+      {
+        "i": 12,
+        "tag": "n",
+        "ms": 46.524917000000016,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 46165,
+        "complete": true
+      },
+      {
+        "i": 13,
+        "tag": "n",
+        "ms": 46.125166999999976,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 45708,
+        "complete": true
+      },
+      {
+        "i": 13,
+        "tag": "p",
+        "ms": 1.0895419999999945,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 793,
+        "complete": true
+      },
+      {
+        "i": 14,
+        "tag": "p",
+        "ms": 1.019207999999992,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 767,
+        "complete": true
+      },
+      {
+        "i": 14,
+        "tag": "n",
+        "ms": 45.030250000000024,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 44637,
+        "complete": true
+      },
+      {
+        "i": 15,
+        "tag": "n",
+        "ms": 47.65899999999999,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 47228,
+        "complete": true
+      },
+      {
+        "i": 15,
+        "tag": "p",
+        "ms": 1.2173749999999472,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 844,
+        "complete": true
+      },
+      {
+        "i": 16,
+        "tag": "p",
+        "ms": 0.9689169999999194,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 717,
+        "complete": true
+      },
+      {
+        "i": 16,
+        "tag": "n",
+        "ms": 49.21945799999992,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 48860,
+        "complete": true
+      },
+      {
+        "i": 17,
+        "tag": "n",
+        "ms": 45.977250000000026,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 45571,
+        "complete": true
+      },
+      {
+        "i": 17,
+        "tag": "p",
+        "ms": 1.1543750000000728,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 851,
+        "complete": true
+      },
+      {
+        "i": 18,
+        "tag": "p",
+        "ms": 1.0256669999999986,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 763,
+        "complete": true
+      },
+      {
+        "i": 18,
+        "tag": "n",
+        "ms": 43.97483399999999,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 43576,
+        "complete": true
+      },
+      {
+        "i": 19,
+        "tag": "n",
+        "ms": 45.304457999999954,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 44876,
+        "complete": true
+      },
+      {
+        "i": 19,
+        "tag": "p",
+        "ms": 1.0622909999999592,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 778,
+        "complete": true
+      },
+      {
+        "i": 20,
+        "tag": "p",
+        "ms": 0.8305830000000469,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 650,
+        "complete": true
+      },
+      {
+        "i": 20,
+        "tag": "n",
+        "ms": 46.122041999999965,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 45707,
+        "complete": true
+      },
+      {
+        "i": 21,
+        "tag": "n",
+        "ms": 45.13666599999999,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 44679,
+        "complete": true
+      },
+      {
+        "i": 21,
+        "tag": "p",
+        "ms": 1.131958999999938,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 819,
+        "complete": true
+      },
+      {
+        "i": 22,
+        "tag": "p",
+        "ms": 0.8546670000000631,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 674,
+        "complete": true
+      },
+      {
+        "i": 22,
+        "tag": "n",
+        "ms": 44.412000000000035,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 44048,
+        "complete": true
+      },
+      {
+        "i": 23,
+        "tag": "n",
+        "ms": 44.93608399999994,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 44550,
+        "complete": true
+      },
+      {
+        "i": 23,
+        "tag": "p",
+        "ms": 1.0926249999999982,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 823,
+        "complete": true
+      },
+      {
+        "i": 24,
+        "tag": "p",
+        "ms": 0.9136670000000322,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 664,
+        "complete": true
+      },
+      {
+        "i": 24,
+        "tag": "n",
+        "ms": 43.45154100000002,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 43111,
+        "complete": true
+      },
+      {
+        "i": 25,
+        "tag": "n",
+        "ms": 44.72791600000005,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 44337,
+        "complete": true
+      },
+      {
+        "i": 25,
+        "tag": "p",
+        "ms": 1.2781250000000455,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 974,
+        "complete": true
+      },
+      {
+        "i": 26,
+        "tag": "p",
+        "ms": 0.9794170000000122,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 765,
+        "complete": true
+      },
+      {
+        "i": 26,
+        "tag": "n",
+        "ms": 45.06712500000003,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 44668,
+        "complete": true
+      },
+      {
+        "i": 27,
+        "tag": "n",
+        "ms": 44.983375000000024,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 44536,
+        "complete": true
+      },
+      {
+        "i": 27,
+        "tag": "p",
+        "ms": 1.2035829999999805,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 834,
+        "complete": true
+      },
+      {
+        "i": 28,
+        "tag": "p",
+        "ms": 1.0432499999999436,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 736,
+        "complete": true
+      },
+      {
+        "i": 28,
+        "tag": "n",
+        "ms": 43.93054199999983,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 43509,
+        "complete": true
+      },
+      {
+        "i": 29,
+        "tag": "n",
+        "ms": 45.16662500000007,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 44735,
+        "complete": true
+      },
+      {
+        "i": 29,
+        "tag": "p",
+        "ms": 1.1479159999998956,
+        "files": 0,
+        "paths": [],
+        "ok": true,
+        "took_us": 860,
+        "complete": true
+      }
+    ]
+  },
+  "env": {
+    "loadavg": [
+      5.85693359375,
+      10.173828125,
+      14.927734375
+    ],
+    "cpus": 10,
+    "host": "Mayanks-MacBook-Pro.local",
+    "node": "v26.12.0",
+    "commit": "0265e8f",
+    "dirty": 11,
+    "ac": "Now drawing from 'AC Power'",
+    "ignored_files": 1500
+  },
+  "tests": {
+    "rust": "47 passed",
+    "npm": "276 passed",
+    "engine": "43 passed"
+  },
+  "status": "provisional",
+  "status_reason": "AC power, but load1 5.86 > 1.5 gate; paired alternating A/B on one binary, so the ratio is robust while absolute p50 is not a final SLA number.",
+  "method": "Two daemons from the same release binary, same request ({op:grep, pattern:NEEDLE_IGNORED_9f3a2b, in:<worktree>, limit:10, ignored:false}), alternating order each round, n=30 pairs. Arm A prunes ignored paths before reading; arm B has ULTRASEARCH_TEST_NO_PRUNE=1 and reads them, then the server post-filters. HOME is an empty dir so both arms take the scan path.",
+  "fixture": {
+    "scope": "/Users/batra/us-bench-wt",
+    "kind": "linked git worktree",
+    "ignored_dir": "engine/target/ig",
+    "ignored_files": 1500,
+    "kept_file": "bench-normal.txt",
+    "ignore_rule": "engine/.gitignore: target/"
+  },
+  "findings": {
+    "server_post_filter_depended_on_git_status": true,
+    "note": "With ignored:false the old server dropped ignored rows only where git status was loaded; a linked worktree can lack it, so 90 ignored rows crossed the socket across 30 no-prune samples. The prune uses .gitignore rules directly, so 0 crossed in the prune arm."
+  }
+}

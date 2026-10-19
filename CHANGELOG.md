@@ -12,6 +12,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2026-10-20] — scan-mode grep stops reading what git ignores
+
+### Fixed
+- **A scan-mode grep read gitignored trees before filtering them (#59).** When the content index does
+  not hold a scope (a linked worktree, a fresh checkout, any folder outside `HOME`), the engine scans
+  the live name index, which holds ignored trees. `ignored: false` was applied *after* the files were
+  read, and the old server-side filter depended on `git status`, which a linked worktree may not have
+  loaded — so ignored rows crossed the socket and the client dropped them. The scan now prunes with
+  the folder's `.gitignore` rules before the reads, and the client asks for `ignored: false` instead
+  of filtering after the response.
+
+  Measured (`bench/results/wave59-ignore-prune.json`): **1.09 ms vs 44.83 ms** median, **39.6×
+  [35.0, 42.1]**, n=30 alternating pairs, same binary and request, scan mode, 1,500 ignored files;
+  tool-visible output identical, 0 ignored rows returned (90 in the unpruned arm). `status:
+  provisional` — AC power but load1 5.86, above the 1.5 gate; the paired ratio is robust, the
+  absolute p50 is not a final SLA number.
+- **The ignore rules were invisible in a scan rooted at the scope.** `Scope` only consulted a repo
+  when the folder was not its "home"; a scan rooted at the repo therefore skipped `.gitignore`. The
+  scan now roots the scope one folder above the repo, and the glob reader falls back to the disk for
+  dotfiles the name index does not carry.
+
+### Added
+- Regression test `test/engine/ignore-scan.test.mjs` (the control proves the ignored file is in the
+  index; the assertion proves it does not cross the socket) and a Rust unit test for the prune.
+
+### Changed
+- **Judgment-set integrity coverage (#61):** the pin now governs the equivalence golden (the frozen
+  30-query instrument cited as final by `docs/sla.md`), the wave scorecards and the verification
+  summaries — 26 files, not 15. The golden was overwritten in `4bc510e` while the gate stayed silent
+  because it only matched `*-baseline.json`. Dated latency artifacts stay outside the pin by design.
+- **Live daemon promoted** to the 2026-10-20 engine build: `protocol_version` is now `1.0` in
+  `status`, Full Disk Access retained, staleness 0. Re-signed with the identifier-only designated
+  requirement; backups at `/tmp/ultrasearch-daemon.20261017-audit.bak` and
+  `/tmp/UltraSearch.20261017-audit.bak`.
+
+### Verified
+- 276 npm tests, 44 engine integration tests, 39 + 9 Rust tests, gate 8/8, integrity 12/12.
+- Benchmark artifact: `bench/results/wave59-ignore-prune.json` (method, fixture, load, CI included).
+
+### Not done, on purpose
+- #54–#58 (shards/postings/planner, block cache, journal, parallelism, auto-hybrid) remain the
+  architectural programme; this change removes the scan's biggest avoidable cost, it does not make
+  the content index cover new scopes (#60) or reach the 5× monorepo target.
+- #62 (checkout-dependent token/zero-result baselines) and #63 (gate 3 is n=5 with a CI lower bound
+  below threshold) are still open.
+
+---
+
 ## [2026-10-17] — honest claims, a governed scorecard, semantic behind an opt-in
 
 ### Fixed

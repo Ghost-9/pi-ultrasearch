@@ -49,6 +49,11 @@ test("governs the judgment sets and the measurement artifacts, and not build out
   assert.equal(isGoverned("bench/judgments/wave2-bars.json"), true);
   assert.equal(isGoverned("bench/baseline/results/judgments-baseline.json"), true);
   assert.equal(isGoverned("bench/verification/after/tokens-baseline.json"), true);
+  assert.equal(isGoverned("bench/baseline/results/equivalence-golden.json"), true, "the frozen equivalence instrument is governed (#61)");
+  assert.equal(isGoverned("bench/verification/after/equivalence-golden.json"), true);
+  assert.equal(isGoverned("bench/wave4/gates-v2.json"), true, "the scorecard is governed (#61)");
+  assert.equal(isGoverned("bench/verification/wave4-summary.json"), true);
+  assert.equal(isGoverned("bench/baseline/results/latency-2026-10-17.json"), false, "dated run artifacts stay outside the pin");
   // Never the manifest itself, and never generated output.
   assert.equal(isGoverned(MANIFEST_RELPATH), false);
   assert.equal(isGoverned("engine/target/release/junk-baseline.json"), false);

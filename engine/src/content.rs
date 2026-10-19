@@ -1550,7 +1550,18 @@ impl<'a> Scope<'a> {
 
     /// An ignore file's globs, parsed once per version of it.
     fn globs(&self, path: &[u8]) -> Option<Arc<Globs>> {
-        let (kind, size, mtime) = (self.look)(path)?;
+        // The name index need not carry dotfiles (`.gitignore` is one), and a
+        // scan is often the path that needs them. Fall back to the disk so the
+        // rules exist wherever the folder does (#59).
+        use std::os::unix::fs::MetadataExt;
+        let (kind, size, mtime) = match (self.look)(path) {
+            Some(v) => v,
+            None => {
+                let m = std::fs::symlink_metadata(OsStr::from_bytes(path)).ok()?;
+                let kind = if m.is_file() { KIND_FILE } else { crate::walk::KIND_OTHER };
+                (kind, m.size(), m.mtime().clamp(0, u32::MAX as i64) as u32)
+            }
+        };
         if kind & 3 != KIND_FILE {
             return None;
         }
@@ -1617,8 +1628,9 @@ impl<'a> Scope<'a> {
 
     /// A folder's place: its own ignore files and repo root on its parent's.
     fn enter(&self, dir: &[u8], up: Place) -> Place {
-        // Home itself is never taken for a repo: it holds everything else.
-        let git = (dir != self.home).then(|| (self.look)(&join(dir, b".git"))).flatten();
+        // A scoped scan can be rooted at a repo (see `scan_paths`); detect it
+        // even when it is the scope's home, or its .gitignore would not count.
+        let git = (self.look)(&join(dir, b".git"));
         let (gitignore, ignore) = (self.globs(&join(dir, b".gitignore")), self.globs(&join(dir, b".ignore")));
         if git.is_none() && gitignore.is_none() && ignore.is_none() {
             return up;
@@ -1652,6 +1664,19 @@ impl<'a> Scope<'a> {
         let cap = if json_ext(name) { MAX_FILE } else { MAX_REPO_FILE };
         let ok = if place.repo { size <= cap && name != b".git" && !binary_ext(name) } else { name_ok(name, size) };
         ok && !generated(name, size) && !ignored(&place.rules, self.global.as_deref(), path, false)
+    }
+
+    /// Whether the ignore rules leave this path out of scope (#59). Unlike
+    /// `file`, this asks only the ignore question: a caller pruning a scan
+    /// must not also drop files for extension or size, which the grep it is
+    /// serving may accept.
+    fn out_of_scope(&mut self, path: &[u8], dir: bool) -> bool {
+        let cut = path.iter().rposition(|&b| b == b'/').unwrap_or(0);
+        let parent = &path[..cut];
+        match self.place(parent) {
+            Some(p) => ignored(&p.rules, self.global.as_deref(), path, dir),
+            None => true,
+        }
     }
 
     /// What should be indexed under `dir` (direct children only unless
@@ -4897,7 +4922,7 @@ fn regex_plan(h: &Hir) -> TQ {
 /// Files to grep where the content index does not reach (e.g. `in:/etc`),
 /// picked from the name index instead of crawling, newest first. `q` is the
 /// name query restricted to the files worth reading.
-pub fn scan_paths(live: &Live, mut q: Query) -> Vec<Vec<u8>> {
+pub fn scan_paths(live: &Live, mut q: Query, home: &[u8], honor_ignore: bool) -> Vec<Vec<u8>> {
     q.kind = Some(KIND_FILE);
     q.limit = 200_000;
     q.size = (q.size.0, q.size.1.min(MAX_FILE));
@@ -4914,6 +4939,40 @@ pub fn scan_paths(live: &Live, mut q: Query) -> Vec<Vec<u8>> {
             }
         })
         .collect();
+    // The live name index holds ignored trees too (a worktree's build output,
+    // say). A scan that will not read them must drop them here, before the
+    // sort and the reads: filtering after the response was #59's +9 ms.
+    if honor_ignore {
+        // A scan is used when the scope is outside the content index's home
+        // (`HOME` is the index root; a linked worktree or a benchmark fixture
+        // can sit anywhere). Root the ignore scope at the folder *above* the
+        // scope's repo, so `place` walks into the repo and reads its
+        // .gitignore; rooting at the scope itself would make it the scope's
+        // home, where a repo's rules are not consulted.
+        let base: Vec<u8> = q.scope.as_deref().filter(|s| !s.starts_with(home)).map_or_else(
+            || home.to_vec(),
+            |s| {
+                let mut d = s.to_vec();
+                let mut root = None;
+                loop {
+                    if std::fs::symlink_metadata(OsStr::from_bytes(&join(&d, b".git"))).is_ok() {
+                        root = Some(d.clone());
+                        break;
+                    }
+                    match d.iter().rposition(|&b| b == b'/').filter(|&i| i > 0) {
+                        Some(i) => d.truncate(i),
+                        None => break,
+                    }
+                }
+                let r = root.unwrap_or_else(|| s.to_vec());
+                let cut = r.iter().rposition(|&b| b == b'/').filter(|&i| i > 0).unwrap_or(0);
+                r[..cut].to_vec()
+            },
+        );
+        let look = |p: &[u8]| in_index(live, p);
+        let mut scope = Scope::new(&base, &look);
+        files.retain(|(p, _)| !scope.out_of_scope(p, false));
+    }
     files.sort_by_key(|(_, m)| std::cmp::Reverse(*m));
     files.into_iter().map(|(p, _)| p).collect()
 }
@@ -5135,5 +5194,35 @@ mod tests {
         }
         assert!(!gate.timed_out.load(SeqCst), "each search's four lanes must run: helpers served only one live set");
         assert!(gate.arrived.load(SeqCst) >= 8);
+    }
+}
+
+#[cfg(test)]
+mod scope_prune_tests {
+    use super::*;
+    use std::os::unix::ffi::OsStrExt;
+
+    #[test]
+    fn a_gitignore_rule_prunes_a_scan_candidate() {
+        let root = std::env::temp_dir().join(format!("us-scope-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join(".git")).unwrap();
+        std::fs::create_dir_all(root.join("ignored")).unwrap();
+        std::fs::write(root.join(".gitignore"), "ignored/\n").unwrap();
+        std::fs::write(root.join("keep.ts"), "NEEDLE\n").unwrap();
+        std::fs::write(root.join("ignored/drop.ts"), "NEEDLE\n").unwrap();
+
+        let base = root.as_os_str().as_bytes().to_vec();
+        let look = |p: &[u8]| {
+            let m = std::fs::symlink_metadata(OsStr::from_bytes(p)).ok()?;
+            Some((if m.is_file() { KIND_FILE } else { crate::walk::KIND_OTHER }, m.len(), 0))
+        };
+        let parent = std::path::Path::new(&root).parent().unwrap().as_os_str().as_bytes().to_vec();
+        let mut scope = Scope::new(&parent, &look);
+        let drop = [base.clone(), b"/ignored/drop.ts".to_vec()].concat();
+        let keep = [base.clone(), b"/keep.ts".to_vec()].concat();
+        assert!(scope.out_of_scope(&drop, false), "ignored file was not pruned");
+        assert!(!scope.out_of_scope(&keep, false), "kept file was pruned");
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

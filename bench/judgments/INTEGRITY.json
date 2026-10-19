@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "generated_at": "2026-10-15T21:58:35Z",
+  "generated_at": "2026-10-19T20:42:39Z",
   "amend_command": "node bench/verification/checks/judgment-integrity.mjs --amend-judgments --reason \"<why>\"",
-  "note": "Content hashes of the versioned judgment sets and every *-baseline.json measurement artifact. Any change fails the integrity gate unless it is amended deliberately with --amend-judgments --reason.",
+  "note": "Content hashes of the versioned judgment sets, the equivalence golden, the scorecards and every *-baseline.json measurement artifact. Any change fails the integrity gate unless it is amended deliberately with --amend-judgments --reason.",
   "amendments": [
     {
       "date": "2026-10-15T21:58:35Z",
@@ -26,9 +26,29 @@
         "bench/verification/before/zeroresult-baseline.json"
       ],
       "removed": []
+    },
+    {
+      "date": "2026-10-19T20:42:39Z",
+      "reason": "coverage: govern the equivalence golden, the wave scorecards and the verification summaries, not only *-baseline.json. The golden is an instrument cited as final and was overwritten in 4bc510e while unpinned (#61). Dated latency artifacts remain ungoverned by design.",
+      "changed": [],
+      "added": [
+        "bench/baseline/results/equivalence-golden.json",
+        "bench/verification/after/equivalence-golden.json",
+        "bench/verification/backlog-closure.json",
+        "bench/verification/before/equivalence-golden.json",
+        "bench/verification/wave1-summary.json",
+        "bench/verification/wave3-summary.json",
+        "bench/verification/wave4-summary.json",
+        "bench/wave4/companion-probe.json",
+        "bench/wave4/gates-v2.json",
+        "bench/wave4/trigram-test-evidence.json",
+        "bench/wave4/validation-v2.json"
+      ],
+      "removed": []
     }
   ],
   "files": {
+    "bench/baseline/results/equivalence-golden.json": "887d684310795f1716385969450074aad572bbb6dea36d8077265631bf984b99",
     "bench/baseline/results/judgments-baseline.json": "ab4e4ac731fcc05f05feb3f3c3d8b5a90ad9f725f206fabdbe495415ab3d12c9",
     "bench/baseline/results/tokens-baseline.json": "3e0576e4898db5ffdbea5d1d056a7bae1176e7e38f6a1e14f8fc0e78b279aeb8",
     "bench/baseline/results/zeroresult-baseline.json": "663b89074275ced68d6ca6a9f533d0455ea37753612765de921f38f5505493d0",
@@ -37,12 +57,22 @@
     "bench/judgments/wave2-bars.json": "d46ea619a11cb7a80dd71309ae0da4237a35906cbd9c8c2575e398fb4d8a7096",
     "bench/judgments/wave2-judgments.json": "f378a5b140eb8bcb47e6b97729d25a3d4f8127ed47b75a20ab683a3dee2789b8",
     "bench/judgments/wave2-probes.json": "14f2d19191feec7923f5e7815be04d08acf2e1e650925bca65141272f5fd0d5d",
+    "bench/verification/after/equivalence-golden.json": "8663cfbd75f5f18acec7edcdc2e4ad12b427169fd31c5712939a5bf7f5dd2102",
     "bench/verification/after/judgments-baseline.json": "99b62ae2cfadba0bb69bc2e713e189db097da0d1f130de2e9031e80205a0be72",
     "bench/verification/after/tokens-baseline.json": "2178b8bf7688c61d4ef49960617f99fe7c9c00214e72a7ff92ec4ee2c5e4d7af",
     "bench/verification/after/wave2-baseline.json": "b4e43ef16c418365feb0d2b5342c180ada13072d0028f28fd21d6160568ced8d",
     "bench/verification/after/zeroresult-baseline.json": "7143ee9b839054d9f567f9487fd57dab85d41e48b4217f234ed507de64cf9938",
+    "bench/verification/backlog-closure.json": "2f869982dc74a7ac2f7314b5fcda58cb6d62e258e9ccbd7a6e5660c6e5911f38",
+    "bench/verification/before/equivalence-golden.json": "40722e054fdff22efeb59698d80bfca488804ef47a1f558e458b2168cc7f21df",
     "bench/verification/before/judgments-baseline.json": "64fee02691e2f4dda88e5e1b2d8a813200706b1b0c684e770d22c994b1870738",
     "bench/verification/before/tokens-baseline.json": "f139f95c24a9cd759d438d31368507209ac6b0b03586ce7b8bc03ebba2ead8e6",
-    "bench/verification/before/zeroresult-baseline.json": "ad4b5000535da25190ddbffafd3d5e1760e5078641d9dcd3c6c0facbb3f2037a"
+    "bench/verification/before/zeroresult-baseline.json": "ad4b5000535da25190ddbffafd3d5e1760e5078641d9dcd3c6c0facbb3f2037a",
+    "bench/verification/wave1-summary.json": "05ef930b842ad5f6e3f1a681e7905639cd7a1721119da04989ced14e1b13c658",
+    "bench/verification/wave3-summary.json": "e5fcd734c6304f475cf8c48c3bae14cf1235bbcbbb7b5544997b1f0d00384855",
+    "bench/verification/wave4-summary.json": "a871d1fc4e99e294132046db3ae791dd3dd0e12de02894b25bb012969394996d",
+    "bench/wave4/companion-probe.json": "9f984f4fe378503b27aa504077272e1e149a0f023d287fd904f711ff24914e7a",
+    "bench/wave4/gates-v2.json": "f481c3a39097c63228dbeebf92d93f6e9e7b4bb96e1d1ed3d341f39cffae5ac2",
+    "bench/wave4/trigram-test-evidence.json": "7feff5ae03f841cf825ff8a1981210d3163ee8f7c7a3bed5f480b2c61950c66d",
+    "bench/wave4/validation-v2.json": "b588d2a01cad7ce9655bcb3da0afd5f922fcd8d6e6b35f54d3e9c654938221cc"
   }
 }

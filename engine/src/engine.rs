@@ -544,6 +544,15 @@ impl Engine {
     /// The bool says whether the content index answered (false: files were
     /// picked from the name index and read, for folders it doesn't cover).
     pub fn grep(&self, q: &Query, g: &Grep) -> Result<(GrepResult, bool), String> {
+        self.grep_excluding(q, g, false)
+    }
+
+    /// `grep`, with ignored trees pruned from the scan when the request asks
+    /// for them to be hidden (#59). The content index already leaves them out
+    /// at build time; a scope it does not hold (a fresh worktree) is scanned
+    /// through the name index, which holds them, so the prune must happen
+    /// before the reads.
+    pub fn grep_excluding(&self, q: &Query, g: &Grep, honor_ignore: bool) -> Result<(GrepResult, bool), String> {
         let _inflight = Inflight::new(&self.s.inflight);
         WARM_UNTIL.store(0, Ordering::Relaxed);
         let home = self.s.home.as_bytes();
@@ -577,7 +586,9 @@ impl Engine {
             }
             self.s.index_first(early);
         }
-        let (paths, _) = self.s.with_names(scope, |live| search_pool().install(|| content::scan_paths(live, q.clone_for_scan())))?;
+        let (paths, _) = self.s.with_names(scope, |live| {
+            search_pool().install(|| content::scan_paths(live, q.clone_for_scan(), home, honor_ignore))
+        })?;
         let _hold = walk::Hold::new();
         Ok((content::verify(g, &paths, q.limit), false))
     }

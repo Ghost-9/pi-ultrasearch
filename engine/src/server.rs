@@ -1031,6 +1031,9 @@ fn grep(v: &Value, cx: &Ctx, root: Option<&[u8]>, deny: &DenyList) -> Result<Val
         Some("insensitive") => ultrasearch::Case::Insensitive,
         Some(c) => return Err(format!("unknown case {c}")),
     };
+    // Diagnostic seam for the #59 A/B: the same binary, same request, with the
+    // pre-read prune on or off. Production never sets this.
+    let honor_ignore = x.hide_ignored && std::env::var_os("ULTRASEARCH_TEST_NO_PRUNE").is_none();
     let pattern = v.get("pattern").and_then(Value::as_str).map(str::to_string).or(q.grep.take());
     let mut g = match (v.get("patterns").and_then(Value::as_array), pattern) {
         (Some(ps), _) => ultrasearch::Grep::any_of(&ps.iter().filter_map(Value::as_str).collect::<Vec<_>>(), case)?,
@@ -1058,7 +1061,7 @@ fn grep(v: &Value, cx: &Ctx, root: Option<&[u8]>, deny: &DenyList) -> Result<Val
         let next = r.next;
         (r, "file", next)
     } else if x.plain() {
-        let (r, indexed) = engine.grep(&q, &g)?;
+        let (r, indexed) = engine.grep_excluding(&q, &g, honor_ignore)?;
         let next = r.next;
         (r, source(indexed), next)
     } else if x.listed() {
@@ -1082,7 +1085,7 @@ fn grep(v: &Value, cx: &Ctx, root: Option<&[u8]>, deny: &DenyList) -> Result<Val
             |f: &ultrasearch::FileMatches| x.keep(&cx.git, &f.path),
             |n| {
                 q.limit = n;
-                let (mut r, indexed) = engine.grep(&q, &g)?;
+                let (mut r, indexed) = engine.grep_excluding(&q, &g, honor_ignore)?;
                 let (files, cut) = (std::mem::take(&mut r.files), !r.complete);
                 last = Some((r, indexed));
                 Ok((files, cut))
