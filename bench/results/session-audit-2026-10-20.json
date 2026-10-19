@@ -1,0 +1,237 @@
+{
+  "generated_at": "2026-10-19T21:43:13.371Z",
+  "method": "Parse Pi/Codex session JSONL; count shell search calls and tool-result text; classify scope; replay dir-scoped commands against the live daemon and the same shell command on the current tree; 4 chars/token; no raw commands or paths retained.",
+  "agents": {
+    "pi": {
+      "sessions": 462,
+      "search_calls": 6721,
+      "tokens": 2564262,
+      "total_ms": 81287479,
+      "median_ms": 181,
+      "p95_ms": 43805,
+      "addressable_tokens": 519640,
+      "classes": {
+        "path-search": {
+          "calls": 704,
+          "tokens": 268300,
+          "ms": 3792590
+        },
+        "external/pipeline": {
+          "calls": 1145,
+          "tokens": 360651,
+          "ms": 21856805
+        },
+        "missing-scope": {
+          "calls": 1797,
+          "tokens": 861006,
+          "ms": 8317329
+        },
+        "cwd-default": {
+          "calls": 31,
+          "tokens": 12284,
+          "ms": 40035
+        },
+        "unknown-shape": {
+          "calls": 1570,
+          "tokens": 368149,
+          "ms": 39419279
+        },
+        "file-scope": {
+          "calls": 1036,
+          "tokens": 454816,
+          "ms": 7007679
+        },
+        "dir-filtered": {
+          "calls": 304,
+          "tokens": 170408,
+          "ms": 750348
+        },
+        "dir-simple": {
+          "calls": 134,
+          "tokens": 68648,
+          "ms": 103414
+        }
+      }
+    },
+    "codex": {
+      "sessions": 38,
+      "search_calls": 245,
+      "tokens": 336942,
+      "total_ms": 277096,
+      "median_ms": 226,
+      "p95_ms": 6183,
+      "addressable_tokens": 87122,
+      "classes": {
+        "missing-scope": {
+          "calls": 105,
+          "tokens": 155511,
+          "ms": 45609
+        },
+        "dir-simple": {
+          "calls": 24,
+          "tokens": 49522,
+          "ms": 37774
+        },
+        "unknown-shape": {
+          "calls": 56,
+          "tokens": 56997,
+          "ms": 105956
+        },
+        "file-scope": {
+          "calls": 26,
+          "tokens": 32951,
+          "ms": 11434
+        },
+        "cwd-default": {
+          "calls": 1,
+          "tokens": 2197,
+          "ms": 226
+        },
+        "path-search": {
+          "calls": 4,
+          "tokens": 1645,
+          "ms": 1107
+        },
+        "dir-filtered": {
+          "calls": 17,
+          "tokens": 33758,
+          "ms": 3594
+        },
+        "external/pipeline": {
+          "calls": 12,
+          "tokens": 4361,
+          "ms": 71396
+        }
+      }
+    },
+    "claude": {
+      "sessions": 45,
+      "search_calls": 0,
+      "note": "45 assistant messages, no tool calls (title/attachment sessions)"
+    },
+    "opencode": {
+      "note": "blocked by local safety policy; not read"
+    }
+  },
+  "combined": {
+    "calls": 6966,
+    "tokens": 2901204,
+    "addressableTokens": 606762,
+    "totalMs": 81564575
+  },
+  "addressable_share": 20.9,
+  "replay": {
+    "all": {
+      "label": "all measured",
+      "n": 48,
+      "nativeTokens": 511.5,
+      "usTokens": 41.5,
+      "tokenRatio": 1.4824742268041238,
+      "tokenCI": [
+        0.8085015677430001,
+        1.9501661129568106
+      ],
+      "nativeMs": 31.143042000000037,
+      "usMs": 1.4354794999981095,
+      "timeRatio": 27.459110278376386,
+      "usLarger": 11,
+      "zero": 21
+    },
+    "literal": {
+      "label": "literal patterns",
+      "n": 22,
+      "nativeTokens": 402.5,
+      "usTokens": 11.5,
+      "tokenRatio": 1.9501661129568106,
+      "tokenCI": [
+        0.0981793039870938,
+        5.041666666666667
+      ],
+      "nativeMs": 29.273708499998975,
+      "usMs": 0.9133535000001842,
+      "timeRatio": 33.7556885668493,
+      "usLarger": 4,
+      "zero": 11
+    },
+    "hit": {
+      "label": "non-empty both",
+      "n": 27,
+      "nativeTokens": 603,
+      "usTokens": 602,
+      "tokenRatio": 1.4824742268041238,
+      "tokenCI": [
+        0.7452830188679245,
+        1.9501661129568106
+      ],
+      "nativeMs": 33.023457999999664,
+      "usMs": 1.3465830000004644,
+      "timeRatio": 26.74313990472365,
+      "usLarger": 11,
+      "zero": 0
+    },
+    "hitLiteral": {
+      "label": "non-empty literal",
+      "n": 11,
+      "nativeTokens": 426,
+      "usTokens": 602,
+      "tokenRatio": 1.9501661129568106,
+      "tokenCI": [
+        0.0981793039870938,
+        5.041666666666667
+      ],
+      "nativeMs": 30.010458999997354,
+      "usMs": 0.8460409999999854,
+      "timeRatio": 35.31049157774129,
+      "usLarger": 4,
+      "zero": 0
+    },
+    "missRate": {
+      "all": 0.4166666666666667,
+      "literal": 0.45454545454545453
+    }
+  },
+  "usage": {
+    "pi_sessions_with_ultrasearch": 6,
+    "pi_ultrasearch_calls": 13,
+    "pi_ultrasearch_tokens": 2273,
+    "pi_ultrasearch_median_ms": 47,
+    "pi_search_calls": 6721,
+    "adoption_rate": 0.19,
+    "codex_ultrasearch_calls": 0,
+    "claude_ultrasearch_calls": 0,
+    "audit_rows": 672,
+    "audit_note": "Most audit rows are CLI/dev runs (harness none); the 2.35M tokensSaved field is the legacy formula, not a measurement."
+  },
+  "upstream": {
+    "repo": "noahdunnagan/fsearch",
+    "tag": "v0.2.1",
+    "head": "88e63fd",
+    "pushed_at": "2026-10-12T18:33:47Z",
+    "stars": 2147,
+    "commits_since_tag": 0,
+    "open_prs": [
+      {
+        "n": 33,
+        "title": "Engine: recover when the FSEvents journal re-bases below the saved id",
+        "lines": 16,
+        "status": "ported in b71b710"
+      },
+      {
+        "n": 34,
+        "title": "Grep reads a file the query names even where the index leaves its text out",
+        "lines": 369,
+        "status": "next port"
+      }
+    ],
+    "open_issues": [
+      35
+    ]
+  },
+  "limits": [
+    "Replay selected the 60 dir-scoped commands with the largest native output, not a random sample.",
+    "Commands were re-run on the current tree; files may have changed since the session.",
+    "Native duration includes shell/tool overhead; UltraSearch time is an in-process client call.",
+    "42% of replay pairs returned nothing from UltraSearch where native returned output.",
+    "fabric_exec (19,346 Pi calls) is a code wrapper and was not decomposed into embedded searches; native volume is a lower bound."
+  ]
+}
