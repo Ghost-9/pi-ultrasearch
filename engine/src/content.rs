@@ -5148,7 +5148,7 @@ mod tests {
 
         fn arrive(&self) {
             use std::sync::atomic::Ordering::SeqCst;
-            let mut g = self.m.lock().unwrap();
+            let g = self.m.lock().unwrap();
             let n = self.arrived.fetch_add(1, SeqCst) + 1;
             if n >= self.parties {
                 self.cv.notify_all();
