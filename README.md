@@ -32,7 +32,8 @@ It ships as:
 Everything user-facing is UltraSearch-only: the tools are `ultrasearch_query`, `ultrasearch_grep`,
 `ultrasearch_multi_grep`, `ultrasearch_locate`, `ultrasearch_recent`, `ultrasearch_metrics`; the slash command is
 `/ultrasearch`; the CLI is `ultrasearch` / `ultrasearch-tui` / `ultrasearch-mcp`. No `fsearch_*` alias is registered
-on any surface — the only remaining `fsearch` strings in this repository are upstream attribution (see `NOTICE`).
+on any surface. Remaining `fsearch` references are upstream attribution, legacy socket compatibility, or historical
+audit records; the upstream MIT notice is preserved in `NOTICE`.
 
 | Platform | Default daemon socket |
 |:---|:---|
@@ -40,7 +41,8 @@ on any surface — the only remaining `fsearch` strings in this repository are u
 | Linux | `$XDG_RUNTIME_DIR/ultrasearch.sock`, else `~/.local/share/ultrasearch/ultrasearch.sock` |
 | Windows | `\\.\pipe\ultrasearch` |
 
-All environment overrides use the `PI_ULTRASEARCH_*` prefix.
+Client and harness settings use the `PI_ULTRASEARCH_*` prefix. The Rust daemon also accepts `ULTRASEARCH_*`
+variables for its index, scan root and content policy (see [`engine/BUILD.md`](engine/BUILD.md)).
 
 ---
 
@@ -172,7 +174,7 @@ Example MCP config entry:
   "mcpServers": {
     "ultrasearch": {
       "command": "node",
-      "args": ["/Users/batra/.pi/agent/extensions/pi-ultrasearch/dist/bin/mcp-server.js"]
+      "args": ["/Users/your-name/.pi/agent/extensions/pi-ultrasearch/dist/bin/mcp-server.js"]
     }
   }
 }
@@ -302,13 +304,67 @@ npm pack            # runs prepack (build) and packs dist/ + sources
 ```
 
 The published `bin` entries (`ultrasearch`, `ultrasearch-tui`, `ultrasearch-mcp`) all point at built
-JavaScript under `dist/`. `engines.node` is `>=22.18` (`.nvmrc` pins the same) because the extension and
-bins run the TypeScript sources directly through Node's native type-stripping, and the build needs
+JavaScript under `dist/`. `engines.node` is `>=22.18` (`.nvmrc` pins the same) because the Pi extension
+and direct source entrypoints such as `bin/mcp-server.ts` use Node's native type-stripping. The build uses
 TypeScript's `rewriteRelativeImportExtensions` to keep `.ts` import specifiers working in `dist/`.
 
 The extension imports `typebox` for tool parameter schemas. Pi Agent hosts provide it; it is declared as an
 **optional peer dependency** (`peerDependenciesMeta.typebox.optional = true`) so a standalone install does not
-force it, and `type-stubs.d.ts` keeps `tsc` green without it. Pi Agent extension consumers need no build step.
+force it, and `type-stubs.d.ts` keeps `tsc` green without it. The Pi loader uses `index.ts`; the installer below
+still runs `npm ci` and `npm run build` so the installed checkout and its distribution output are ready together.
+
+## Install on macOS (Pi Agent)
+
+The first install has four steps. The daemon installer installs the app bundle and LaunchAgent; installing the Pi
+extension is a separate operation because `ultrasearch init` deliberately skips Pi's native extension surface.
+
+1. Clone the project and load Rust's environment:
+
+   ```bash
+   mkdir -p "$HOME/src"
+   git clone https://github.com/Ghost-9/pi-ultrasearch.git "$HOME/src/pi-ultrasearch"
+   cd "$HOME/src/pi-ultrasearch"
+   source "$HOME/.cargo/env"
+   ```
+
+2. Build the daemon and inspect the install plan. The dry run changes no system files:
+
+   ```bash
+   (cd engine && cargo build --release)
+   ./scripts/install.sh --dry-run --bin "$PWD/engine/target/release/ultrasearch"
+   ```
+
+3. After reviewing the plan, install the daemon:
+
+   ```bash
+   ./scripts/install.sh --bin "$PWD/engine/target/release/ultrasearch"
+   ```
+
+   In **System Settings → Privacy & Security → Full Disk Access**, add or enable
+   `/Applications/UltraSearch.app`. Then restart the LaunchAgent and verify the socket and guarded Mail path:
+
+   ```bash
+   launchctl kickstart -k "gui/$(id -u)/com.pi.ultrasearch"
+   ./scripts/verify-fda.sh
+   ```
+
+   The installer defaults to an ad-hoc signature. Re-signing can change its CDHash, so Full Disk Access may stop
+   applying even when the bundle identifier stays the same. The verifier prints the zero-hit Mail probe and a
+   clear error if the daemon reports that Full Disk Access is unavailable; re-add or re-enable UltraSearch in
+   the Full Disk Access list, restart the LaunchAgent, and run the verifier again. For an optional stable identity,
+   create a self-signed Code Signing identity once in Keychain Access, confirm its name with
+   `security find-identity -v -p codesigning`, then prefix the install command with
+   `ULTRASEARCH_CODESIGN_IDENTITY="<identity name>"`.
+
+4. Install the Pi extension:
+
+   ```bash
+   ./scripts/install-extension.sh
+   ```
+
+   The script clones the extension into `~/.pi/agent/extensions/pi-ultrasearch` only when that directory is
+   absent, runs `npm ci` and `npm run build`, and prints the reload instruction. It uses no `sudo`. Run it again
+   to rebuild an existing checkout; update that checkout with `git pull` first when installing newer source.
 
 ---
 
@@ -390,12 +446,11 @@ flowchart LR
 ```
 
 Upstream engine: [`noahdunnagan/fsearch`](https://github.com/noahdunnagan/fsearch) (MIT, © Noah Dunnagan), pinned at
-`v0.2.1` and tracked in `~/.cache/fsearch`. The daemon is built from a rebranded working copy at
-`/Users/batra/ultrasearch-engine` (package/binary `ultrasearch`, install name `ultrasearch-daemon`);
-`engine/rebrand.sh <src-dir> <dst-dir>` reproduces that working copy deterministically and idempotently onto any
-upstream checkout. The upstream licence text and copyright are never rewritten — see [`NOTICE`](NOTICE). The daemon
-may be run from a macOS `.app` bundle (`UltraSearch.app`) so Full Disk Access can be granted to a stable binary identity.
-Operational detail and rollback steps: [`docs/engine-rebrand.md`](docs/engine-rebrand.md).
+`v0.2.1`. The renamed source is vendored in `engine/`; `engine/rebrand.sh <src-dir> <dst-dir>` reproduces it from
+an upstream checkout. The upstream licence text and copyright are never rewritten — see [`NOTICE`](NOTICE). The
+daemon runs from a macOS `.app` bundle (`UltraSearch.app`) so Full Disk Access can be granted to it. The default
+ad-hoc signature can lose that grant after a re-sign; an optional persistent Keychain signing identity is described
+above. Operational detail and rollback steps: [`docs/engine-rebrand.md`](docs/engine-rebrand.md).
 
 ---
 

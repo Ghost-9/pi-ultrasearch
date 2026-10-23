@@ -14,16 +14,17 @@ copyright and licence text are never rewritten — see [`NOTICE`](../NOTICE).
 | Thing | Path |
 |:---|:---|
 | Upstream engine checkout (untouched, attribution source) | `~/.cache/fsearch` (git tag `v0.2.1`, commit `88e63fd`) |
-| UltraSearch engine working copy (rebranded, buildable) | `/Users/batra/ultrasearch-engine` |
+| UltraSearch engine source (rebranded, buildable) | `engine/` in this repository |
 | Rebrand script (deterministic, idempotent, in-repo) | `engine/rebrand.sh <src-dir> <dst-dir>` |
-| Installed daemon binary | `~/.local/bin/ultrasearch-daemon` (signed `com.pi.ultrasearch.daemon`) |
-| App-bundle daemon (what launchd runs; holds the FDA grant) | `/Applications/UltraSearch.app/Contents/MacOS/UltraSearch` |
+| Installed daemon binary | `~/.local/bin/ultrasearch-daemon` (ad-hoc by default; optional Keychain identity) |
+| App-bundle daemon (what launchd runs; grant it FDA in System Settings) | `/Applications/UltraSearch.app/Contents/MacOS/UltraSearch` |
 | LaunchAgent | `~/Library/LaunchAgents/com.pi.ultrasearch.plist` |
 | Live state: index, content index, locks, log, socket | `~/Library/Application Support/UltraSearch/` |
 | Socket | `~/Library/Application Support/UltraSearch/ultrasearch.sock` |
 | Back-compat socket for pre-rename clients | `~/Library/Application Support/FSearch/fsearch.sock` → symlink to the socket above |
 
-Environment overrides are `PI_ULTRASEARCH_*` only. Default socket paths: macOS
+Client and harness overrides use `PI_ULTRASEARCH_*`; the Rust daemon also accepts
+`ULTRASEARCH_*` storage, scan-root and content-policy variables. Default socket paths: macOS
 `~/Library/Application Support/UltraSearch/ultrasearch.sock`; Linux `$XDG_RUNTIME_DIR/ultrasearch.sock` else
 `~/.local/share/ultrasearch/ultrasearch.sock`; Windows `\\.\pipe\ultrasearch`.
 
@@ -32,31 +33,39 @@ Environment overrides are `PI_ULTRASEARCH_*` only. Default socket paths: macOS
 ## 2. Rebuilding the engine from scratch
 
 ```bash
-# 1. rebrand an upstream checkout into the working copy (idempotent; safe to re-run)
-cd /Users/batra/.pi/agent/extensions/pi-ultrasearch
-engine/rebrand.sh ~/.cache/fsearch /Users/batra/ultrasearch-engine
+cd "$HOME/src/pi-ultrasearch"
+source "$HOME/.cargo/env"
+(cd engine && cargo build --release)
 
-# 2. build
-cd /Users/batra/ultrasearch-engine
-cargo build --release          # ~60 s on this machine (Apple Silicon)
-
-# 3. install (daemon binary + app-bundle binary)
-install -m 0755 target/release/ultrasearch ~/.local/bin/ultrasearch-daemon
-install -m 0755 target/release/ultrasearch /Applications/UltraSearch.app/Contents/MacOS/UltraSearch
-
-# 4. re-sign. The app's existing TCC (Full Disk Access) grant is stored as
-#    `identifier "com.pi.ultrasearch"`, so the signature MUST keep that identifier
-#    and an identifier-only designated requirement:
-codesign --force --deep --sign - \
-  --identifier com.pi.ultrasearch \
-  --requirements '=designated => identifier "com.pi.ultrasearch"' \
-  /Applications/UltraSearch.app
-codesign --force --sign - --identifier com.pi.ultrasearch.daemon ~/.local/bin/ultrasearch-daemon
-
-# 5. restart the LaunchAgent
-launchctl bootout gui/$(id -u)/com.pi.ultrasearch 2>/dev/null || true
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.pi.ultrasearch.plist
+# Review every planned action before installing the daemon and LaunchAgent.
+./scripts/install.sh --dry-run --bin "$PWD/engine/target/release/ultrasearch"
+./scripts/install.sh         --bin "$PWD/engine/target/release/ultrasearch"
 ```
+
+In **System Settings → Privacy & Security → Full Disk Access**, add or enable
+`/Applications/UltraSearch.app`. Restart the LaunchAgent and verify the socket
+and guarded Mail path:
+
+```bash
+launchctl kickstart -k "gui/$(id -u)/com.pi.ultrasearch"
+./scripts/verify-fda.sh
+```
+
+The installer signs ad hoc (`-`) by default. A re-sign can change the CDHash and
+silently invalidate Full Disk Access even though the app bundle identifier stays
+`com.pi.ultrasearch`. If `scripts/verify-fda.sh` reports that access is missing,
+re-enable UltraSearch in System Settings → Privacy & Security → Full Disk Access,
+restart the LaunchAgent, and run the check again. For a stable signing identity,
+create a self-signed Code Signing identity once in Keychain Access, inspect its
+name with `security find-identity -v -p codesigning`, and use it for installs:
+
+```bash
+ULTRASEARCH_CODESIGN_IDENTITY="<identity name>" ./scripts/install.sh --dry-run --bin "$PWD/engine/target/release/ultrasearch"
+ULTRASEARCH_CODESIGN_IDENTITY="<identity name>" ./scripts/install.sh         --bin "$PWD/engine/target/release/ultrasearch"
+```
+
+Keep that identity and private key in the login keychain. macOS still requires
+the app bundle to be enabled in the Full Disk Access list.
 
 `engine/rebrand.sh` rewrites `Cargo.toml`/`Cargo.lock`, every `.rs`/`.py`/workflow/text file, the CLI usage and
 help text, the MCP `serverInfo` name, the LaunchAgent label (`mt.nd.ultrasearch`), the data dir
@@ -79,10 +88,10 @@ STAMP=20261015-020331                       # see /tmp/ultrasearch-migration-sta
 ~/.local/bin/fsearch.bak-pre-ultrasearch    # was ~/.local/bin/fsearch
 
 # state directory MOVED, not copied (index.bin 119 MB + content/ 136 MB preserved)
-mv "~/Library/Application Support/FSearch" "~/Library/Application Support/UltraSearch"
-mkdir -p "~/Library/Application Support/FSearch"
-ln -sfn "~/Library/Application Support/UltraSearch/ultrasearch.sock" \
-        "~/Library/Application Support/FSearch/fsearch.sock"
+mv "$HOME/Library/Application Support/FSearch" "$HOME/Library/Application Support/UltraSearch"
+mkdir -p "$HOME/Library/Application Support/FSearch"
+ln -sfn "$HOME/Library/Application Support/UltraSearch/ultrasearch.sock" \
+        "$HOME/Library/Application Support/FSearch/fsearch.sock"
 ```
 
 The back-compat symlink exists so a **pre-rename Pi session that is still loaded in memory** (it resolves
@@ -90,7 +99,7 @@ The back-compat symlink exists so a **pre-rename Pi session that is still loaded
 JSON-lines `{"op":"ping"}` → `{"ok":true}`. Remove the legacy directory once no pre-rename session is running:
 
 ```bash
-rm -rf "~/Library/Application Support/FSearch"    # after all clients restarted
+rm -rf "$HOME/Library/Application Support/FSearch"    # after all clients restarted
 ```
 
 ### MCP registries (same change window)
@@ -111,18 +120,23 @@ Each entry became `{"command": "/Users/batra/.local/bin/ultrasearch-mcp", "args"
 
 ## 4. Verification (observed)
 
+These are historical observations from the 2026-10-15 migration. The recorded
+`full_disk_access: true` proves that grant survived that specific re-sign only;
+it does not guarantee that a later ad-hoc re-sign will preserve it. Use
+`scripts/verify-fda.sh` for the current guarded-path check.
+
 ```bash
 # socket exists and the job is running
 launchctl print gui/$(id -u)/com.pi.ultrasearch | grep -E 'state|pid'
 #   state = running ; program = /Applications/UltraSearch.app/Contents/MacOS/UltraSearch
 
 # daemon answers on the new socket, with the moved index and FDA intact
-printf '{"op":"status","id":1}\n' | nc -U "~/Library/Application Support/UltraSearch/ultrasearch.sock"
+printf '{"op":"status","id":1}\n' | nc -U "$HOME/Library/Application Support/UltraSearch/ultrasearch.sock"
 #   entries 3,919,306 · dirs 629,412 · content_docs 129,598 · index_bytes 124,870,784
 #   full_disk_access true · owner true
 
 # pre-rename clients still reach it through the symlink
-printf '{"op":"ping","id":2}\n' | nc -U "~/Library/Application Support/FSearch/fsearch.sock"
+printf '{"op":"ping","id":2}\n' | nc -U "$HOME/Library/Application Support/FSearch/fsearch.sock"
 #   {"id":2,"ok":true}
 
 # suites (live daemon)
@@ -155,7 +169,7 @@ cp -R /Applications/UltraSearch.app.bak-$STAMP /Applications/UltraSearch.app
 mv ~/.local/bin/fsearch.bak-pre-ultrasearch ~/.local/bin/fsearch
 
 # --- 5. move the state directory back and drop the compat dir ---------------
-mv "~/Library/Application Support/UltraSearch" "~/Library/Application Support/FSearch"
+mv "$HOME/Library/Application Support/UltraSearch" "$HOME/Library/Application Support/FSearch"
 # the old plist logs to the FSearch directory, so the log lands in the right place
 
 # --- 6. start the old daemon again ------------------------------------------
@@ -163,13 +177,13 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.pi.ultrasearch.plist
 
 # --- 7. restore the MCP registries (they must point back at the .ts entry) ---
 cp ~/.gemini/config/mcp_config.json.bak-20261015-020049 ~/.gemini/config/mcp_config.json
-cp "~/Library/Application Support/Code/User/mcp.json.bak-20261015-020049" \
-   "~/Library/Application Support/Code/User/mcp.json"
-cp "~/Library/Application Support/Claude/claude_desktop_config.json.bak-20261015-020049" \
-   "~/Library/Application Support/Claude/claude_desktop_config.json"
+cp "$HOME/Library/Application Support/Code/User/mcp.json.bak-20261015-020049" \
+   "$HOME/Library/Application Support/Code/User/mcp.json"
+cp "$HOME/Library/Application Support/Claude/claude_desktop_config.json.bak-20261015-020049" \
+   "$HOME/Library/Application Support/Claude/claude_desktop_config.json"
 
 # --- 8. (optional) revert the extension code --------------------------------
-git -C /Users/batra/.pi/agent/extensions/pi-ultrasearch checkout <pre-rename-commit>
+git -C "$HOME/.pi/agent/extensions/pi-ultrasearch" checkout <pre-rename-commit>
 ```
 
 Notes:

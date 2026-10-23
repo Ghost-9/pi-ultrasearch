@@ -102,7 +102,7 @@ Rules that keep it generic:
 
 - **MCP drift** — mitigated by the existing conformance suite + pinned protocol versions.
 - **Prompt tax** — never load MCP tools into a harness that already has native tools (the Pi rule); the smoke matrix asserts tool counts.
-- **TCC / Full Disk Access** — macOS grants bind to a binary identity; installs must keep the identifier-only designated requirement (`docs/engine-rebrand.md` §2).
+- **TCC / Full Disk Access** — an ad-hoc re-sign can change the CDHash and invalidate the grant; the installer supports an optional persistent Keychain signing identity and includes a guarded-path verifier (`docs/engine-rebrand.md`).
 - **Security on new surfaces** — DLP, deny-list and scope containment are engine-side today; MCP clients inherit them. The CLI must not add a bypass.
 - **Remote/container harnesses** — the daemon is macOS-only until #32; remote agents keep the `rg` fallback.
 

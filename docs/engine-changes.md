@@ -96,7 +96,7 @@ user-facing strings. Concretely, for anything that talks to the daemon:
 | Default data dir | `$HOME/Library/Application Support/UltraSearch` |
 | Socket | `ultrasearch.sock` (Linux: `$XDG_RUNTIME_DIR/ultrasearch.sock`, else `~/.local/share/ultrasearch/ultrasearch.sock`) |
 | Install paths | `~/.local/bin/ultrasearch-daemon`, `/Applications/UltraSearch.app/Contents/MacOS/UltraSearch` |
-| LaunchAgent | `com.pi.ultrasearch` (the app bundle keeps `identifier "com.pi.ultrasearch"`, which is what its Full Disk Access grant is stored against) |
+| LaunchAgent | `com.pi.ultrasearch` (the app bundle identifier is `com.pi.ultrasearch`; ad-hoc re-signing can still change the CDHash and invalidate Full Disk Access) |
 | Environment | `ULTRASEARCH_*` only |
 | MCP `serverInfo` | `ultrasearch` |
 
