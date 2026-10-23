@@ -24,7 +24,7 @@ hold reads it directly, so a result is never wrong — only slower.
 
 ## Configuring it
 
-`<index dir>/coverage.json` (default `~/Library/Application Support/FSearch/coverage.json`):
+`<index dir>/coverage.json` (default `~/Library/Application Support/UltraSearch/coverage.json`):
 
 ```json
 {

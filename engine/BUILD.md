@@ -27,15 +27,21 @@ committed (`.gitignore`: `engine/target/`).
 
 ## Install (replaces the resident daemon)
 
+Use the top-level installer, first in dry-run mode:
+
 ```bash
-install -m 0755 engine/target/release/ultrasearch ~/.local/bin/ultrasearch-daemon
-install -m 0755 engine/target/release/ultrasearch /Applications/UltraSearch.app/Contents/MacOS/UltraSearch
+./scripts/install.sh --dry-run --bin "$PWD/engine/target/release/ultrasearch"
+./scripts/install.sh         --bin "$PWD/engine/target/release/ultrasearch"
 ```
 
-Then re-sign and restart exactly as `../docs/engine-rebrand.md` §2 describes: the app
-bundle's Full Disk Access grant is stored against `identifier "com.pi.ultrasearch"`, so
-the signature must keep that identifier and an **identifier-only designated
-requirement**. Do not skip that step, and do not delete the backup first.
+Run those commands from the repository root.
+
+It replaces the resident daemon and starts its LaunchAgent. Ad-hoc signing is the
+default; a re-sign can change the CDHash and silently invalidate Full Disk Access
+even when the bundle identifier remains `com.pi.ultrasearch`. See
+`../docs/engine-rebrand.md` for the optional stable signing identity and the FDA
+verification command. Re-enable the grant and restart the daemon if verification
+reports it missing.
 
 ## Running an isolated instance (tests and benchmarks)
 
