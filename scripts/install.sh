@@ -6,7 +6,7 @@
 # backup names) are the ones in docs/engine-rebrand.md; this script is the
 # scripted form of the manual install, not a second convention.
 #
-#   ./scripts/install.sh                 install (idempotent)
+#   ./scripts/install.sh                 install (re-signs and restarts on each run)
 #   ./scripts/install.sh --dry-run       print every action, change nothing
 #   ./scripts/install.sh --bin <path>    install a specific engine binary
 #   ./scripts/install.sh --uninstall     remove the job and installed binaries
@@ -35,6 +35,7 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 DRY_RUN=0
 UNINSTALL=0
 SOURCE_BIN=""
+CODE_SIGN_IDENTITY="${ULTRASEARCH_CODESIGN_IDENTITY:--}"
 
 usage() {
   cat <<'EOF'
@@ -42,13 +43,14 @@ Usage: scripts/install.sh [options]
 
 Options:
   --bin <path>   Engine binary to install (default: engine/target/release/ultrasearch,
-                 then ~/ultrasearch-engine/target/release/ultrasearch, then ./target/release/ultrasearch)
+                 then ./target/release/ultrasearch when run from engine/)
   --dry-run      Print every action without executing it
   --uninstall    Stop the LaunchAgent and remove the installed binaries
   -h, --help     This help
 
 Environment:
   ULTRASEARCH_DAEMON_BIN  Alternative default for --bin
+  ULTRASEARCH_CODESIGN_IDENTITY  Keychain code-signing identity; default: - (ad-hoc)
 EOF
 }
 
@@ -140,8 +142,10 @@ Full Disk Access (required for whole-disk search):
   2. Add $APP if it is not listed (the + button, then choose the app).
   3. Toggle it on. The daemon must be restarted after the toggle:
        launchctl kickstart -k gui/$(id -u)/$LABEL
-  The grant binds to the bundle identifier "$LABEL"; do not change it when
-  re-signing (docs/engine-rebrand.md section 2).
+  The bundle identifier must remain "$LABEL". The default ad-hoc signature can
+  change its CDHash when re-signed, which may silently invalidate the grant even
+  when the bundle identifier is unchanged. See docs/engine-rebrand.md for the
+  optional stable signing identity and scripts/verify-fda.sh.
 
 Next step (harness registration; requires the phase-1 \`init\` command):
   ultrasearch init --list
@@ -248,7 +252,6 @@ if [ -z "$SOURCE_BIN" ]; then
   REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
   for candidate in \
     "$REPO_ROOT/engine/target/release/ultrasearch" \
-    "$HOME/ultrasearch-engine/target/release/ultrasearch" \
     "./target/release/ultrasearch"; do
     if [ -f "$candidate" ]; then
       SOURCE_BIN="$candidate"
@@ -331,14 +334,21 @@ else
   ok "keeping existing $APP/Contents/Info.plist"
 fi
 
-# 5. Re-sign with the identifier-only designated requirement. This is what
-#    keeps an existing Full Disk Access grant valid across reinstalls.
-run codesign --force --deep --sign - \
-  --identifier "$LABEL" \
-  --requirements "=designated => identifier \"$LABEL\"" \
-  "$APP"
-run codesign --force --sign - --identifier "$LABEL.daemon" "$DAEMON_BIN"
-ok "signed $APP and $DAEMON_BIN (identifier-only requirement)"
+# 5. Sign the app and helper. Ad-hoc remains the default for a frictionless
+#    install; a stable Keychain identity can be selected with the environment
+#    variable documented above.
+if [ "$CODE_SIGN_IDENTITY" = "-" ]; then
+  run codesign --force --deep --sign - \
+    --identifier "$LABEL" \
+    --requirements "=designated => identifier \"$LABEL\"" \
+    "$APP"
+  run codesign --force --sign - --identifier "$LABEL.daemon" "$DAEMON_BIN"
+  ok "signed $APP and $DAEMON_BIN ad hoc; Full Disk Access may need to be re-granted after a re-sign"
+else
+  run codesign --force --deep --sign "$CODE_SIGN_IDENTITY" --identifier "$LABEL" "$APP"
+  run codesign --force --sign "$CODE_SIGN_IDENTITY" --identifier "$LABEL.daemon" "$DAEMON_BIN"
+  ok "signed $APP and $DAEMON_BIN with identity: $CODE_SIGN_IDENTITY"
+fi
 
 # 6. Install and (re)start the LaunchAgent.
 write_file "$PLIST" < <(plist_content)

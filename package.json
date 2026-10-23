@@ -27,6 +27,8 @@
     "type-stubs.d.ts",
     "engine/rebrand.sh",
     "scripts/install.sh",
+    "scripts/install-extension.sh",
+    "scripts/verify-fda.sh",
     "scripts/us-rg",
     "docs",
     "README.md",
