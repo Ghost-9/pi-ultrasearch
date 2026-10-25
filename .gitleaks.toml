@@ -1,0 +1,40 @@
+# gitleaks configuration — find secrets, ignore deliberate test fixtures.
+#
+# The three repos below test their own secret-redaction features, so their
+# fixtures contain intentionally fake credentials (sk_live_abc1234567890xyz,
+# ghp_98471928471928471928, "REDACTED" baselines). Those are the feature under
+# test, not leaked credentials. Allowlisting them by path keeps the scanner
+# meaningful: a real key pasted into src/ still fails the build.
+title = "gitleaks"
+
+[extend]
+# Keep the upstream default rule set (AWS, Stripe, GitHub, private keys, ...).
+useDefault = true
+
+[allowlist]
+description = "Deliberate fixtures and scan baselines, never real credentials"
+# Bench/verification baselines embed the fake keys the DLP under test must catch.
+paths = [
+  '''^bench/.*\.json$''',
+  '''^bench/.*\.mjs$''',
+  '''^bench/.*\.log$''',
+  '''^test/.*\.ts$''',
+  '''^tests/.*\.rs$''',
+  '''^.*\.test\.ts$''',
+  '''^.*\.md$''',
+]
+regexes = [
+  # Placeholder tokens the repos generate and assert on.
+  '''\{\{[A-Z_]+_[a-z0-9]+\}\}''',
+  '''sk_live_abc123[0-9a-z]*''',
+  '''sk_test_[0-9a-z]{12,}''',
+  '''ghp_98471928471928471928''',
+  '''ghp_secureTokenValue[0-9]+''',
+  '''ghu_[A-Za-z0-9]{4}PLACEHOLDER''',
+  '''wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY''',
+  '''REDACTED''',
+  # Doc/comment examples that quote a header shape.
+  '''Bearer \{\{''',
+]
+# Commit-level allowlisting is intentionally NOT used: a real key in a commit
+# still fails, which is the whole point of adding this to CI.
