@@ -3711,16 +3711,53 @@ pub struct Hit {
 }
 
 /// A page's order, best first: a file whose match is a definition beats one
-/// that only mentions it; then more matches beat fewer; then source beats
-/// prose. It is a *content* key — nothing here is known before the file is
-/// read — so it orders the page the search already read, and cannot by itself
-/// pull a file into the page.
+/// that only mentions it; then the BM25-lite score beats a lower one; then
+/// source beats prose. It is a *content* key — nothing here is known before
+/// the file is read — so it orders the page the search already read, and
+/// cannot by itself pull a file into the page.
 ///
-/// Returns keys in comparing order: `(def, Reverse(matches), class)`.
-fn page_key(f: &FileMatches) -> (u8, std::cmp::Reverse<usize>, u8) {
+/// The middle component used to be the raw match count, which is a term
+/// frequency with no saturation and no length normalisation: a 4,000-line
+/// generated file that mentions the term ten times outranked a 40-line file
+/// that is *about* it. It is now `-bm25_lite`, ordered as a `Reverse` so a
+/// larger score sorts first.
+///
+/// Returns keys in comparing order: `(def, Reverse(score_milli), class)`.
+fn page_key(f: &FileMatches) -> (u8, std::cmp::Reverse<u32>, u8) {
     let def = f.hits.iter().any(|h| h.def);
-    let matches = f.hits.iter().map(|h| h.ranges.len()).sum::<usize>();
-    (if def { 0 } else { 1 }, std::cmp::Reverse(matches), class_rank(&f.path))
+    (if def { 0 } else { 1 }, std::cmp::Reverse(bm25_lite(f)), class_rank(&f.path))
+}
+
+/// A BM25-shaped score without a global corpus: saturation on the term
+/// frequency, and normalisation by the file's own size.
+///
+/// Real BM25 needs document frequency across the corpus, which is not known
+/// for content until every candidate has been read — and reading every
+/// candidate is exactly what this engine exists to avoid. What *is* known
+/// per page is how often the term occurs and how long the page is, and those
+/// two are what stop a large file from winning on volume alone. `k1` and the
+/// length term follow the usual BM25 constants so the shape is familiar.
+///
+/// Returned in thousandths, as an integer, so the key stays `Ord` and a tie
+/// is genuinely a tie rather than a float-comparison accident.
+fn bm25_lite(f: &FileMatches) -> u32 {
+    const K1: f64 = 1.2;
+    const B: f64 = 0.75;
+    // Median-ish line count for a source or prose file; used only to give the
+    // length term a meaningful scale, not as a corpus statistic.
+    const AVG_LEN: f64 = 120.0;
+
+    let tf = f.hits.iter().map(|h| h.ranges.len()).sum::<usize>() as f64;
+    if tf == 0.0 {
+        return 0;
+    }
+    // Lines actually seen for this file: hits plus the context the caller
+    // asked for. A page with 200 hits is long by definition; one with a
+    // single hit in a short file is dense.
+    let len = (f.hits.len() as f64 + tf).max(1.0);
+    let norm = 1.0 - B + B * (len / AVG_LEN);
+    let score = tf * (K1 + 1.0) / (tf + K1 * norm);
+    (score * 1000.0).round().clamp(0.0, u32::MAX as f64) as u32
 }
 
 /// 0 for anything you would edit, 1 for a document about it. Only a tie-break:
