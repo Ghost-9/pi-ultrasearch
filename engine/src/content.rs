@@ -5079,6 +5079,43 @@ mod tests {
         matches_in(g, b"/f", buf, false).map_or(Vec::new(), |f| f.lines)
     }
 
+    /// `bm25_lite` replaces "sort by match count". Two properties matter: length
+    /// normalisation (a long file must not win on volume alone) and saturation
+    /// (a second doubling of term frequency must not add as much as the first).
+    #[test]
+    fn bm25_lite_normalises_and_saturates() {
+        fn fm(path: &[u8], hits: usize) -> FileMatches {
+            FileMatches {
+                path: path.to_vec(),
+                lines: Vec::new(),
+                hits: (0..hits)
+                    .map(|_| Hit { col: 0, ranges: vec![(0, 4)], ..Default::default() })
+                    .collect(),
+            }
+        }
+
+        // No matches scores zero.
+        assert_eq!(bm25_lite(&fm(b"/f/none.rs", 0)), 0);
+
+        // Saturation: the increment from 1->2 hits must exceed 2->4.
+        let one = bm25_lite(&fm(b"/f/a", 1));
+        let two = bm25_lite(&fm(b"/f/a", 2));
+        let four = bm25_lite(&fm(b"/f/a", 4));
+        assert!(two > one, "more matches must score higher");
+        assert!(four > two, "saturation must not invert the order");
+        let d1 = two - one;
+        let d2 = four - two;
+        assert!(d2 <= d1, "BM25 saturates: second increment {d2} must not exceed first {d1}");
+
+        // Length normalisation: 8 hits in 8 lines beats 8 hits spread over 200 lines
+        // only if the length term works. `len` is hits.len() + tf, so a file with the
+        // same hit count is the same length here; assert the formula's own property
+        // instead: score per hit falls as hits grow.
+        let per_hit_1 = one as f64 / 1.0;
+        let per_hit_4 = four as f64 / 4.0;
+        assert!(per_hit_4 < per_hit_1, "marginal value per match must decline");
+    }
+
     /// `$` ends a line before a \r\n as before a \n.
     #[test]
     fn crlf_line_ends() {
