@@ -6,7 +6,7 @@
 # backup names) are the ones in docs/engine-rebrand.md; this script is the
 # scripted form of the manual install, not a second convention.
 #
-#   ./scripts/install.sh                 install (idempotent)
+#   ./scripts/install.sh                 install (re-signs and restarts on each run)
 #   ./scripts/install.sh --dry-run       print every action, change nothing
 #   ./scripts/install.sh --bin <path>    install a specific engine binary
 #   ./scripts/install.sh --uninstall     remove the job and installed binaries
@@ -32,9 +32,22 @@ SUPPORT_DIR="$HOME/Library/Application Support/UltraSearch"
 LOG_FILE="$SUPPORT_DIR/daemon.log"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 
+# One version for the bundle, the crate and the MCP `serverInfo`, read from
+# Cargo.toml. These used to disagree (the bundle said 1.0 while the crate and
+# the MCP server said 0.2.1), so an operator could not answer "what is
+# deployed?" — which breaks vulnerability tracking and support.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION="$(sed -n 's/^version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
+    "$SCRIPT_DIR/../engine/Cargo.toml" 2>/dev/null | head -1)"
+if [ -z "$VERSION" ]; then
+  echo "install.sh: could not read the version from engine/Cargo.toml" >&2
+  exit 1
+fi
+
 DRY_RUN=0
 UNINSTALL=0
 SOURCE_BIN=""
+CODE_SIGN_IDENTITY="${ULTRASEARCH_CODESIGN_IDENTITY:--}"
 
 usage() {
   cat <<'EOF'
@@ -42,13 +55,14 @@ Usage: scripts/install.sh [options]
 
 Options:
   --bin <path>   Engine binary to install (default: engine/target/release/ultrasearch,
-                 then ~/ultrasearch-engine/target/release/ultrasearch, then ./target/release/ultrasearch)
+                 then ./target/release/ultrasearch when run from engine/)
   --dry-run      Print every action without executing it
   --uninstall    Stop the LaunchAgent and remove the installed binaries
   -h, --help     This help
 
 Environment:
   ULTRASEARCH_DAEMON_BIN  Alternative default for --bin
+  ULTRASEARCH_CODESIGN_IDENTITY  Keychain code-signing identity; default: - (ad-hoc)
 EOF
 }
 
@@ -126,7 +140,7 @@ plist_content() {
   <key>StandardErrorPath</key>
   <string>$LOG_FILE</string>
   <key>ProcessType</key>
-  <string>Interactive</string>
+  <string>Background</string>
 </dict>
 </plist>
 EOF
@@ -140,8 +154,10 @@ Full Disk Access (required for whole-disk search):
   2. Add $APP if it is not listed (the + button, then choose the app).
   3. Toggle it on. The daemon must be restarted after the toggle:
        launchctl kickstart -k gui/$(id -u)/$LABEL
-  The grant binds to the bundle identifier "$LABEL"; do not change it when
-  re-signing (docs/engine-rebrand.md section 2).
+  The bundle identifier must remain "$LABEL". The default ad-hoc signature can
+  change its CDHash when re-signed, which may silently invalidate the grant even
+  when the bundle identifier is unchanged. See docs/engine-rebrand.md for the
+  optional stable signing identity and scripts/verify-fda.sh.
 
 Next step (harness registration; requires the phase-1 \`init\` command):
   ultrasearch init --list
@@ -248,7 +264,6 @@ if [ -z "$SOURCE_BIN" ]; then
   REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
   for candidate in \
     "$REPO_ROOT/engine/target/release/ultrasearch" \
-    "$HOME/ultrasearch-engine/target/release/ultrasearch" \
     "./target/release/ultrasearch"; do
     if [ -f "$candidate" ]; then
       SOURCE_BIN="$candidate"
@@ -323,22 +338,46 @@ if [ ! -f "$APP/Contents/Info.plist" ]; then
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.0</string>
+  <string>$VERSION</string>
+  <key>CFBundleVersion</key>
+  <string>$VERSION</string>
 </dict>
 </plist>
 EOF
 else
-  ok "keeping existing $APP/Contents/Info.plist"
+  # Keep the existing file: rewriting it wholesale could change the identity the
+  # TCC grant is keyed to. But the *version* keys must still be corrected, or an
+  # upgrade leaves the bundle claiming whatever version it was first installed
+  # at (observed: bundle 1.0 while the crate and the MCP server said 0.2.1).
+  if command -v /usr/libexec/PlistBuddy >/dev/null 2>&1; then
+    for key in CFBundleShortVersionString CFBundleVersion; do
+      cur="$(/usr/libexec/PlistBuddy -c "Print :$key" "$APP/Contents/Info.plist" 2>/dev/null || true)"
+      if [ "$cur" != "$VERSION" ]; then
+        /usr/libexec/PlistBuddy -c "Set :$key $VERSION" "$APP/Contents/Info.plist" 2>/dev/null \
+          || /usr/libexec/PlistBuddy -c "Add :$key string $VERSION" "$APP/Contents/Info.plist" 2>/dev/null \
+          || true
+        ok "Info.plist $key: ${cur:-absent} -> $VERSION"
+      fi
+    done
+  fi
+  ok "keeping existing $APP/Contents/Info.plist (identity preserved)"
 fi
 
-# 5. Re-sign with the identifier-only designated requirement. This is what
-#    keeps an existing Full Disk Access grant valid across reinstalls.
-run codesign --force --deep --sign - \
-  --identifier "$LABEL" \
-  --requirements "=designated => identifier \"$LABEL\"" \
-  "$APP"
-run codesign --force --sign - --identifier "$LABEL.daemon" "$DAEMON_BIN"
-ok "signed $APP and $DAEMON_BIN (identifier-only requirement)"
+# 5. Sign the app and helper. Ad-hoc remains the default for a frictionless
+#    install; a stable Keychain identity can be selected with the environment
+#    variable documented above.
+if [ "$CODE_SIGN_IDENTITY" = "-" ]; then
+  run codesign --force --deep --sign - \
+    --identifier "$LABEL" \
+    --requirements "=designated => identifier \"$LABEL\"" \
+    "$APP"
+  run codesign --force --sign - --identifier "$LABEL.daemon" "$DAEMON_BIN"
+  ok "signed $APP and $DAEMON_BIN ad hoc; Full Disk Access may need to be re-granted after a re-sign"
+else
+  run codesign --force --deep --sign "$CODE_SIGN_IDENTITY" --identifier "$LABEL" "$APP"
+  run codesign --force --sign "$CODE_SIGN_IDENTITY" --identifier "$LABEL.daemon" "$DAEMON_BIN"
+  ok "signed $APP and $DAEMON_BIN with identity: $CODE_SIGN_IDENTITY"
+fi
 
 # 6. Install and (re)start the LaunchAgent.
 write_file "$PLIST" < <(plist_content)

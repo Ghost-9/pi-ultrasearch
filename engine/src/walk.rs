@@ -18,6 +18,60 @@ pub const NONE: u32 = u32::MAX;
 /// pops a privacy prompt and blocks the call until someone answers it.
 pub static SKIP: std::sync::OnceLock<Vec<Vec<u8>>> = std::sync::OnceLock::new();
 
+/// Directory names that are build or agent caches. A name index exists to find
+/// what you wrote, not the thousands of files a package manager or compiler
+/// left behind, so these are pruned at enumeration: the directory entry itself
+/// is never listed and nothing inside it is walked.
+///
+/// This is the walk-side counterpart of the content index's `content.rs` skip
+/// list. Until it existed, `node_modules`, `target` and `.next` were indexed and
+/// merely *ranked down* at query time — they still cost index memory and made
+/// the daemon replay events for trees nobody searches.
+const EXCLUDE_DEFAULT: &[&[u8]] = &[
+    b"node_modules",
+    b"target",
+    b".next",
+    b".nuxt",
+    b".turbo",
+    b".parcel-cache",
+    b".svelte-kit",
+    b".venv",
+    b"venv",
+    b"__pycache__",
+    b"deriveddata",
+    b"pods",
+    b"site-packages",
+    b".pnpm-store",
+    b".gradle",
+    b".m2",
+    b".trash",
+    b"vendor",
+];
+
+/// The default list plus anything named in `ULTRASEARCH_EXCLUDE_NAMES`
+/// (comma- or colon-separated). Resolved once: this is consulted per directory
+/// entry during a whole-disk crawl.
+static EXCLUDE: std::sync::OnceLock<Vec<Vec<u8>>> = std::sync::OnceLock::new();
+
+fn exclude_set() -> &'static Vec<Vec<u8>> {
+    EXCLUDE.get_or_init(|| {
+        let mut v: Vec<Vec<u8>> = EXCLUDE_DEFAULT.iter().map(|d| d.to_vec()).collect();
+        v.extend(crate::env::exclude_names());
+        v
+    })
+}
+
+/// True when a directory entry's name is a cache directory that must not be
+/// indexed. Case-insensitive: macOS volumes are case-insensitive by default, so
+/// `Node_Modules` and `node_modules` are the same folder.
+pub fn excluded_dir(name: &[u8]) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+    let lower: Vec<u8> = name.iter().map(|c| c.to_ascii_lowercase()).collect();
+    exclude_set().iter().any(|d| d.as_slice() == lower.as_slice())
+}
+
 /// Folders a scan was refused (EPERM): without Full Disk Access macOS also
 /// silently denies some, like ~/Library/Mail. Recorded only while paths are
 /// tracked, i.e. while SKIP is set.
@@ -407,6 +461,69 @@ fn parse_entry(b: &[u8], l: &mut Listing) {
     if name.is_empty() || name.len() > u16::MAX as usize {
         return;
     }
+    // A cache directory is not indexed at all. Pruning at enumeration is the
+    // only thing that actually saves memory: ranking an entry down at query
+    // time still leaves it occupying an index slot, and still makes the daemon
+    // replay FSEvents for a tree nobody searches.
+    if kind & 3 == KIND_DIR && excluded_dir(name) {
+        return;
+    }
     l.ents.push(RawEnt { name_off: l.names.len() as u32, name_len: name.len() as u16, kind, size, mtime, child: NONE });
     l.names.extend_from_slice(name);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Cache directories are pruned at enumeration, which is what keeps them
+    /// out of the index entirely rather than merely ranking them low.
+    #[test]
+    fn cache_directories_are_pruned_by_name() {
+        for name in [
+            &b"node_modules"[..],
+            b"target",
+            b".next",
+            b".venv",
+            b"__pycache__",
+            b"DerivedData",
+            b"Pods",
+            b".turbo",
+        ] {
+            assert!(
+                excluded_dir(name),
+                "{:?} must be pruned from the index",
+                String::from_utf8_lossy(name)
+            );
+        }
+    }
+
+    /// A case-insensitive volume folds these together, so the match must be too.
+    #[test]
+    fn pruning_is_case_insensitive() {
+        assert!(excluded_dir(b"NODE_MODULES"));
+        assert!(excluded_dir(b"Target"));
+        assert!(excluded_dir(b"DerivedData"));
+    }
+
+    /// Only exact names are pruned: a real folder that merely starts with a
+    /// cache name must still be indexed.
+    #[test]
+    fn pruning_does_not_swallow_similarly_named_folders() {
+        for name in [
+            &b"src"[..],
+            b"docs",
+            b"Downloads",
+            b"node_modules_backup",
+            b"target-notes",
+            b"build",
+        ] {
+            assert!(
+                !excluded_dir(name),
+                "{:?} is real content and must stay indexed",
+                String::from_utf8_lossy(name)
+            );
+        }
+        assert!(!excluded_dir(b""), "the empty name is not a cache directory");
+    }
 }

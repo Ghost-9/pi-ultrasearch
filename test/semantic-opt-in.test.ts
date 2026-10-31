@@ -20,7 +20,10 @@ import path from "node:path";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..");
-const server = path.join(repoRoot, "dist", "bin", "mcp-server.js");
+// The npm test script intentionally runs before `npm run build`, so launch the
+// source entrypoint supported by the declared Node >=22.18 runtime instead of
+// depending on a dist/ artifact left over from a prior build.
+const server = path.join(repoRoot, "bin", "mcp-server.ts");
 
 /**
  * Call ultrasearch_grep over a real MCP session and return its stdout.
@@ -33,8 +36,8 @@ const server = path.join(repoRoot, "dist", "bin", "mcp-server.js");
  *  2. The process does not exit when stdin closes. With spawnSync every call therefore blocked
  *     for the full timeout — measured 8s and 24s — even though the response was already written.
  *     That load tipped the F7 concurrency test into a reproducible failure in the full suite. So:
- *     read until the response for our id arrives, then kill the server. The daemon is verified
- *     live, so the response is fast; the wait is on output, not on exit.
+ *     read until the response for our id arrives, then kill the server. The refusal path responds
+ *     without a daemon; live controls check for one before calling, so the wait is on output, not exit.
  */
 async function callGrep(pattern: string, mode: string, env: NodeJS.ProcessEnv = {}): Promise<string> {
 	const init = {

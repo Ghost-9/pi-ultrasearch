@@ -234,13 +234,15 @@ before anything was replaced: `/Applications/UltraSearch.app.bak-engine-20261015
 `~/Library/LaunchAgents/com.pi.ultrasearch.plist.bak-engine-20261015-040820`, with a rollback script that
 restores all three, re-signs and re-bootstraps.
 
-Install used the identifier-only designated requirement from `docs/engine-rebrand.md` §2 (the app bundle's
-Full Disk Access grant is stored against `identifier "com.pi.ultrasearch"`), then `bootout` + `bootstrap`.
+The 2026-10-15 install used the identifier-only designated requirement from the then-current
+`docs/engine-rebrand.md` §2 and the grant survived that re-sign. This is a historical observation, not a
+guarantee for later ad-hoc re-signs: the CDHash can change while the bundle identifier remains the same.
+The current installer documents an optional persistent signing identity and provides `scripts/verify-fda.sh`.
 
 | Post-install evidence | Value |
 |---|---|
 | launchd | `state = running`, `pid 8887` stable over repeated checks, **`last exit code = (never exited)`** — no crash or KeepAlive loop |
-| Full Disk Access | **`full_disk_access: true`** — the grant survived the re-sign |
+| Full Disk Access | **`full_disk_access: true` at that install** — the grant survived that one re-sign; later ad-hoc re-signs can invalidate it |
 | Index | reused, not rebuilt: `entries 3,879,791`, `content_docs 145,620`, `index_bytes 120 MB` |
 | New fields answering live | `staleness_ms 0`, `replay_in_progress false`, `last_event_id`/`event_lag`, `compactions 1` with `last_compact_ms 1560` (**a real production compaction, now visible**), `compactions_postponed`, `queries_in_flight 0`, `content_policy`, `deny_configured`/`deny_rules` |
 | Binary identity | installed app binary vs build artefact: after removing signatures both are 4,572,992 bytes and differ in exactly **2 header bytes** (Mach-O UUID); identical from byte 4096 to EOF |

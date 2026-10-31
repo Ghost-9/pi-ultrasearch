@@ -55,7 +55,7 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.pi.ultrasearch.plist
 
 | Check | Result | Evidence |
 |:---|:---|:---|
-| `full_disk_access` | `true` (grant preserved by the identifier-only requirement) | `promotion/live-status-post.json` |
+| `full_disk_access` | `true` at that promotion; the grant survived that specific re-sign, but later ad-hoc re-signs can change CDHash and invalidate it | `promotion/live-status-post.json` |
 | New status fields | present; `lock_pid == pid == 36122` | same |
 | Legacy compat socket | `{"id":2,"ok":true}` | `promotion/legacy-ping-post.txt` |
 | Index reused | entries 6,999,615 → 7,030,442; content_docs 155,901 → 155,905; never zero | `live-status-pre.json` / `live-status-post.json` |

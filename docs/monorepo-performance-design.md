@@ -114,8 +114,9 @@ returns nothing and a cheap evidence test passes, consult content candidates and
 
 - **Local-only by construction**: the daemon binds a UNIX socket, never a network port; no cloud
   dependency, no telemetry egress. The only external process is `rg`/`find` in the fallback path.
-- **Least privilege**: Full Disk Access is granted to one stable binary identity (identifier-only
-  designated requirement); the client processes need no special permission.
+- **Least privilege**: Full Disk Access is granted only to the daemon app bundle; the client processes
+  need no special permission. The default ad-hoc signature can lose its grant after a re-sign, so the
+  optional persistent Keychain identity and guarded-path check are documented in `docs/engine-rebrand.md`.
 - **Secrets pre-prompt**: DLP scrubbing, fail-closed deny-lists and scope containment stay in the
   engine so every surface inherits them; audit rows are local and redacted.
 - **Resource bounds as a control**: per-query budgets, a candidate cap, a memory budget for the block

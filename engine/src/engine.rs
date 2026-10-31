@@ -21,7 +21,12 @@ use std::time::{Duration, Instant};
 // follower starting up replays everything since the save, so fold it into
 // the base once it grows: ~1 s of CPU and a ~280 MB write, about hourly on a
 // busy disk. Otherwise only twice a day; restart replays FSEvents anyway.
-const COMPACT_PENDING: usize = 50_000;
+//
+// The bar itself lives in `env::compact_pending()` so an operator can raise it
+// with `ULTRASEARCH_COMPACT_PENDING`, which is what the churn warning below
+// tells them to do. `CHURN_WARN` then backs off automatically (see
+// `pending_bar`), so a machine that cannot keep up settles instead of
+// rebuilding the whole index every few seconds forever.
 
 /// The daemon wire protocol this build speaks. A **major** bump is a breaking
 /// change to the request/response contract; a minor bump only adds optional
@@ -399,6 +404,21 @@ impl Engine {
             let _ = walk::SKIP.set(skip);
         }
         let dir = opts.dir;
+        // Content-index GC on reconfiguration. The content index is keyed by
+        // path and is not pruned when the scan root changes, so documents from a
+        // previous scope stayed greppable forever after a root change (the name
+        // index rebuilds, the content index did not). Record which root the
+        // store was built for and drop it when that changes; it rebuilds lazily.
+        if owner {
+            let marker = dir.join("content-root");
+            let want = env::scan_root();
+            let have = std::fs::read(&marker).unwrap_or_default();
+            if !have.is_empty() && have != want {
+                log("scan root changed: dropping the content index so it rebuilds for the new scope");
+                let _ = std::fs::remove_dir_all(dir.join("content"));
+            }
+            let _ = std::fs::write(&marker, &want);
+        }
         let loading = Index::load(&dir.join("index.bin"));
         let (tx, rx) = std::sync::mpsc::channel();
         let (ctx, crx) = std::sync::mpsc::channel();
@@ -1201,6 +1221,34 @@ const CHURN_WARN: u64 = 4;
 /// the pause: an unbounded overlay costs every search.
 const COMPACT_URGENT: usize = 400_000;
 
+/// The overlay size that forces a compaction right now.
+///
+/// This is the backpressure the churn detector needed. Before it, a machine
+/// whose indexed area produced more than `COMPACT_PENDING` changes between
+/// passes rebuilt the entire index again and again — 67 times in a row was
+/// observed — because the bar never moved and the rebuild itself never caught
+/// up. Raising the bar each round makes the daemon settle into fewer, larger
+/// rebuilds instead of a permanent one-per-few-seconds loop, and
+/// `COMPACT_URGENT` still caps the overlay so searches stay cheap.
+///
+/// The bar returns to the configured base as soon as a pass finds the overlay
+/// under it (`churn_run` is reset in `compact`), so a machine that goes quiet
+/// recovers on its own.
+fn pending_bar(cs: &CompactStats) -> usize {
+    pending_bar_at(env::compact_pending(), cs.churn_run)
+}
+
+/// `pending_bar` with the base and churn count given, so it can be tested
+/// without touching process-wide environment state.
+fn pending_bar_at(base: usize, churn_run: u64) -> usize {
+    if churn_run < CHURN_WARN {
+        return base;
+    }
+    // Double per churny round past the warning, capped at the urgent size.
+    let shift = (churn_run - CHURN_WARN).min(8) as u32;
+    base.saturating_mul(1usize << shift).min(COMPACT_URGENT.max(base))
+}
+
 fn compact(shared: &Shared) {
     let t = Instant::now();
     {
@@ -1208,8 +1256,10 @@ fn compact(shared: &Shared) {
         let pending = shared.live.read().unwrap().as_ref().map_or(0, |l| l.over.len() + l.dead_count);
         cs.count += 1;
         // How many compactions in a row were triggered by size (not by the
-        // twice-daily staleness rule, not by an explicit save).
-        if pending > COMPACT_PENDING { cs.churn_run += 1 } else { cs.churn_run = 0 }
+        // twice-daily staleness rule, not by an explicit save). Measured
+        // against the configured base, not the backed-off bar: a pass that
+        // backs off is still a pass that had to happen.
+        if pending > env::compact_pending() { cs.churn_run += 1 } else { cs.churn_run = 0 }
     };
     let (ls, eid, synced) = {
         let g = shared.live.read().unwrap();
@@ -1226,6 +1276,15 @@ fn compact(shared: &Shared) {
     // (After a failed save the file is older: keep the one just built.)
     let idx = if saved.is_ok() { Index::load(&path).unwrap_or(idx) } else { idx };
     let n = idx.n;
+    // Advisory ceiling. Truncating here would hide real files, so the index is
+    // kept and the operator is told what actually reduces it.
+    if let Some(cap) = env::max_entries() {
+        if n > cap {
+            log(format!(
+                "warning: index holds {n} entries, above ULTRASEARCH_MAX_ENTRIES={cap}; narrow ULTRASEARCH_SCAN_ROOT or add the noisy folders to ULTRASEARCH_EXCLUDE_NAMES"
+            ));
+        }
+    }
     let bytes = idx.bytes();
     let took = t.elapsed();
     *shared.live.write().unwrap() = Some(Live::new(idx));
@@ -1239,8 +1298,21 @@ fn compact(shared: &Shared) {
     let churn = shared.compact.lock().unwrap().churn_run;
     log(format!("compacted to {n} entries, {} MB in {took:.2?}", bytes / 1_000_000));
     if churn >= CHURN_WARN {
+        let base = env::compact_pending();
+        let bar = pending_bar(&shared.compact.lock().unwrap());
+        // Say what the daemon did about it: with the automatic backoff the
+        // operator is no longer required to act, and raising the bar by hand
+        // is the durable fix rather than the per-boot one.
+        let advice = if bar > base {
+            format!(
+                "backing off to {bar} entries (set ULTRASEARCH_COMPACT_PENDING={} or index a quieter area to make it permanent)",
+                base.saturating_mul(2).min(COMPACT_URGENT)
+            )
+        } else {
+            "consider ULTRASEARCH_COMPACT_PENDING or a quieter indexed area".to_string()
+        };
         log(format!(
-            "warning: index churn — {churn} compactions in a row were forced by the overlay passing {COMPACT_PENDING} entries;              consider a larger COMPACT_PENDING or a quieter indexed area"
+            "warning: index churn — {churn} compactions in a row were forced by the overlay passing {base} entries; {advice}"
         ));
     }
 }
@@ -1519,10 +1591,13 @@ fn apply_loop(shared: &Arc<Shared>, rx: Receiver<Vec<fsevents::Event>>) {
         };
         // Read, do not clear: a request that is postponed must still be here
         // next time round, or the pause would lose it (the overlay may be
-        // under COMPACT_PENDING and the index not stale, so nothing else would
+        // under the pending bar and the index not stale, so nothing else would
         // bring the compaction back).
         let asked = shared.save_requested.load(Ordering::Relaxed);
-        let due = asked || pending > COMPACT_PENDING || (stale && last_save.elapsed() > COMPACT_EVERY);
+        // The bar moves up while compactions churn (see `pending_bar`), so a
+        // machine that cannot keep up stops rebuilding every few seconds.
+        let bar = pending_bar(&shared.compact.lock().unwrap());
+        let due = asked || pending > bar || (stale && last_save.elapsed() > COMPACT_EVERY);
         if !due {
             due_since = None;
             pausing = false;
@@ -1567,9 +1642,42 @@ mod tests {
     fn compaction_waits_for_queries_but_not_indefinitely() {
         assert!(compact_now(0, 10, Duration::from_secs(0)), "idle: compaction runs");
         assert!(!compact_now(1, 10, Duration::from_secs(0)), "one query in flight: wait");
-        assert!(!compact_now(64, COMPACT_PENDING + 1, Duration::from_millis(1500)), "still waiting");
+        assert!(!compact_now(64, 50_001, Duration::from_millis(1500)), "still waiting");
         assert!(compact_now(64, 10, COMPACT_DRAIN), "the wait is bounded");
         assert!(compact_now(64, COMPACT_URGENT, Duration::from_secs(0)), "an oversized overlay wins over the pause");
+    }
+
+    /// The churn backoff: while compactions keep being forced by size, the bar
+    /// rises instead of the daemon rebuilding the whole index every few
+    /// seconds forever. It is capped so searches never scan an unbounded
+    /// overlay, and it returns to the configured base once the churn stops.
+    ///
+    /// Uses `pending_bar_at` so the test is not racing other tests over
+    /// process-wide environment state.
+    #[test]
+    fn churn_backs_off_then_recovers() {
+        const BASE: usize = 50_000;
+
+        assert_eq!(pending_bar_at(BASE, 0), BASE, "no churn: the configured bar");
+
+        // Below the warning the bar does not move: ordinary busy periods must
+        // not make compaction lazy.
+        assert_eq!(pending_bar_at(BASE, CHURN_WARN - 1), BASE, "churn under the warning is not backoff");
+
+        // At the warning it starts backing off, and each further round doubles.
+        assert_eq!(pending_bar_at(BASE, CHURN_WARN), BASE, "the first warned round uses the base");
+        assert_eq!(pending_bar_at(BASE, CHURN_WARN + 1), BASE * 2, "one round past: doubled");
+        assert_eq!(pending_bar_at(BASE, CHURN_WARN + 3), BASE * 8, "three rounds past: eightfold");
+
+        // Never past the urgent cap: an unbounded overlay costs every search.
+        assert_eq!(pending_bar_at(BASE, 10_000), COMPACT_URGENT, "capped at the urgent size");
+
+        // A quiet pass resets it, so the daemon recovers on its own.
+        assert_eq!(pending_bar_at(BASE, 0), BASE, "recovered");
+
+        // A base already at or above the cap is not lowered by the cap.
+        assert_eq!(pending_bar_at(COMPACT_URGENT, 0), COMPACT_URGENT);
+        assert_eq!(pending_bar_at(COMPACT_URGENT, CHURN_WARN + 2), COMPACT_URGENT);
     }
 
     /// An engine that follows (the lock is held for good, so it never

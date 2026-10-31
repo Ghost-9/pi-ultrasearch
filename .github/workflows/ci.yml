@@ -23,6 +23,15 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      # Secret scanning. Runs before the build so a leaked key fails fast and
+      # never reaches a cache or artifact. Uses .gitleaks.toml, which allowlists
+      # only the redaction fixtures this suite tests against.
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_CONFIG: .gitleaks.toml
+          GITLEAKS_ENABLE_SUMMARY: "true"
+
       - name: Install Dependencies
         run: npm ci
 
