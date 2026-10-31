@@ -48,16 +48,53 @@ const EXCLUDE_DEFAULT: &[&[u8]] = &[
     b"vendor",
 ];
 
-/// The default list plus anything named in `ULTRASEARCH_EXCLUDE_NAMES`
-/// (comma- or colon-separated). Resolved once: this is consulted per directory
-/// entry during a whole-disk crawl.
-static EXCLUDE: std::sync::OnceLock<Vec<Vec<u8>>> = std::sync::OnceLock::new();
+/// Prune rules: exact names (directories) and suffixes (`*.log`-style, any
+/// entry). Built once from the built-in list, `ULTRASEARCH_EXCLUDE_NAMES`, and
+/// the scan root's own `.gitignore` / `.ignore`.
+static EXCLUDE: std::sync::OnceLock<(Vec<Vec<u8>>, Vec<Vec<u8>>)> = std::sync::OnceLock::new();
 
-fn exclude_set() -> &'static Vec<Vec<u8>> {
+/// Parse the ignore rules a repository keeps at its root.
+///
+/// Deliberately a **subset** of gitignore: comments, negation (`!`), anchoring
+/// (`/x`), directory markers (`x/`) and `*.ext` suffixes are understood, while a
+/// pattern containing an interior `/` or `?`/`[...]` is ignored. Matching a
+/// pattern *wrongly* would silently stop indexing real files, which is a worse
+/// failure than not matching one — so anything ambiguous is left indexed.
+fn read_ignore_file(path: &std::path::Path, names: &mut Vec<Vec<u8>>, suffixes: &mut Vec<Vec<u8>>) {
+    let Ok(text) = std::fs::read_to_string(path) else { return };
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') || line.starts_with('!') {
+            continue;
+        }
+        let pat = line.trim_end_matches('/').trim_start_matches('/');
+        if pat.is_empty() {
+            continue;
+        }
+        if let Some(suf) = pat.strip_prefix('*') {
+            // `*.ext` — a suffix that must not be empty and must not itself be a
+            // glob, or the rule is ambiguous and is skipped.
+            if !suf.is_empty() && !suf.contains('*') && !suf.contains('?') && !suf.contains('[') {
+                suffixes.push(suf.to_ascii_lowercase().into_bytes());
+            }
+        } else if !pat.contains('/') && !pat.contains('*') && !pat.contains('?') && !pat.contains('[') {
+            names.push(pat.to_ascii_lowercase().into_bytes());
+        }
+    }
+}
+
+fn exclude_set() -> &'static (Vec<Vec<u8>>, Vec<Vec<u8>>) {
     EXCLUDE.get_or_init(|| {
-        let mut v: Vec<Vec<u8>> = EXCLUDE_DEFAULT.iter().map(|d| d.to_vec()).collect();
-        v.extend(crate::env::exclude_names());
-        v
+        let mut names: Vec<Vec<u8>> = EXCLUDE_DEFAULT.iter().map(|d| d.to_vec()).collect();
+        names.extend(crate::env::exclude_names());
+        let mut suffixes: Vec<Vec<u8>> = Vec::new();
+        // The scan root's own ignore files: the common case is a repository whose
+        // `.gitignore` already lists its build output.
+        let root = std::path::PathBuf::from(String::from_utf8_lossy(&crate::env::scan_root()).into_owned());
+        for file in [".gitignore", ".ignore"] {
+            read_ignore_file(&root.join(file), &mut names, &mut suffixes);
+        }
+        (names, suffixes)
     })
 }
 
@@ -69,7 +106,23 @@ pub fn excluded_dir(name: &[u8]) -> bool {
         return false;
     }
     let lower: Vec<u8> = name.iter().map(|c| c.to_ascii_lowercase()).collect();
-    exclude_set().iter().any(|d| d.as_slice() == lower.as_slice())
+    exclude_set().0.iter().any(|d| d.as_slice() == lower.as_slice())
+}
+
+/// True when an entry must be pruned: a cache directory by name, or anything
+/// matching a `*.ext` rule from the ignore files.
+pub fn excluded_entry(name: &[u8], is_dir: bool) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+    let lower: Vec<u8> = name.iter().map(|c| c.to_ascii_lowercase()).collect();
+    if is_dir && exclude_set().0.iter().any(|d| d.as_slice() == lower.as_slice()) {
+        return true;
+    }
+    exclude_set()
+        .1
+        .iter()
+        .any(|suf| lower.len() > suf.len() && lower.ends_with(suf.as_slice()))
 }
 
 /// Folders a scan was refused (EPERM): without Full Disk Access macOS also
@@ -465,7 +518,7 @@ fn parse_entry(b: &[u8], l: &mut Listing) {
     // only thing that actually saves memory: ranking an entry down at query
     // time still leaves it occupying an index slot, and still makes the daemon
     // replay FSEvents for a tree nobody searches.
-    if kind & 3 == KIND_DIR && excluded_dir(name) {
+    if excluded_entry(name, kind & 3 == KIND_DIR) {
         return;
     }
     l.ents.push(RawEnt { name_off: l.names.len() as u32, name_len: name.len() as u16, kind, size, mtime, child: NONE });
@@ -525,5 +578,43 @@ mod tests {
             );
         }
         assert!(!excluded_dir(b""), "the empty name is not a cache directory");
+    }
+
+    /// A repository's root ignore file is honoured, but only where the meaning is
+    /// unambiguous: a pattern parsed wrongly would silently stop indexing real
+    /// files, so anything ambiguous is left indexed.
+    #[test]
+    fn root_ignore_rules_are_applied() {
+        let d = std::env::temp_dir().join(format!("us-ignore-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&d);
+        let f = d.join(".gitignore");
+        std::fs::write(
+            &f,
+            "# a comment\nnode_modules\ndist/\n/out\n*.log\n!keep.log\ndocs/internal\nbuild*\n\n",
+        )
+        .unwrap();
+        let (mut names, mut suffixes) = (Vec::new(), Vec::new());
+        read_ignore_file(&f, &mut names, &mut suffixes);
+
+        assert!(names.contains(&b"node_modules".to_vec()), "a plain name is a rule");
+        assert!(names.contains(&b"dist".to_vec()), "a trailing slash is a directory marker");
+        assert!(names.contains(&b"out".to_vec()), "a leading slash is anchoring, not part of the name");
+        assert!(suffixes.contains(&b".log".to_vec()), "*.ext becomes a suffix rule");
+        assert!(!names.iter().any(|n| n == b"keep.log"), "a negation is not an exclusion");
+        assert!(!names.iter().any(|n| n == b"docs"), "an interior slash is ambiguous, so it is skipped");
+        assert!(!names.iter().any(|n| n == b"build*"), "a glob in the name is ambiguous, so it is skipped");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    /// The prune decision distinguishes a directory (name rules apply) from a file
+    /// (only suffix rules apply), so `target` the folder goes and `target.rs` stays.
+    #[test]
+    fn prune_distinguishes_directories_from_files() {
+        assert!(excluded_entry(b"node_modules", true), "a cache directory is pruned");
+        assert!(excluded_entry(b"Target", true), "case-insensitively");
+        assert!(!excluded_entry(b"target", false), "a FILE called target is real content");
+        assert!(!excluded_entry(b"src", true));
+        assert!(!excluded_entry(b"main.rs", false));
+        assert!(!excluded_entry(b"", false), "the empty name is never pruned");
     }
 }
