@@ -32,6 +32,18 @@ SUPPORT_DIR="$HOME/Library/Application Support/UltraSearch"
 LOG_FILE="$SUPPORT_DIR/daemon.log"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 
+# One version for the bundle, the crate and the MCP `serverInfo`, read from
+# Cargo.toml. These used to disagree (the bundle said 1.0 while the crate and
+# the MCP server said 0.2.1), so an operator could not answer "what is
+# deployed?" — which breaks vulnerability tracking and support.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION="$(sed -n 's/^version[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
+    "$SCRIPT_DIR/../engine/Cargo.toml" 2>/dev/null | head -1)"
+if [ -z "$VERSION" ]; then
+  echo "install.sh: could not read the version from engine/Cargo.toml" >&2
+  exit 1
+fi
+
 DRY_RUN=0
 UNINSTALL=0
 SOURCE_BIN=""
@@ -128,7 +140,7 @@ plist_content() {
   <key>StandardErrorPath</key>
   <string>$LOG_FILE</string>
   <key>ProcessType</key>
-  <string>Interactive</string>
+  <string>Background</string>
 </dict>
 </plist>
 EOF
@@ -326,12 +338,29 @@ if [ ! -f "$APP/Contents/Info.plist" ]; then
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.0</string>
+  <string>$VERSION</string>
+  <key>CFBundleVersion</key>
+  <string>$VERSION</string>
 </dict>
 </plist>
 EOF
 else
-  ok "keeping existing $APP/Contents/Info.plist"
+  # Keep the existing file: rewriting it wholesale could change the identity the
+  # TCC grant is keyed to. But the *version* keys must still be corrected, or an
+  # upgrade leaves the bundle claiming whatever version it was first installed
+  # at (observed: bundle 1.0 while the crate and the MCP server said 0.2.1).
+  if command -v /usr/libexec/PlistBuddy >/dev/null 2>&1; then
+    for key in CFBundleShortVersionString CFBundleVersion; do
+      cur="$(/usr/libexec/PlistBuddy -c "Print :$key" "$APP/Contents/Info.plist" 2>/dev/null || true)"
+      if [ "$cur" != "$VERSION" ]; then
+        /usr/libexec/PlistBuddy -c "Set :$key $VERSION" "$APP/Contents/Info.plist" 2>/dev/null \
+          || /usr/libexec/PlistBuddy -c "Add :$key string $VERSION" "$APP/Contents/Info.plist" 2>/dev/null \
+          || true
+        ok "Info.plist $key: ${cur:-absent} -> $VERSION"
+      fi
+    done
+  fi
+  ok "keeping existing $APP/Contents/Info.plist (identity preserved)"
 fi
 
 # 5. Sign the app and helper. Ad-hoc remains the default for a frictionless
