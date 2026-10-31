@@ -14,6 +14,21 @@
 
 ---
 
+## Versions
+
+Two artifacts version independently, and that is deliberate:
+
+| Artifact | Where | Current |
+|---|---|---|
+| **Engine + app** | `engine/Cargo.toml` — the daemon, the CLI and the MCP server | `0.2.1` |
+| **Pi extension** | `package.json` — the native tool surface Pi loads | `0.3.1` |
+
+`install.sh` reads the engine version from `Cargo.toml` and writes it into both
+`CFBundleShortVersionString` and `CFBundleVersion`, so the app bundle, the crate
+and the MCP `serverInfo` always agree. The extension is a separate npm package
+with its own release line; `init --list` reports it as `extension` rather than
+`no`, because Pi takes the tools natively instead of through an MCP entry.
+
 ## What it is
 
 Agents lose time and context to `find`, `rg`, and `grep -rn` subprocesses. `pi-ultrasearch` keeps a resident index

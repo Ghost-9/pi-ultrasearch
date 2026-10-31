@@ -9,7 +9,20 @@
  */
 
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
+/** Pi takes the tool surface as a native extension, not an MCP entry, so its
+ * `registered` column read "no" even when the extension was installed and
+ * working. Report that state honestly instead of as an absence. */
+function nativeExtensionInstalled(id: string): boolean {
+  if (id !== "pi") return false;
+  try {
+    return fs.existsSync(path.join(os.homedir(), ".pi", "agent", "extensions", "pi-ultrasearch"));
+  } catch {
+    return false;
+  }
+}
+
 import {
   checkJson,
   checkToml,
@@ -423,6 +436,7 @@ export function renderHarnessList(plans: HarnessInitPlan[], json = false): strin
           protocolVersionSource: p.protocolVersionSource,
           installed: p.installed,
           registered: p.existingEntry !== undefined,
+          native_extension: nativeExtensionInstalled(p.id),
           initDefault: p.initDefault,
           directive: p.directive,
         })),
@@ -438,7 +452,7 @@ export function renderHarnessList(plans: HarnessInitPlan[], json = false): strin
     p.surface,
     p.format,
     p.installed ? "yes" : "no",
-    p.existingEntry !== undefined ? "yes" : "no",
+    p.existingEntry !== undefined ? "yes" : nativeExtensionInstalled(p.id) ? "extension" : "no",
     p.entryShapeSource,
     `${p.protocolVersion}${p.protocolVersionSource === "assumed" ? " (assumed)" : ""}`,
     p.initDefault,
