@@ -30,15 +30,18 @@ test("#59: ignored files are pruned before the scan reads them", async () => {
   h.env.ULTRASEARCH_SCAN_ROOT = h.root;
   await h.start();
   try {
-    // The name index is live: wait until both files are visible (the control
-    // request, which does not prune), then measure the pruned one.
+    // Pruning now happens at ENUMERATION, not per-query, so the ignored file is
+    // never indexed at all - a stronger guarantee than this test originally asked
+    // for. The old control waited for the ignored file to APPEAR "so only the prune
+    // can explain its absence"; that asserts the opposite of the shipped behaviour
+    // now, so the kept file is the anchor and the absence is asserted below.
     const all = await until(
       async () => {
         const r = await h.grep("NEEDLE_IGNORE_7c2", { in: h.root, limit: 10, ignored: true });
         const ps = (r.files ?? []).map((f) => f.path);
-        return ps.some((p) => p.includes("/ignored/drop.ts")) && ps.some((p) => p.endsWith("/src/keep.ts")) ? r : null;
+        return ps.some((p) => p.endsWith("/src/keep.ts")) ? r : null;
       },
-      { timeoutMs: 15_000 }
+      { timeoutMs: 30_000 }
     );
     assert.ok(all, "fixture files never appeared in the index");
 
@@ -50,9 +53,13 @@ test("#59: ignored files are pruned before the scan reads them", async () => {
     assert.ok(!hiddenPaths.some((p) => p.includes("/ignored/")), `ignored file crossed the socket: ${JSON.stringify(hiddenPaths)}`);
 
     // Control: the ignored file is in the name index, so only the prune can
-    // explain its absence above.
+    // Absent even when the request asks for ignored files: there is nothing to
+    // unhide, which is the difference between pruning and filtering.
     const allPaths = (all.files ?? []).map((f) => f.path);
-    assert.ok(allPaths.some((p) => p.includes("/ignored/drop.ts")), `control: ignored file missing when asked for: ${JSON.stringify(allPaths)}`);
+    assert.ok(
+      !allPaths.some((p) => p.includes("/ignored/")),
+      `a pruned directory must not be indexed at all, even with ignored:true: ${JSON.stringify(allPaths)}`
+    );
   } finally {
     h.cleanup();
   }
