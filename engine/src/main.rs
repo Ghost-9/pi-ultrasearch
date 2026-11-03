@@ -232,7 +232,38 @@ fn domain() -> String {
     format!("gui/{}", unsafe { libc::getuid() })
 }
 
+/// Refuse to install alongside a daemon this binary did not create.
+///
+/// The shipped app registers `com.pi.ultrasearch`. This source tree uses
+/// `mt.nd.ultrasearch`, so running `install` here would add a SECOND LaunchAgent,
+/// and two daemons contend for the same socket directory and index. Observed for
+/// real: the running app's agent label does not match the current source.
+fn foreign_agent() -> Option<String> {
+    let dir = PathBuf::from(home()).join("Library/LaunchAgents");
+    let entries = std::fs::read_dir(dir).ok()?;
+    for e in entries.flatten() {
+        let name = e.file_name().to_string_lossy().to_string();
+        if name.contains("ultrasearch") && name.ends_with(".plist") && !name.starts_with(LABEL) {
+            return Some(name);
+        }
+    }
+    None
+}
+
 fn install(login: bool, as_json: bool) {
+    if let Some(other) = foreign_agent() {
+        let msg = format!(
+            "refusing to install: {other} already manages a UltraSearch daemon. Running this \
+             binary would add a second agent ({LABEL}) and the two would contend for the same \
+             socket and index. Remove the other agent first, or use the app that owns it."
+        );
+        if as_json {
+            println!("{}", serde_json::json!({"ok": false, "error": msg, "existing_agent": other}));
+        } else {
+            eprintln!("{msg}");
+        }
+        std::process::exit(1);
+    }
     // A plain reinstall keeps an existing login agent.
     let login = login || plist_path().exists();
     let bin = PathBuf::from(home()).join(".local/bin/ultrasearch-daemon");
