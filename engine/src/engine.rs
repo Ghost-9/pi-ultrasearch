@@ -502,9 +502,9 @@ impl Engine {
                     }
                 },
             };
-            *s.live.write().unwrap() = Some(live);
-            s.early.lock().unwrap().clear();
-            *s.loading.0.lock().unwrap() = false;
+            *s.live.write().unwrap_or_else(|p| p.into_inner()) = Some(live);
+            s.early.lock().unwrap_or_else(|p| p.into_inner()).clear();
+            *s.loading.0.lock().unwrap_or_else(|p| p.into_inner()) = false;
             s.loading.1.notify_all();
             if let Some(from) = replay {
                 // (A save from before event ids were stamped: from now.)
@@ -519,13 +519,13 @@ impl Engine {
                     // upstream PR #33 (noahdunnagan/fsearch).
                     log(format!("saved event id {from} is ahead of the journal head {head}: relisting folders changed since the save"));
                     s.watch(head);
-                    s.live.write().unwrap().as_mut().unwrap().event_id = head;
+                    s.live.write().unwrap_or_else(|p| p.into_inner()).as_mut().unwrap().event_id = head;
                     relist_changed(&s, "event ids re-based below our save", 0);
                 } else {
                     s.watch(from);
                 }
             }
-            if let Some(l) = s.live.read().unwrap().as_ref() {
+            if let Some(l) = s.live.read().unwrap_or_else(|p| p.into_inner()).as_ref() {
                 l.base.prefault();
             }
             if owner {
@@ -607,7 +607,7 @@ impl Engine {
         let built = indexed && self.s.content_holds(q.scope.as_deref());
         if built {
             let fresh = self.s.dirty.files(q);
-            let c = self.s.content.read().unwrap();
+            let c = self.s.content.read().unwrap_or_else(|p| p.into_inner());
             // A folder the index holds nothing in (one its .gitignore leaves
             // out, say) is read directly, below.
             if q.scope.as_ref().is_none_or(|s| c.holds(s)) {
@@ -640,11 +640,11 @@ impl Engine {
     }
 
     pub fn status(&self) -> Status {
-        let l = self.s.live.read().unwrap();
-        let c = self.s.content.read().unwrap();
+        let l = self.s.live.read().unwrap_or_else(|p| p.into_inner());
+        let c = self.s.content.read().unwrap_or_else(|p| p.into_inner());
         let last_event_id = fsevents::current_id();
         let event_id = l.as_ref().map_or(0, |l| l.event_id);
-        let cs = *self.s.compact.lock().unwrap();
+        let cs = *self.s.compact.lock().unwrap_or_else(|p| p.into_inner());
         Status {
             ready: l.is_some(),
             protocol_version: PROTOCOL_VERSION,
@@ -718,7 +718,7 @@ impl Engine {
     /// and maybe anything below them), as the batch is applied (on the
     /// thread applying it: keep `f` quick).
     pub fn on_change(&self, f: impl Fn(&[(&[u8], bool)]) + Send + Sync + 'static) {
-        self.s.on_change.write().unwrap().push(Box::new(f));
+        self.s.on_change.write().unwrap_or_else(|p| p.into_inner()).push(Box::new(f));
     }
 }
 
@@ -770,8 +770,8 @@ impl Shared {
 
     fn live(&self) -> RwLockReadGuard<'_, Option<Live>> {
         let (loading, cv) = &self.loading;
-        drop(cv.wait_while(loading.lock().unwrap(), |l| *l).unwrap());
-        self.live.read().unwrap()
+        drop(cv.wait_while(loading.lock().unwrap_or_else(|p| p.into_inner()), |l| *l).unwrap());
+        self.live.read().unwrap_or_else(|p| p.into_inner())
     }
 
     fn owner(&self) -> bool {
@@ -822,8 +822,8 @@ impl Shared {
     /// The early index of a folder holding `dir`, listing `dir` if none
     /// does; None once the whole disk is in.
     fn early(&self, dir: &[u8]) -> Option<Arc<Early>> {
-        let mut early = self.early.lock().unwrap();
-        if self.live.read().unwrap().is_some() {
+        let mut early = self.early.lock().unwrap_or_else(|p| p.into_inner());
+        if self.live.read().unwrap_or_else(|p| p.into_inner()).is_some() {
             return None;
         }
         if let Some(e) = early.iter().find(|e| under(dir, &e.dir)) {
@@ -859,7 +859,7 @@ impl Shared {
     /// Does the content index hold every file under `scope` (all it should
     /// hold, without one)?
     fn content_holds(&self, scope: Option<&[u8]>) -> bool {
-        self.content_ready.load(Ordering::Acquire) || scope.is_some_and(|s| self.content_early.lock().unwrap().iter().any(|f| under(s, f)))
+        self.content_ready.load(Ordering::Acquire) || scope.is_some_and(|s| self.content_early.lock().unwrap_or_else(|p| p.into_inner()).iter().any(|f| under(s, f)))
     }
 
     /// (Re)start the FSEvents stream from `since`, replacing any old one.
@@ -882,7 +882,7 @@ impl Shared {
         // one made within 0.1 s of another (save then rename) took ~100 ms.
         // `Pace` keeps a busy folder from being listed that often.
         let new = fsevents::watch(since, 0.01, self.wake.clone(), n);
-        *self.stream.lock().unwrap() = Some(new);
+        *self.stream.lock().unwrap_or_else(|p| p.into_inner()) = Some(new);
     }
 
     /// A follower picks up what the owner wrote: a newer name-index save
@@ -890,26 +890,26 @@ impl Shared {
     fn follow(&self) {
         let path = self.dir.join("index.bin");
         let saved = Index::saved_event_id(&path).unwrap_or(0);
-        let ours = self.live.read().unwrap().as_ref().map_or(0, |l| l.base.event_id);
+        let ours = self.live.read().unwrap_or_else(|p| p.into_inner()).as_ref().map_or(0, |l| l.base.event_id);
         if saved > ours
             && let Some(base) = Index::load(&path)
         {
             log(format!("following the owner's save: {} entries, replaying since {}", base.n, base.event_id));
             self.watch(base.event_id);
-            *self.live.write().unwrap() = Some(Live::new(base));
+            *self.live.write().unwrap_or_else(|p| p.into_inner()) = Some(Live::new(base));
         }
         let cdir = self.dir.join("content");
         let changed = std::fs::metadata(&cdir).and_then(|m| m.modified()).ok();
-        let mut seen = self.content_seen.lock().unwrap();
+        let mut seen = self.content_seen.lock().unwrap_or_else(|p| p.into_inner());
         if changed != *seen {
             *seen = changed;
-            *self.content.write().unwrap() = Content::open_shared(cdir);
+            *self.content.write().unwrap_or_else(|p| p.into_inner()) = Content::open_shared(cdir);
         }
     }
 }
 
 fn start_content(s: &Arc<Shared>) {
-    let Some(rx) = s.content_rx.lock().unwrap().take() else { return };
+    let Some(rx) = s.content_rx.lock().unwrap_or_else(|p| p.into_inner()).take() else { return };
     let s = s.clone();
     spawn("ultrasearch-content", move || content_loop(&s, rx));
 }
@@ -924,7 +924,7 @@ fn try_upgrade(s: &Arc<Shared>) -> bool {
     }
     s.owner.store(true, Ordering::Relaxed);
     log("took over the index from a previous owner");
-    *s.content.write().unwrap() = Content::open(s.dir.join("content"));
+    *s.content.write().unwrap_or_else(|p| p.into_inner()) = Content::open(s.dir.join("content"));
     rescan_unskipped(s);
     start_content(s);
     true
@@ -935,7 +935,7 @@ fn try_upgrade(s: &Arc<Shared>) -> bool {
 const SKIPPED: &str = "skipped";
 
 fn note_skipped(dir: &Path) {
-    let denied = walk::DENIED.lock().unwrap();
+    let denied = walk::DENIED.lock().unwrap_or_else(|p| p.into_inner());
     // (A folder listed early is listed again by the whole-disk crawl.)
     let mut all: Vec<&Vec<u8>> = walk::SKIP.get().into_iter().flatten().chain(denied.iter()).collect();
     all.sort();
@@ -968,7 +968,7 @@ fn rescan_unskipped(shared: &Shared) {
         if readable {
             now.push(fsevents::Event { path, flags: MUST_SCAN_SUBDIRS, id: 0, stream: 0 });
         } else {
-            walk::DENIED.lock().unwrap().push(path);
+            walk::DENIED.lock().unwrap_or_else(|p| p.into_inner()).push(path);
         }
     }
     if now.is_empty() {
@@ -1072,13 +1072,13 @@ fn content_loop(shared: &Shared, rx: Receiver<Resync>) {
     // First run, while the whole disk is listed: index the folders searches
     // ask about from their early indexes. (A request that comes as the
     // whole index lands is dropped: the sync of all of home covers it.)
-    while shared.live.read().unwrap().is_none() {
+    while shared.live.read().unwrap_or_else(|p| p.into_inner()).is_none() {
         match rx.recv_timeout(Duration::from_millis(50)) {
             Ok((_, dirs)) => {
                 for dir in dirs {
-                    let Some(e) = shared.early.lock().unwrap().iter().find(|e| e.dir == dir).cloned() else { continue };
+                    let Some(e) = shared.early.lock().unwrap_or_else(|p| p.into_inner()).iter().find(|e| e.dir == dir).cloned() else { continue };
                     sync_wants(shared, &pool, content::wants(&e.live, &home, &[], std::slice::from_ref(&dir)));
-                    shared.content_early.lock().unwrap().push(dir);
+                    shared.content_early.lock().unwrap_or_else(|p| p.into_inner()).push(dir);
                 }
             }
             Err(RecvTimeoutError::Timeout) => {}
@@ -1114,9 +1114,9 @@ fn content_loop(shared: &Shared, rx: Receiver<Resync>) {
                 // Until they are synced, searches read their changed files.
                 changed.sort();
                 changed.dedup();
-                let wants = shared.live.read().unwrap().as_ref().map(|l| content::wanted_now(l, &home, &changed));
+                let wants = shared.live.read().unwrap_or_else(|p| p.into_inner()).as_ref().map(|l| content::wanted_now(l, &home, &changed));
                 if let Some(w) = wants {
-                    shared.dirty.mark(&shared.content.read().unwrap(), w);
+                    shared.dirty.mark(&shared.content.read().unwrap_or_else(|p| p.into_inner()), w);
                 }
             }
             Err(RecvTimeoutError::Timeout) => {}
@@ -1144,7 +1144,7 @@ fn content_loop(shared: &Shared, rx: Receiver<Resync>) {
 /// (direct children) and trees.
 fn sync(shared: &Shared, pool: &rayon::ThreadPool, home: &[u8], dirs: &[Vec<u8>], trees: &[Vec<u8>]) {
     let wants = {
-        let g = shared.live.read().unwrap();
+        let g = shared.live.read().unwrap_or_else(|p| p.into_inner());
         let Some(live) = g.as_ref() else { return };
         content::wants(live, home, dirs, trees)
     };
@@ -1156,7 +1156,7 @@ fn sync_wants(shared: &Shared, pool: &rayon::ThreadPool, wants: Vec<(Vec<u8>, bo
     let t = Instant::now();
     // (A folder built early leaves segments behind; the build is still the first.)
     let first = !shared.content_ready.load(Ordering::Acquire);
-    let todo = shared.content.write().unwrap().diff(wants);
+    let todo = shared.content.write().unwrap_or_else(|p| p.into_inner()).diff(wants);
     if todo.is_empty() {
         return;
     }
@@ -1181,18 +1181,18 @@ fn sync_wants(shared: &Shared, pool: &rayon::ThreadPool, wants: Vec<(Vec<u8>, bo
     drop(todo);
     // Keep the segment count small: merge size tiers of 8.
     loop {
-        let plan = shared.content.read().unwrap().merge_plan();
+        let plan = shared.content.read().unwrap_or_else(|p| p.into_inner()).merge_plan();
         let Some(ids) = plan else { break };
         let (dir, id) = {
-            let mut c = shared.content.write().unwrap();
+            let mut c = shared.content.write().unwrap_or_else(|p| p.into_inner());
             (c.dir.clone(), c.alloc_id())
         };
         let merged = {
-            let c = shared.content.read().unwrap();
+            let c = shared.content.read().unwrap_or_else(|p| p.into_inner());
             pool.install(|| content::merge(&dir, id, &c.segments(&ids)))
         };
         match merged {
-            Some(seg) => shared.content.write().unwrap().replace(&ids, seg),
+            Some(seg) => shared.content.write().unwrap_or_else(|p| p.into_inner()).replace(&ids, seg),
             None => break,
         }
     }
@@ -1207,12 +1207,12 @@ fn sync_wants(shared: &Shared, pool: &rayon::ThreadPool, wants: Vec<(Vec<u8>, bo
 /// with the next one's reads: on the M6 (Linux, ABBA n=10) 3.07 s instead
 /// of 3.33, but a first-run peak of 616 MB instead of 375.
 fn build_batches(shared: &Shared, pool: &rayon::ThreadPool, todo: &content::Docs) {
-    let dir = shared.content.read().unwrap().dir.clone();
+    let dir = shared.content.read().unwrap_or_else(|p| p.into_inner()).dir.clone();
     for range in todo.batches() {
         walk::yield_to_searches();
-        let id = shared.content.write().unwrap().alloc_id();
+        let id = shared.content.write().unwrap_or_else(|p| p.into_inner()).alloc_id();
         if let Some(seg) = pool.install(|| content::build_segment(&dir, id, todo, range.clone())) {
-            shared.content.write().unwrap().push(seg);
+            shared.content.write().unwrap_or_else(|p| p.into_inner()).push(seg);
         }
         shared.content_pending.fetch_sub(range.len(), Ordering::Relaxed);
     }
@@ -1301,8 +1301,8 @@ fn pending_bar_at(base: usize, churn_run: u64) -> usize {
 fn compact(shared: &Shared) {
     let t = Instant::now();
     {
-        let mut cs = shared.compact.lock().unwrap();
-        let pending = shared.live.read().unwrap().as_ref().map_or(0, |l| l.over.len() + l.dead_count);
+        let mut cs = shared.compact.lock().unwrap_or_else(|p| p.into_inner());
+        let pending = shared.live.read().unwrap_or_else(|p| p.into_inner()).as_ref().map_or(0, |l| l.over.len() + l.dead_count);
         cs.count += 1;
         // How many compactions in a row were triggered by size (not by the
         // twice-daily staleness rule, not by an explicit save). Measured
@@ -1311,7 +1311,7 @@ fn compact(shared: &Shared) {
         if pending > env::compact_pending() { cs.churn_run += 1 } else { cs.churn_run = 0 }
     };
     let (ls, eid, synced) = {
-        let g = shared.live.read().unwrap();
+        let g = shared.live.read().unwrap_or_else(|p| p.into_inner());
         let live = g.as_ref().unwrap();
         (live.to_listings(), live.event_id, live.synced_at)
     };
@@ -1336,19 +1336,19 @@ fn compact(shared: &Shared) {
     }
     let bytes = idx.bytes();
     let took = t.elapsed();
-    *shared.live.write().unwrap() = Some(Live::new(idx));
+    *shared.live.write().unwrap_or_else(|p| p.into_inner()) = Some(Live::new(idx));
     release_memory();
     {
-        let mut cs = shared.compact.lock().unwrap();
+        let mut cs = shared.compact.lock().unwrap_or_else(|p| p.into_inner());
         cs.last_ms = took.as_millis() as u64;
         cs.last_bytes = bytes;
         cs.last_entries = n;
     }
-    let churn = shared.compact.lock().unwrap().churn_run;
+    let churn = shared.compact.lock().unwrap_or_else(|p| p.into_inner()).churn_run;
     log(format!("compacted to {n} entries, {} MB in {took:.2?}", bytes / 1_000_000));
     if churn >= CHURN_WARN {
         let base = env::compact_pending();
-        let bar = pending_bar(&shared.compact.lock().unwrap());
+        let bar = pending_bar(&shared.compact.lock().unwrap_or_else(|p| p.into_inner()));
         // Say what the daemon did about it: with the automatic backoff the
         // operator is no longer required to act, and raising the bar by hand
         // is the durable fix rather than the per-boot one.
@@ -1374,30 +1374,30 @@ fn relist_changed(shared: &Shared, why: &str, flags: u32) {
     let started = crate::query::now_secs();
     // synced_at 0 (unknown) relists everything: a full crawl, done in place.
     let (from, mut dirs) = {
-        let g = shared.live.read().unwrap();
+        let g = shared.live.read().unwrap_or_else(|p| p.into_inner());
         let live = g.as_ref().unwrap();
         let from = live.synced_at.saturating_sub(SYNC_MARGIN);
         (from, live.changed_dirs(from))
     };
-    dirs.extend(shared.content.read().unwrap().changed_dirs(from));
+    dirs.extend(shared.content.read().unwrap_or_else(|p| p.into_inner()).changed_dirs(from));
     dirs.sort();
     dirs.dedup();
     let stat_time = t.elapsed();
     // Disk reads under the read lock, one folder per write, so searches keep
     // answering meanwhile.
     for d in &dirs {
-        let f = shared.live.read().unwrap().as_ref().unwrap().fetch(d, false);
-        shared.live.write().unwrap().as_mut().unwrap().apply(f);
+        let f = shared.live.read().unwrap_or_else(|p| p.into_inner()).as_ref().unwrap().fetch(d, false);
+        shared.live.write().unwrap_or_else(|p| p.into_inner()).as_mut().unwrap().apply(f);
     }
     let trees = {
-        let mut g = shared.live.write().unwrap();
+        let mut g = shared.live.write().unwrap_or_else(|p| p.into_inner());
         let live = g.as_mut().unwrap();
         live.synced_at = started;
         std::mem::take(&mut live.trees)
     };
     let n = dirs.len();
     let _ = shared.content_tx.send((dirs, trees));
-    shared.on_change.read().unwrap().iter().for_each(|f| f(&[(&b"/"[..], true)]));
+    shared.on_change.read().unwrap_or_else(|p| p.into_inner()).iter().for_each(|f| f(&[(&b"/"[..], true)]));
     shared.mark_caught_up();
     log(format!(
         "FSEvents lost track of / ({why}, flags {flags:#x}): relisted {n} folders changed since {from} in {:.2?} ({stat_time:.2?} checking)",
@@ -1502,7 +1502,7 @@ fn apply_loop(shared: &Arc<Shared>, rx: Receiver<Vec<fsevents::Event>>) {
         let (mut rebuild, mut root_flags, had_events) = (false, 0, !events.is_empty());
         let (mut dirs, mut max_id): (HashMap<Vec<u8>, (bool, u64)>, u64) = (HashMap::new(), 0);
         if had_events {
-            let mut last_good = shared.live.read().unwrap().as_ref().map_or(0, |l| l.event_id);
+            let mut last_good = shared.live.read().unwrap_or_else(|p| p.into_inner()).as_ref().map_or(0, |l| l.event_id);
             let current = shared.streams.load(Ordering::Relaxed);
             for e in events {
                 // An isolated crawl root: only its own changes may be applied
@@ -1557,7 +1557,7 @@ fn apply_loop(shared: &Arc<Shared>, rx: Receiver<Vec<fsevents::Event>>) {
         pace.sort(&mut dirs, now);
         if !dirs.is_empty() {
             // The folders listed now (a held one is told when it is due).
-            let hooks = shared.on_change.read().unwrap();
+            let hooks = shared.on_change.read().unwrap_or_else(|p| p.into_inner());
             if !hooks.is_empty() {
                 let changed: Vec<(&[u8], bool)> = dirs.iter().map(|(p, &(r, _))| (p.as_slice(), r)).collect();
                 hooks.iter().for_each(|f| f(&changed));
@@ -1567,7 +1567,7 @@ fn apply_loop(shared: &Arc<Shared>, rx: Receiver<Vec<fsevents::Event>>) {
             // Read the disk under the read lock, then apply in memory: a
             // search never waits on a folder listing or a new subtree's scan.
             let fetched: Vec<_> = {
-                let g = shared.live.read().unwrap();
+                let g = shared.live.read().unwrap_or_else(|p| p.into_inner());
                 let live = g.as_ref().unwrap();
                 dirs.iter()
                     .map(|(p, &(recursive, _))| {
@@ -1579,7 +1579,7 @@ fn apply_loop(shared: &Arc<Shared>, rx: Receiver<Vec<fsevents::Event>>) {
                     .collect()
             };
             {
-                let mut g = shared.live.write().unwrap();
+                let mut g = shared.live.write().unwrap_or_else(|p| p.into_inner());
                 let live = g.as_mut().unwrap();
                 for f in fetched {
                     if let Applied::Rebuild = live.apply(f) {
@@ -1614,9 +1614,9 @@ fn apply_loop(shared: &Arc<Shared>, rx: Receiver<Vec<fsevents::Event>>) {
         } else if had_events && gap.is_none() && pace.held.is_empty() && !shared.replaying.load(Ordering::Relaxed) {
             // Everything up to this batch is applied (a change's event can
             // trail it by the stream latency; relisting keeps a margin).
-            shared.live.write().unwrap().as_mut().unwrap().synced_at = crate::query::now_secs();
+            shared.live.write().unwrap_or_else(|p| p.into_inner()).as_mut().unwrap().synced_at = crate::query::now_secs();
         }
-        if let Some(l) = shared.live.read().unwrap().as_ref() {
+        if let Some(l) = shared.live.read().unwrap_or_else(|p| p.into_inner()).as_ref() {
             l.names_cache.trim_if_idle(Duration::from_secs(60));
         }
         if now_ns().saturating_sub(LAST_SEARCH.load(Ordering::Relaxed)) > 60_000_000_000 && crate::alloc::kept() {
@@ -1632,7 +1632,7 @@ fn apply_loop(shared: &Arc<Shared>, rx: Receiver<Vec<fsevents::Event>>) {
             continue;
         }
         let (pending, stale) = {
-            let g = shared.live.read().unwrap();
+            let g = shared.live.read().unwrap_or_else(|p| p.into_inner());
             let live = g.as_ref().unwrap();
             (live.over.len() + live.dead_count, live.event_id != live.base.event_id)
         };
@@ -1643,7 +1643,7 @@ fn apply_loop(shared: &Arc<Shared>, rx: Receiver<Vec<fsevents::Event>>) {
         let asked = shared.save_requested.load(Ordering::Relaxed);
         // The bar moves up while compactions churn (see `pending_bar`), so a
         // machine that cannot keep up stops rebuilding every few seconds.
-        let bar = pending_bar(&shared.compact.lock().unwrap());
+        let bar = pending_bar(&shared.compact.lock().unwrap_or_else(|p| p.into_inner()));
         let due = asked || pending > bar || (stale && last_save.elapsed() > COMPACT_EVERY);
         if !due {
             due_since = None;
@@ -1659,7 +1659,7 @@ fn apply_loop(shared: &Arc<Shared>, rx: Receiver<Vec<fsevents::Event>>) {
         if !compact_now(busy, pending, since.elapsed()) {
             if !pausing {
                 pausing = true;
-                shared.compact.lock().unwrap().postponed += 1;
+                shared.compact.lock().unwrap_or_else(|p| p.into_inner()).postponed += 1;
             }
             continue;
         }

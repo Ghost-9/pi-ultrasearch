@@ -124,7 +124,7 @@ impl DenyCache {
         let stamp = src.as_deref().and_then(|p| std::fs::metadata(p).ok()).and_then(|m| m.modified().ok());
         let key = stamp.unwrap_or(SystemTime::UNIX_EPOCH);
         {
-            let c = self.cached.lock().unwrap();
+            let c = self.cached.lock().unwrap_or_else(|p| p.into_inner());
             if let Some((at, list)) = c.as_ref()
                 && *at == key
             {
@@ -132,7 +132,7 @@ impl DenyCache {
             }
         }
         let list = std::sync::Arc::new(DenyList::load(&self.dir)?);
-        *self.cached.lock().unwrap() = Some((key, list.clone()));
+        *self.cached.lock().unwrap_or_else(|p| p.into_inner()) = Some((key, list.clone()));
         Ok(list)
     }
 

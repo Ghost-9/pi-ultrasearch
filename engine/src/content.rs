@@ -786,7 +786,7 @@ impl Held {
 impl Dedup {
     /// The gid of a content with this hash, if one is indexed.
     fn find(&self, h: u64) -> Option<u32> {
-        self.held.iter().find_map(|s| s.find(h)).or_else(|| self.built.lock().unwrap().get(&h).copied())
+        self.held.iter().find_map(|s| s.find(h)).or_else(|| self.built.lock().unwrap_or_else(|p| p.into_inner()).get(&h).copied())
     }
 }
 
@@ -995,7 +995,7 @@ pub fn build_segment(dir: &Path, id: u64, docs: &Docs, range: std::ops::Range<us
     let splits: Vec<Split> = (runs.into_par_iter())
         .map(|run| {
             let (mut seen, mut buf, mut short, mut tri) =
-                scratch.lock().unwrap().pop().unwrap_or_else(|| (vec![0u64; 2 << 18], Vec::new(), Vec::new(), Vec::new()));
+                scratch.lock().unwrap_or_else(|p| p.into_inner()).pop().unwrap_or_else(|| (vec![0u64; 2 << 18], Vec::new(), Vec::new(), Vec::new()));
             let mut sp = Split { pairs: vec![Vec::new(); 256], syms: Vec::new(), blooms: Vec::new(), docs: Vec::new(), contents: Vec::new() };
             let mut ahead = std::collections::VecDeque::new();
             for i in run.clone() {
@@ -1014,7 +1014,7 @@ pub fn build_segment(dir: &Path, id: u64, docs: &Docs, range: std::ops::Range<us
                         Some(g) => Holds::Gid(g),
                         None => {
                             let (k, first) = {
-                                let mut m = new.lock().unwrap();
+                                let mut m = new.lock().unwrap_or_else(|p| p.into_inner());
                                 let n = m.len() as u32;
                                 let k = *m.entry(h).or_insert(n);
                                 (k, k == n)
@@ -1043,7 +1043,7 @@ pub fn build_segment(dir: &Path, id: u64, docs: &Docs, range: std::ops::Range<us
             for v in [&mut short, &mut tri].into_iter().filter(|v| v.capacity() > 1 << 20) {
                 *v = Vec::new();
             }
-            scratch.lock().unwrap().push((seen, buf, short, tri));
+            scratch.lock().unwrap_or_else(|p| p.into_inner()).push((seen, buf, short, tri));
             sp
         })
         .collect();
@@ -1059,7 +1059,7 @@ pub fn build_segment(dir: &Path, id: u64, docs: &Docs, range: std::ops::Range<us
             first.push(d as u32);
         }
     }
-    let gids = dedup.free.lock().unwrap().take(nnew);
+    let gids = dedup.free.lock().unwrap_or_else(|p| p.into_inner()).take(nnew);
     let meta: Vec<DocMeta> = (splits.iter().flat_map(|sp| &sp.docs))
         .map(|&(i, holds)| {
             let (_, _, size, mtime) = docs.items[i];
@@ -1110,7 +1110,7 @@ pub fn build_segment(dir: &Path, id: u64, docs: &Docs, range: std::ops::Range<us
         .collect();
     let seg = write_segment(dir, id, &meta, &own, parts)?;
     // This sync's later builds find these contents.
-    dedup.built.lock().unwrap().extend(shared);
+    dedup.built.lock().unwrap_or_else(|p| p.into_inner()).extend(shared);
     Some(seg)
 }
 
@@ -1498,7 +1498,7 @@ type UserSkips = (Option<PathBuf>, Option<Vec<Vec<u8>>>);
 
 /// The skip list's folders, as absolute paths.
 fn skip_list(home: &[u8]) -> Vec<Vec<u8>> {
-    let path = USER_SKIPS.lock().unwrap().0.clone();
+    let path = USER_SKIPS.lock().unwrap_or_else(|p| p.into_inner()).0.clone();
     let text = path.and_then(|p| std::fs::read(p).ok()).unwrap_or_default();
     (text.split(|&b| b == b'\n').map(<[u8]>::trim_ascii))
         .filter(|l| !l.is_empty() && !l.starts_with(b"#"))
@@ -1582,7 +1582,7 @@ impl<'a> Scope<'a> {
         if kind & 3 != KIND_FILE {
             return None;
         }
-        let mut parsed = PARSED.lock().unwrap();
+        let mut parsed = PARSED.lock().unwrap_or_else(|p| p.into_inner());
         if let Some((s, m, g)) = parsed.get(path)
             && (*s, *m) == (size, mtime)
         {
@@ -1597,7 +1597,7 @@ impl<'a> Scope<'a> {
     /// resolved it (or appear in a folder it never saw)? Then everything
     /// below it may have changed eligibility.
     fn rules_changed(&self, dir: &[u8]) -> bool {
-        let mut parsed = PARSED.lock().unwrap();
+        let mut parsed = PARSED.lock().unwrap_or_else(|p| p.into_inner());
         let mut changed = false;
         for name in [&b".git"[..], b".gitignore", b".ignore"] {
             let p = join(dir, name);
@@ -1653,7 +1653,7 @@ impl<'a> Scope<'a> {
             return up;
         }
         let root = git.map(|(kind, ..)| {
-            PARSED.lock().unwrap().insert(join(dir, b".git"), (0, 0, None));
+            PARSED.lock().unwrap_or_else(|p| p.into_inner()).insert(join(dir, b".git"), (0, 0, None));
             git_dir(dir, kind).and_then(|g| self.globs(&join(&g, b"info/exclude")))
         });
         let rules = Rules { dir: join(dir, b""), gitignore, ignore, root, up: up.rules };
@@ -2178,7 +2178,7 @@ impl Content {
     /// Open as the owner: also delete what the manifest doesn't list.
     pub fn open(dir: PathBuf) -> Content {
         std::fs::create_dir_all(&dir).ok();
-        USER_SKIPS.lock().unwrap().0 = dir.parent().map(|d| d.join(SKIP_LIST));
+        USER_SKIPS.lock().unwrap_or_else(|p| p.into_inner()).0 = dir.parent().map(|d| d.join(SKIP_LIST));
         let c = Content::open_shared(dir);
         // Anything not loaded (old format, crashed build) is garbage.
         let keep: Vec<String> = c.segs.iter().flat_map(|s| [format!("seg-{:06}.fsc", s.id), format!("seg-{:06}.dead", s.id)]).collect();
@@ -2654,7 +2654,7 @@ impl Content {
                 return expand(a, &sel, top);
             }
             let sel = std::sync::Arc::new(sel);
-            let mut q = chunks.lock().unwrap();
+            let mut q = chunks.lock().unwrap_or_else(|p| p.into_inner());
             q.extend((step..sel.len()).step_by(step).map(|at| (a, sel.clone(), at..(at + step).min(sel.len()))));
             queued.store(q.len(), Release);
             drop(q);
@@ -2739,7 +2739,7 @@ impl Content {
                     }
                     i += 1;
                 }
-                return out.lock().unwrap().push(Cands::Bulk { si: b, top: best, from: i });
+                return out.lock().unwrap_or_else(|p| p.into_inner()).push(Cands::Bulk { si: b, top: best, from: i });
             }
             // (The owners counted these.)
             let (gs, by_gid) = (t.gid_sorted(), t.by_gid());
@@ -2774,7 +2774,7 @@ impl Content {
                 }
                 if queued.load(Acquire) > 0 {
                     let chunk = {
-                        let mut q = chunks.lock().unwrap();
+                        let mut q = chunks.lock().unwrap_or_else(|p| p.into_inner());
                         let c = q.pop();
                         queued.store(q.len(), Release);
                         c
@@ -2791,7 +2791,7 @@ impl Content {
             }
             if top.len() > 0 {
                 let c = top.done();
-                out.lock().unwrap().push(c);
+                out.lock().unwrap_or_else(|p| p.into_inner()).push(c);
             }
         };
         run_lanes((docs / 25_000).clamp(1, 8), &work);
@@ -2917,7 +2917,7 @@ impl Dirty {
     /// Note the files under these folders (`wanted_now`) the index doesn't
     /// hold as they are now.
     pub fn mark(&self, content: &Content, wants: Vec<(Vec<u8>, bool, Docs)>) {
-        let mut m = self.0.lock().unwrap();
+        let mut m = self.0.lock().unwrap_or_else(|p| p.into_inner());
         for (dir, recursive, want) in wants {
             let files: Vec<_> = content
                 .unheld(&dir, recursive, &want)
@@ -2935,7 +2935,7 @@ impl Dirty {
 
     /// These folders' changes are in the index now.
     pub fn clear(&self, synced: &[(Vec<u8>, bool)]) {
-        let mut m = self.0.lock().unwrap();
+        let mut m = self.0.lock().unwrap_or_else(|p| p.into_inner());
         for k in synced {
             m.remove(k);
         }
@@ -2943,7 +2943,7 @@ impl Dirty {
 
     /// The changed files the query's name filters let through, newest first.
     pub fn files(&self, q: &Query) -> Vec<Vec<u8>> {
-        let m = self.0.lock().unwrap();
+        let m = self.0.lock().unwrap_or_else(|p| p.into_inner());
         let mut out: Vec<(u32, &Vec<u8>)> = (m.values().flatten())
             .filter(|(p, size, mtime)| q.match_path(p, KIND_FILE, *size, *mtime).is_some())
             .map(|(p, _, mtime)| (*mtime, p))
@@ -3155,7 +3155,7 @@ fn par_claim<T: Sync, R: Send>(items: &[T], lanes: usize, f: impl Fn(&T) -> R + 
             let Some(x) = items.get(i) else { break };
             mine.push((i, f(x)));
         }
-        out.lock().unwrap().extend(mine);
+        out.lock().unwrap_or_else(|p| p.into_inner()).extend(mine);
     });
     let mut out = out.into_inner().unwrap();
     out.sort_unstable_by_key(|r| r.0);
@@ -3238,7 +3238,7 @@ fn helpers() -> &'static Helpers {
                 let mut next = 0usize;
                 loop {
                     let lanes = {
-                        let mut g = h.active.lock().unwrap();
+                        let mut g = h.active.lock().unwrap_or_else(|p| p.into_inner());
                         loop {
                             // A finished set is dead even if its caller is
                             // briefly still in `run_lanes`.
@@ -3292,7 +3292,7 @@ fn run_lanes(n: usize, job: &(dyn Fn() + Sync)) {
     let job: *const (dyn Fn() + Sync + 'static) = unsafe { std::mem::transmute(job) };
     let lanes = std::sync::Arc::new(Lanes { n, next: AtomicUsize::new(0), done: AtomicUsize::new(0), panicked: AtomicBool::new(false), job });
     {
-        let mut g = h.active.lock().unwrap();
+        let mut g = h.active.lock().unwrap_or_else(|p| p.into_inner());
         g.push(lanes.clone());
     }
     h.bell.notify_all();
@@ -3304,7 +3304,7 @@ fn run_lanes(n: usize, job: &(dyn Fn() + Sync)) {
         std::thread::yield_now();
     }
     {
-        let mut g = h.active.lock().unwrap();
+        let mut g = h.active.lock().unwrap_or_else(|p| p.into_inner());
         g.retain(|l| !std::sync::Arc::ptr_eq(l, &lanes));
     }
     // A helper waiting for work must re-check now that this set is gone
@@ -3359,7 +3359,7 @@ pub fn wants(live: &Live, home: &[u8], dirs: &[Vec<u8>], trees: &[Vec<u8>]) -> V
     let mut scope = Scope::new(home, &look);
     let mut out: Vec<(Vec<u8>, bool)> = Vec::new();
     // A changed skip list changes what's wanted anywhere: all of home.
-    let mut skips = USER_SKIPS.lock().unwrap();
+    let mut skips = USER_SKIPS.lock().unwrap_or_else(|p| p.into_inner());
     if skips.1.as_ref().is_some_and(|was| *was != scope.skips) {
         out.push((home.to_vec(), true));
     }
@@ -3890,7 +3890,7 @@ fn verify_from<'a>(
             };
             if let Some(m) = m {
                 found.fetch_add(1, Relaxed);
-                hits.lock().unwrap().push((i, m));
+                hits.lock().unwrap_or_else(|p| p.into_inner()).push((i, m));
             }
         }
         // Don't sit on a big file's worth of buffer between searches.
@@ -4044,10 +4044,19 @@ fn lines_at(
             hits.push(Hit { col: start - ls, before, after, ..Default::default() });
         }
         // Offsets in the shown text (past invalid UTF-8, after its replacements).
-        let text = &lines.last().unwrap().1;
+        // `lines` is filled by the loop above, but "the loop always runs" is an
+        // assumption about the caller, not a guarantee this function can see. An
+        // empty vec here would panic a grep on a file with no matches, which is a
+        // normal outcome rather than a fault.
+        let Some((_, last_text)) = lines.last() else {
+            return (lines, hits);
+        };
+        let text = last_text;
         let at = |off: usize| if utf8 { off.min(raw.len()) } else { String::from_utf8_lossy(&raw[..off.min(raw.len())]).len() }.min(text.len());
         let (a, b) = (at(start - ls), at(end.min(le) - ls));
-        let hit = hits.last_mut().unwrap();
+        let Some(hit) = hits.last_mut() else {
+            return (lines, hits);
+        };
         if start - ls < raw.len() {
             hit.ranges.push((a, b.max(a)));
         }

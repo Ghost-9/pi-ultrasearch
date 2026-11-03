@@ -317,7 +317,10 @@ fn install(login: bool, as_json: bool) {
     std::fs::write(plist_path(), plist).unwrap();
     // bootout returns before the old job is fully gone; bootstrap fails
     // until it is.
-    let bootstrap = || launchctl(&["bootstrap", &domain(), plist_path().to_str().unwrap()]);
+    // to_string_lossy: a non-UTF-8 home path must not panic the installer. launchd
+    // needs a string and a lossy path is still a better failure than a crash.
+    let plist = plist_path().to_string_lossy().into_owned();
+    let bootstrap = || launchctl(&["bootstrap", &domain(), &plist]);
     let retry = || {
         std::thread::sleep(std::time::Duration::from_millis(100));
         false

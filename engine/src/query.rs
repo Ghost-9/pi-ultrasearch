@@ -1164,7 +1164,7 @@ fn glob_alt(a: &str) -> Result<Alt, String> {
 /// less than the index takes to see most changes anyway.
 fn real_path(p: String) -> String {
     static LAST: std::sync::Mutex<Option<(String, String, std::time::Instant)>> = std::sync::Mutex::new(None);
-    let mut last = LAST.lock().unwrap();
+    let mut last = LAST.lock().unwrap_or_else(|p| p.into_inner());
     if let Some((from, to, at)) = &*last
         && *from == p
         && at.elapsed() < std::time::Duration::from_secs(1)
@@ -2396,7 +2396,7 @@ impl Searcher<'_> {
         // is cheaper.
         let scope = (q.scope.is_some() && hi - lo <= self.live.base.u / 4).then_some((lo, hi));
         let key = NameKey::of(q, scope);
-        if self.live.names_cache.last.lock().unwrap().as_ref().is_some_and(|p| key.narrows(&p.key)) {
+        if self.live.names_cache.last.lock().unwrap_or_else(|p| p.into_inner()).as_ref().is_some_and(|p| key.narrows(&p.key)) {
             return None;
         }
         let (idx, u) = (&self.live.base, self.live.base.u as f64);
@@ -3340,7 +3340,7 @@ impl Searcher<'_> {
         // A small `in:` scope scores just the names found in it.
         let scope = (q.scope.is_some() && hi - lo <= self.live.base.u / 4).then_some((lo, hi));
         let key = NameKey::of(q, scope);
-        let prev = self.live.names_cache.last.lock().unwrap().clone();
+        let prev = self.live.names_cache.last.lock().unwrap_or_else(|p| p.into_inner()).clone();
         if let Some(p) = &prev
             && p.key == key
         {
@@ -3354,7 +3354,7 @@ impl Searcher<'_> {
             names: self.score_names(q, pos, neg, from, within.as_deref()),
             memo: std::sync::OnceLock::new(),
         });
-        *self.live.names_cache.last.lock().unwrap() = Some(scored.clone());
+        *self.live.names_cache.last.lock().unwrap_or_else(|p| p.into_inner()) = Some(scored.clone());
         scored
     }
 
@@ -3362,7 +3362,7 @@ impl Searcher<'_> {
     /// the folder and its ancestors, whose names folder tokens match. The
     /// last one is kept: searches in a folder tend to come in a row.
     fn scope_names(&self, lo: usize, hi: usize) -> std::sync::Arc<NameSet> {
-        let mut cache = self.live.names_cache.scope.lock().unwrap();
+        let mut cache = self.live.names_cache.scope.lock().unwrap_or_else(|p| p.into_inner());
         if let Some((r, set)) = &*cache
             && *r == (lo, hi)
         {
@@ -3554,12 +3554,12 @@ impl Searcher<'_> {
         };
         // A spare pair from the last table (its bits cleared; ranks are only
         // read where a bit is set), or fresh ones.
-        let spare_bits = BITS_POOL.lock().unwrap().pop().filter(|(b, _)| b.len() == idx.words);
+        let spare_bits = BITS_POOL.lock().unwrap_or_else(|p| p.into_inner()).pop().filter(|(b, _)| b.len() == idx.words);
         let (mut bits, mut rank) = spare_bits.unwrap_or_else(|| (vec![0; idx.words], vec![0; idx.words]));
         // A few thousand words to look at (a small index, a scope, a
         // narrowed table) take less time than waking threads.
         let few = from.map_or(within.map_or(idx.words, |s| if s.busy { s.names } else { s.words }), |f| f.len) <= INLINE_WORDS;
-        let mut spare = std::mem::take(&mut *HIT_POOL.lock().unwrap());
+        let mut spare = std::mem::take(&mut *HIT_POOL.lock().unwrap_or_else(|p| p.into_inner()));
         spare.resize_with(idx.words.div_ceil(CHUNK_WORDS), Vec::new);
         let scratch = || vec![Line([(0, 0, 0); 2]); toks.len()];
         let chunks = bits.chunks_mut(CHUNK_WORDS).zip(rank.chunks_mut(CHUNK_WORDS)).zip(spare);
@@ -3626,7 +3626,7 @@ impl Searcher<'_> {
         let de = idx.dir_entries();
         let en = idx.ent_names();
         // Each dir's own name, written in parallel into a spare buffer.
-        let mut out = MEMO_POOL.lock().unwrap().pop().unwrap_or_default();
+        let mut out = MEMO_POOL.lock().unwrap_or_else(|p| p.into_inner()).pop().unwrap_or_default();
         (0..idx.d)
             .into_par_iter()
             .with_min_len(1 << 12)
@@ -3954,7 +3954,7 @@ pub struct Scored {
 impl Drop for Scored {
     fn drop(&mut self) {
         if let Some(v) = self.memo.take() {
-            let mut pool = MEMO_POOL.lock().unwrap();
+            let mut pool = MEMO_POOL.lock().unwrap_or_else(|p| p.into_inner());
             if pool.is_empty() {
                 pool.push(v);
             }
@@ -3978,11 +3978,11 @@ impl NameCache {
     /// Drop the cached table and spare buffers once searching has stopped:
     /// tens of MB after a broad query, worth keeping only while typing.
     pub fn trim_if_idle(&self, idle: std::time::Duration) {
-        let mut g = self.last.lock().unwrap();
+        let mut g = self.last.lock().unwrap_or_else(|p| p.into_inner());
         if g.as_ref().is_some_and(|s| s.at.elapsed() > idle) {
             *g = None;
             drop(g);
-            *self.scope.lock().unwrap() = None;
+            *self.scope.lock().unwrap_or_else(|p| p.into_inner()) = None;
             trim_pools();
         }
     }
@@ -4027,10 +4027,10 @@ static HIT_POOL: std::sync::Mutex<Vec<Vec<NameHit>>> = std::sync::Mutex::new(Vec
 
 /// Free the spare buffers searches keep for speed (after a quiet spell).
 pub fn trim_pools() {
-    BITS_POOL.lock().unwrap().clear();
-    HIT_POOL.lock().unwrap().clear();
-    DENSE_POOL.lock().unwrap().clear();
-    MEMO_POOL.lock().unwrap().clear();
+    BITS_POOL.lock().unwrap_or_else(|p| p.into_inner()).clear();
+    HIT_POOL.lock().unwrap_or_else(|p| p.into_inner()).clear();
+    DENSE_POOL.lock().unwrap_or_else(|p| p.into_inner()).clear();
+    MEMO_POOL.lock().unwrap_or_else(|p| p.into_inner()).clear();
 }
 
 /// A spare name table bitset and rank (344 KB on this disk): allocating
@@ -4050,18 +4050,18 @@ impl Drop for NameTable {
                     chunk.fill(0);
                 }
             }
-            let mut pool = BITS_POOL.lock().unwrap();
+            let mut pool = BITS_POOL.lock().unwrap_or_else(|p| p.into_inner());
             if pool.is_empty() {
                 pool.push((std::mem::take(&mut self.bits), std::mem::take(&mut self.rank)));
             }
         }
         if let Some(d) = self.dense.take() {
-            let mut pool = DENSE_POOL.lock().unwrap();
+            let mut pool = DENSE_POOL.lock().unwrap_or_else(|p| p.into_inner());
             if pool.is_empty() {
                 pool.push(d);
             }
         }
-        let mut pool = HIT_POOL.lock().unwrap();
+        let mut pool = HIT_POOL.lock().unwrap_or_else(|p| p.into_inner());
         if pool.is_empty() {
             *pool = std::mem::take(&mut self.hits);
             pool.iter_mut().for_each(Vec::clear);
@@ -4132,7 +4132,7 @@ impl NameTable {
     /// The `dense` view, built on first use.
     fn dense(&self, idx: &Index) -> &[Short] {
         lazy::<Vec<Short>>(&self.dense, || {
-            let spare = DENSE_POOL.lock().unwrap().pop().filter(|d| d.len() == idx.words * 64);
+            let spare = DENSE_POOL.lock().unwrap_or_else(|p| p.into_inner()).pop().filter(|d| d.len() == idx.words * 64);
             // A fresh one comes zeroed (all `Short::default()`) from the
             // allocator, which maps zero pages in without writing them.
             let fresh = spare.is_none();

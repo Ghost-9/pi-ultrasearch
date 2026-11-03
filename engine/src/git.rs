@@ -146,9 +146,9 @@ impl Repo {
         self.used.store(ms(), Ordering::Relaxed);
         if wait > Duration::ZERO {
             let (m, cv) = &self.loaded;
-            drop(cv.wait_timeout_while(m.lock().unwrap(), wait, |done| !*done).unwrap());
+            drop(cv.wait_timeout_while(m.lock().unwrap_or_else(|p| p.into_inner()), wait, |done| !*done).unwrap());
         }
-        self.snap.read().unwrap().clone()
+        self.snap.read().unwrap_or_else(|p| p.into_inner()).clone()
     }
 
     fn rel<'a>(&self, path: &'a [u8]) -> Option<&'a [u8]> {
@@ -225,7 +225,7 @@ impl Git {
     pub fn repo(&self, path: &[u8]) -> Option<Arc<Repo>> {
         self.bin.as_ref()?;
         let dir = &path[..path.iter().rposition(|&b| b == b'/').unwrap_or(0)];
-        let mut memo = self.dirs.lock().unwrap();
+        let mut memo = self.dirs.lock().unwrap_or_else(|p| p.into_inner());
         let mut seen = Vec::new();
         let mut d = dir;
         let found = loop {
@@ -256,14 +256,14 @@ impl Git {
     pub fn load(&self, path: &[u8]) -> Option<Arc<Repo>> {
         let r = self.repo(path)?;
         r.used.store(ms(), Ordering::Relaxed);
-        if r.snap.read().unwrap().is_none() {
+        if r.snap.read().unwrap_or_else(|p| p.into_inner()).is_none() {
             self.kick(&r);
         }
         Some(r)
     }
 
     fn add(&self, root: &[u8]) -> Arc<Repo> {
-        let mut repos = self.repos.lock().unwrap();
+        let mut repos = self.repos.lock().unwrap_or_else(|p| p.into_inner());
         if let Some(r) = repos.iter().find(|r| r.root == root) {
             return r.clone();
         }
@@ -308,7 +308,7 @@ impl Git {
 
     /// Repos already known at or under `dir`.
     pub fn known_under(&self, dir: &[u8]) -> Vec<Arc<Repo>> {
-        self.repos.lock().unwrap().iter().filter(|r| r.root.starts_with(dir) && r.root.get(dir.len()).is_none_or(|&b| b == b'/')).cloned().collect()
+        self.repos.lock().unwrap_or_else(|p| p.into_inner()).iter().filter(|r| r.root.starts_with(dir) && r.root.get(dir.len()).is_none_or(|&b| b == b'/')).cloned().collect()
     }
 
     /// FSEvents saw these folders change (`Engine::on_change`; true: and
@@ -318,7 +318,7 @@ impl Git {
         // A memoized folder that gained or lost a `.git` (git init, rm -rf)
         // makes the memo stale.
         {
-            let mut memo = self.dirs.lock().unwrap();
+            let mut memo = self.dirs.lock().unwrap_or_else(|p| p.into_inner());
             let stale = dirs.iter().any(|(d, _)| {
                 memo.get(*d).is_some_and(|r| {
                     let root = r.as_ref().is_some_and(|r| r.root == *d);
@@ -329,7 +329,7 @@ impl Git {
                 memo.clear();
             }
         }
-        let repos = self.repos.lock().unwrap().clone();
+        let repos = self.repos.lock().unwrap_or_else(|p| p.into_inner()).clone();
         let mut hit: Vec<&Arc<Repo>> = Vec::new();
         for &(d, below) in dirs {
             // Anything below a folder above a repo: all of the repo.
@@ -338,7 +338,7 @@ impl Git {
             // The deepest repo holding it decides (a nested repo is its own).
             todo.extend(repos.iter().filter_map(|r| Some((r, r.rel(d)?))).max_by_key(|(r, _)| r.root.len()));
             for (r, rel) in todo {
-                let mut p = r.pending.lock().unwrap();
+                let mut p = r.pending.lock().unwrap_or_else(|p| p.into_inner());
                 if rel == b".git" || rel.starts_with(b".git/refs") || rel == b".git/info" {
                     p.1 = true;
                 } else if !rel.starts_with(b".git/") {
@@ -359,7 +359,7 @@ impl Git {
 
     fn kick(&self, r: &Arc<Repo>) {
         if !r.queued.swap(true, Ordering::Relaxed) {
-            let _ = self.work.lock().unwrap().send(r.clone());
+            let _ = self.work.lock().unwrap_or_else(|p| p.into_inner()).send(r.clone());
         }
     }
 
@@ -367,7 +367,7 @@ impl Git {
         let mut queue: Vec<Arc<Repo>> = Vec::new();
         loop {
             let wait = match queue.is_empty() {
-                true if self.repos.lock().unwrap().is_empty() => None,
+                true if self.repos.lock().unwrap_or_else(|p| p.into_inner()).is_empty() => None,
                 true => Some(IDLE_CHECK),
                 false => Some(QUIET),
             };
@@ -384,7 +384,7 @@ impl Git {
             queue.dedup_by(|a, b| Arc::ptr_eq(a, b));
             let now = ms();
             let ripe = |r: &Arc<Repo>| {
-                r.snap.read().unwrap().is_none() || now.saturating_sub(r.last_event.load(Ordering::Relaxed)) >= QUIET.as_millis() as u64
+                r.snap.read().unwrap_or_else(|p| p.into_inner()).is_none() || now.saturating_sub(r.last_event.load(Ordering::Relaxed)) >= QUIET.as_millis() as u64
             };
             while let Some(i) = queue.iter().position(ripe) {
                 let r = queue.swap_remove(i);
@@ -399,30 +399,30 @@ impl Git {
     /// unwatched; they're re-read when asked again).
     fn drop_idle(&self) {
         let now = ms();
-        let mut repos = self.repos.lock().unwrap();
+        let mut repos = self.repos.lock().unwrap_or_else(|p| p.into_inner());
         let idle: Vec<Arc<Repo>> = repos.iter().filter(|r| now.saturating_sub(r.used.load(Ordering::Relaxed)) > IDLE_MS).cloned().collect();
         if idle.is_empty() {
             return;
         }
         repos.retain(|r| !idle.iter().any(|i| Arc::ptr_eq(i, r)));
         drop(repos);
-        self.dirs.lock().unwrap().retain(|_, r| r.as_ref().is_none_or(|r| !idle.iter().any(|i| Arc::ptr_eq(i, r))));
+        self.dirs.lock().unwrap_or_else(|p| p.into_inner()).retain(|_, r| r.as_ref().is_none_or(|r| !idle.iter().any(|i| Arc::ptr_eq(i, r))));
     }
 
     /// Bring a repo's snapshot up to date: all of it the first time, then
     /// the folders that changed, and the index when `.git` did.
     fn refresh(&self, r: &Repo) {
-        let (dirs, head) = std::mem::take(&mut *r.pending.lock().unwrap());
-        let old = r.snap.read().unwrap().clone();
+        let (dirs, head) = std::mem::take(&mut *r.pending.lock().unwrap_or_else(|p| p.into_inner()));
+        let old = r.snap.read().unwrap_or_else(|p| p.into_inner()).clone();
         let t = Instant::now();
         let new = match old {
             None => self.read_all(r),
             Some(old) => self.update(r, &old, dirs, head),
         };
         if let Some(s) = new {
-            *r.snap.write().unwrap() = Some(Arc::new(s));
+            *r.snap.write().unwrap_or_else(|p| p.into_inner()) = Some(Arc::new(s));
         }
-        let first = !std::mem::replace(&mut *r.loaded.0.lock().unwrap(), true);
+        let first = !std::mem::replace(&mut *r.loaded.0.lock().unwrap_or_else(|p| p.into_inner()), true);
         r.loaded.1.notify_all();
         if first || t.elapsed() > Duration::from_millis(500) {
             eprintln!("{} git: read {} in {:.2?}", ultrasearch::query::now_secs(), String::from_utf8_lossy(&r.root), t.elapsed());

@@ -58,7 +58,7 @@ impl Frecency {
 
     /// Record an open of `path`; its new score.
     pub fn open(self: &Arc<Self>, path: &[u8], now: u32) -> f32 {
-        let mut map = self.map.lock().unwrap();
+        let mut map = self.map.lock().unwrap_or_else(|p| p.into_inner());
         let e = map.entry(path.to_vec()).or_insert((0.0, now));
         if e.0 > 0.0 && now.saturating_sub(e.1) < DEBOUNCE {
             return e.0;
@@ -78,12 +78,12 @@ impl Frecency {
 
     /// `path`'s score now (0 if never opened).
     pub fn score(&self, path: &[u8], now: u32) -> f32 {
-        self.map.lock().unwrap().get(path).map_or(0.0, |&e| decayed(e, now))
+        self.map.lock().unwrap_or_else(|p| p.into_inner()).get(path).map_or(0.0, |&e| decayed(e, now))
     }
 
     /// Every path under `dir` (`/`: anywhere) with its score.
     pub fn under(&self, dir: &[u8], now: u32) -> Vec<(Vec<u8>, f32)> {
-        let map = self.map.lock().unwrap();
+        let map = self.map.lock().unwrap_or_else(|p| p.into_inner());
         let inside = |p: &[u8]| dir == b"/" || (p.starts_with(dir) && p.get(dir.len()) == Some(&b'/'));
         map.iter().filter(|(p, _)| inside(p)).map(|(p, &e)| (p.clone(), decayed(e, now))).collect()
     }
@@ -101,7 +101,7 @@ impl Frecency {
             let now = ultrasearch::query::now_secs();
             let mut out = Vec::new();
             {
-                let mut map = me.map.lock().unwrap();
+                let mut map = me.map.lock().unwrap_or_else(|p| p.into_inner());
                 map.retain(|_, e| decayed(*e, now) >= FLOOR);
                 for (p, &(s, t)) in map.iter() {
                     // One line each: a path with a newline (or starting

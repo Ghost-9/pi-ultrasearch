@@ -388,7 +388,7 @@ fn descend<'s>(s: &Scope<'s>, fd: i32, path: Option<Vec<u8>>, mut l: Listing, ct
                 && std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
                 && let Some(p) = &child_path
             {
-                DENIED.lock().unwrap().push(p.clone());
+                DENIED.lock().unwrap_or_else(|p| p.into_inner()).push(p.clone());
             }
             finish_dir(s, fd, child_path, cid, ctx);
         });
@@ -422,7 +422,7 @@ fn push(l: Listing, ctx: &Ctx) {
         LISTED.fetch_add(l.ents.len(), Ordering::Relaxed);
     }
     let slot = rayon::current_thread_index().unwrap_or(ctx.out.len() - 1);
-    ctx.out[slot].lock().unwrap().push(l);
+    ctx.out[slot].lock().unwrap_or_else(|p| p.into_inner()).push(l);
 }
 
 fn rd32(b: &[u8], at: usize) -> u32 {
