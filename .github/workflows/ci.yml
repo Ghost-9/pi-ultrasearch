@@ -78,6 +78,15 @@ jobs:
       - name: Engine integration tests (real isolated daemon)
         run: npm run test:engine
 
+      # The 2,671 MB / 67-compaction defect was a *time* behaviour: it needed the
+      # daemon to run against a churning tree before it appeared, and nothing in
+      # this workflow ran long enough to see it. This does, briefly, and asserts the
+      # properties that failed: compactions bounded, event lag bounded, RSS flat, the
+      # daemon still answering, and a file created seconds ago still findable.
+      # `python3 scripts/soak.py --hours 48` runs the real weekend soak.
+      - name: Soak (churn, bounded compactions and lag, live follower)
+        run: python3 scripts/soak.py --seconds 60
+
       - name: Benchmark gate (hermetic strict + live floor-derived)
         run: npm run test:gate
 
