@@ -114,7 +114,14 @@ function nowIso() {
 
 function gitState() {
   const commit = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, encoding: "utf8" });
-  const status = spawnSync("git", ["status", "--porcelain"], { cwd: repoRoot, encoding: "utf8" });
+  // Dirtiness means the SOURCE differed from the recorded commit, so untracked files
+  // are excluded. `git status --porcelain` counts them, and the CI job builds `dist/`
+  // before this step - so every artifact generated in CI was stamped "generated on a
+  // dirty tree" and the matrix check rejected it immediately. The gate could not pass
+  // on any commit, which is why this check had been red since before the change that
+  // triggered it. Modified or staged tracked files still mark the tree dirty, which is
+  // the case that actually matters.
+  const status = spawnSync("git", ["status", "--porcelain", "--untracked-files=no"], { cwd: repoRoot, encoding: "utf8" });
   return {
     commit: commit.status === 0 ? commit.stdout.trim() : "unknown",
     worktreeDirty: status.status === 0 ? status.stdout.trim().length > 0 : null,
