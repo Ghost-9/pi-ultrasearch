@@ -67,8 +67,22 @@ fn read_ignore_file(path: &std::path::Path, names: &mut Vec<Vec<u8>>, suffixes: 
         if line.is_empty() || line.starts_with('#') || line.starts_with('!') {
             continue;
         }
+        // `**/name` and `**/name/` mean "a NAME at any depth", which is exactly what a
+        // name-based prune does. Without this the pattern was skipped as an ambiguous
+        // glob, so the common `**/node_modules` form was ignored.
         let pat = line.trim_end_matches('/').trim_start_matches('/');
+        let pat = pat.strip_prefix("**/").unwrap_or(pat);
         if pat.is_empty() {
+            continue;
+        }
+        // `dir/**` and `dir/*` mean "everything under dir", so the directory itself is
+        // the prune point. The walk has no path context at enumeration (that is what
+        // keeps it cheap), so a leading literal segment is the only part it can act on;
+        // this is faithful for the forms that matter and still refuses the rest.
+        if let Some(head) = pat.strip_suffix("/**").or_else(|| pat.strip_suffix("/*")) {
+            if is_literal_name(head) {
+                names.push(head.to_ascii_lowercase().into_bytes());
+            }
             continue;
         }
         if let Some(suf) = pat.strip_prefix('*') {
@@ -77,10 +91,15 @@ fn read_ignore_file(path: &std::path::Path, names: &mut Vec<Vec<u8>>, suffixes: 
             if !suf.is_empty() && !suf.contains('*') && !suf.contains('?') && !suf.contains('[') {
                 suffixes.push(suf.to_ascii_lowercase().into_bytes());
             }
-        } else if !pat.contains('/') && !pat.contains('*') && !pat.contains('?') && !pat.contains('[') {
+        } else if is_literal_name(pat) {
             names.push(pat.to_ascii_lowercase().into_bytes());
         }
     }
+}
+
+/// A pattern with no glob syntax and no separator: something a name prune can honour.
+fn is_literal_name(pat: &str) -> bool {
+    !pat.is_empty() && !pat.contains('/') && !pat.contains('*') && !pat.contains('?') && !pat.contains('[') && !pat.contains(']')
 }
 
 fn exclude_set() -> &'static (Vec<Vec<u8>>, Vec<Vec<u8>>) {
@@ -594,5 +613,39 @@ mod tests {
         assert!(!excluded_entry(b"src", true));
         assert!(!excluded_entry(b"main.rs", false));
         assert!(!excluded_entry(b"", false), "the empty name is never pruned");
+    }
+    /// The ignore-file forms that carry real projects, and the ones that must still
+    /// be refused rather than guessed at.
+    ///
+    /// These parse the pattern list directly rather than through `exclude_set()`, so
+    /// they are independent of whatever the developer's root `.gitignore` says.
+    #[test]
+    fn ignore_file_forms() {
+        let dir = std::env::temp_dir().join(format!("ultrasearch-ignore-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let f = dir.join(".gitignore");
+        std::fs::write(&f, "dist/**\n/out\n**/node_modules\n**/__pycache__/\nbuild/*\n*.log\n!keep.log\n\n# comment\na/b/c\n").unwrap();
+        let (mut names, mut suffixes) = (Vec::new(), Vec::new());
+        read_ignore_file(&f, &mut names, &mut suffixes);
+        let names: Vec<String> = names.iter().map(|n| String::from_utf8_lossy(n).into_owned()).collect();
+        let suffixes: Vec<String> = suffixes.iter().map(|n| String::from_utf8_lossy(n).into_owned()).collect();
+
+        // `dir/**` and `build/*` prune the directory itself.
+        assert!(names.contains(&"dist".to_string()), "dist/** must prune dist: {names:?}");
+        assert!(names.contains(&"build".to_string()), "build/* must prune build: {names:?}");
+        // `**/name` is a name at any depth.
+        assert!(names.contains(&"node_modules".to_string()), "**/node_modules must prune: {names:?}");
+        assert!(names.contains(&"__pycache__".to_string()), "**/__pycache__/ must prune: {names:?}");
+        // A plain name and an anchored one both work.
+        assert!(names.contains(&"out".to_string()), "/out must prune out: {names:?}");
+        // `*.log` is a suffix.
+        assert!(suffixes.contains(&".log".to_string()), "*.log must be a suffix: {suffixes:?}");
+
+        // Refused, not guessed: an interior path, and a negation is skipped rather
+        // than treated as an exclusion (the engine does not implement re-inclusion,
+        // so honouring `!` as a prune would be exactly backwards).
+        assert!(!names.contains(&"a".to_string()) && !names.contains(&"c".to_string()), "a/b/c must not become a name prune");
+        assert!(!names.contains(&"keep.log".to_string()), "a negation must not become a prune");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
