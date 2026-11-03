@@ -91,8 +91,15 @@ impl Policy {
     }
 
     /// A summary for `op: status`: what is in force, without the paths.
+    ///
+    /// The configured block alone answered `null` for every field on a default
+    /// install, which is useless when it matters most: a grep returns zero hits and
+    /// the question is whether the text is absent or merely not indexed. `effective`
+    /// reports the rules the build actually applies, so that question is answerable
+    /// without reading the source.
     pub fn summary(&self) -> serde_json::Value {
         use serde_json::json;
+        let built_in = crate::content::built_in_rules();
         json!({
             "configured": self.configured(),
             "source": self.source,
@@ -100,6 +107,19 @@ impl Policy {
             "max_file_bytes": self.max_file_bytes,
             "roots": self.roots.as_ref().map(|r| r.len()),
             "warm": self.warm.len(),
+            "effective": {
+                // A configured cap overrides the built-in one; otherwise the
+                // built-in cap is what a large file is measured against.
+                "max_file_bytes": self.max_file_bytes.unwrap_or(built_in.max_file_bytes),
+                "extensions": match &self.extensions {
+                    Some(e) => e.iter().map(|x| String::from_utf8_lossy(x).into_owned()).collect::<Vec<_>>(),
+                    None => built_in.extensions,
+                },
+                "indexes_files_without_extension": self.extensions.is_none(),
+                "skips_generated": ["lockfiles", "json >= 100 KB", "minified or bundled js/css"],
+                "skips_names": built_in.skip_dirs,
+                "note": "A zero-hit grep means the text was not found in an indexed file. If the file is larger than max_file_bytes, has an extension outside extensions, or is a generated artefact, the text can be on disk and unindexed.",
+            },
         })
     }
 

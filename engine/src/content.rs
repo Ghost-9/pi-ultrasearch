@@ -1340,6 +1340,25 @@ pub fn eligible(path: &[u8], size: u64, home: &[u8]) -> bool {
     Scope::new(home, &on_disk).file(path, size)
 }
 
+/// The rules a default install actually applies, for `op: status` (#U7).
+///
+/// `coverage::Policy::summary()` reports what was configured. On a default install
+/// nothing is configured, so every field was null and a zero-hit grep could not be
+/// interpreted. This exposes the built-in heuristics instead.
+pub struct BuiltInRules {
+    pub max_file_bytes: u64,
+    pub extensions: Vec<String>,
+    pub skip_dirs: Vec<String>,
+}
+
+pub fn built_in_rules() -> BuiltInRules {
+    BuiltInRules {
+        max_file_bytes: MAX_FILE,
+        extensions: TEXT_EXTS.iter().map(|x| String::from_utf8_lossy(x).into_owned()).collect(),
+        skip_dirs: SKIP_DIRS.iter().map(|x| String::from_utf8_lossy(x).into_owned()).collect(),
+    }
+}
+
 /// The configured content policy (#17), for `op: status`.
 pub fn policy() -> &'static crate::coverage::Policy {
     crate::coverage::policy()
