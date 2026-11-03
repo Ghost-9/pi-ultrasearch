@@ -58,9 +58,16 @@ fn main() {
         Some("stdio") => stdio(),
         Some("mcp") => mcp::run(data_dir()),
         Some("status") => print_one(&serde_json::json!({"op": "status"}), true),
-        Some("bench") => bench(&args[1..].join(" ")),
-        Some("install") => install(args.iter().any(|a| a == "--login")),
-        Some("uninstall") => uninstall(),
+        // Every command can be scripted. `status` and search always supported
+        // --json; bench, install and uninstall only printed prose, so a caller
+        // had to scrape or give up.
+        Some("bench") => bench(
+            // --json belongs to the command, not to the query it is benchmarking.
+            &args[1..].iter().filter(|a| *a != "--json").cloned().collect::<Vec<_>>().join(" "),
+            json_flag(&args),
+        ),
+        Some("install") => install(args.iter().any(|a| a == "--login"), json_flag(&args)),
+        Some("uninstall") => uninstall(json_flag(&args)),
         Some(_) => {
             let json = args.iter().any(|a| a == "--json");
             let q: Vec<&str> = args.iter().map(String::as_str).filter(|a| *a != "--json").collect();
@@ -135,7 +142,12 @@ fn stdio() {
     }
 }
 
-fn bench(qs: &str) {
+/// True when `--json` was passed, for the commands that print prose (#U8).
+fn json_flag(args: &[String]) -> bool {
+    args.iter().any(|a| a == "--json")
+}
+
+fn bench(qs: &str, as_json: bool) {
     let dir = data_dir();
     let idx = index::Index::load(&dir.join("index.bin")).unwrap_or_else(|| die("no index yet; run ultrasearch serve"));
     let live = live::Live::new(idx);
@@ -184,12 +196,28 @@ fn bench(qs: &str) {
         out = run();
         times.push(t.elapsed());
     }
-    for l in out.iter().take(10) {
-        println!("{l}");
-    }
     let first = times[0];
     times.sort();
-    eprintln!("first {first:.2?}  median {:.2?}  min {:.2?}", times[times.len() / 2], times[0]);
+    if as_json {
+        let ms = |d: std::time::Duration| (d.as_secs_f64() * 1000.0 * 1000.0).round() / 1000.0;
+        println!(
+            "{}",
+            serde_json::json!({
+                "ok": true,
+                "query": qs,
+                "runs": times.len(),
+                "first_ms": ms(first),
+                "median_ms": ms(times[times.len() / 2]),
+                "min_ms": ms(times[0]),
+                "results": out.iter().take(10).collect::<Vec<_>>(),
+            })
+        );
+    } else {
+        for l in out.iter().take(10) {
+            println!("{l}");
+        }
+        eprintln!("first {first:.2?}  median {:.2?}  min {:.2?}", times[times.len() / 2], times[0]);
+    }
 }
 
 fn plist_path() -> PathBuf {
@@ -204,7 +232,7 @@ fn domain() -> String {
     format!("gui/{}", unsafe { libc::getuid() })
 }
 
-fn install(login: bool) {
+fn install(login: bool, as_json: bool) {
     // A plain reinstall keeps an existing login agent.
     let login = login || plist_path().exists();
     let bin = PathBuf::from(home()).join(".local/bin/ultrasearch-daemon");
@@ -224,7 +252,16 @@ fn install(login: bool) {
         bin.display()
     );
     if !login {
-        println!("installed {}; the daemon starts on first use\n{agents}", bin.display());
+        if as_json {
+            println!(
+                "{}",
+                serde_json::json!({
+                    "ok": true, "installed": bin.display().to_string(), "login_agent": false, "agents": agents,
+                })
+            );
+        } else {
+            println!("installed {}; the daemon starts on first use\n{agents}", bin.display());
+        }
         return;
     }
     let log = data_dir().join("daemon.log");
@@ -257,13 +294,31 @@ fn install(login: bool) {
     if !(0..50).any(|_| bootstrap() || retry()) {
         die("launchctl bootstrap failed");
     }
-    println!("installed {} (LaunchAgent {LABEL})\n{agents}", bin.display());
+    if as_json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "ok": true, "installed": bin.display().to_string(), "login_agent": true, "agents": agents,
+            })
+        );
+    } else {
+        println!("installed {} (LaunchAgent {LABEL})\n{agents}", bin.display());
+    }
 }
 
-fn uninstall() {
+fn uninstall(as_json: bool) {
     launchctl(&["bootout", &format!("{}/{LABEL}", domain())]);
     let _ = std::fs::remove_file(plist_path());
-    println!("removed LaunchAgent {LABEL}; index kept in {}", data_dir().display());
+    if as_json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "ok": true, "removed_login_agent": LABEL, "index_kept_at": data_dir().display().to_string(),
+            })
+        );
+    } else {
+        println!("removed LaunchAgent {LABEL}; index kept in {}", data_dir().display());
+    }
 }
 
 fn die(msg: &str) -> ! {
