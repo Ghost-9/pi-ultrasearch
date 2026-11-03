@@ -10,7 +10,30 @@
 //! searches were ~10% slower for it. So a thread that searches keeps its
 //! freed small blocks on free lists of its own for the next allocation of
 //! that size, and `drain` hands them back once searching stops.
-
+//! # Safety contract
+//! 99 unsafe blocks live in this crate; 36 of them are here, because a global
+//! allocator cannot be written without raw pointers. Each block relies on exactly
+//! these invariants:
+//! 1. **Size fidelity.** A block on free list `c` was allocated with size
+//!    `16 << c`. `fit()` and `take()` only ever move a block between the caller and
+//!    the list for its own size, so the `Layout` handed to `System.dealloc` is the
+//!    one the block was allocated with. `Layout::from_size_align_unchecked` is only
+//!    called with `16 << c` or 16, both non-zero, and align 16 or 1, a valid
+//!    power of two.
+//! 2. **One owner at a time.** `head[c]` is the only link. A block is written into
+//!    it on free and read back on take, never both, so a block is handed out at most
+//!    once per free.
+//! 3. **Per-thread access.** `FREE` is a `thread_local!`, so `UnsafeCell` is only
+//!    ever dereferenced by the thread that owns the list. No pointer from one
+//!    thread's list is published to another: `drain` returns blocks to `System`
+//!    rather than to a neighbour.
+//!    one `*mut u8` stored in them.
+//! Anything that changes the size classes, the list count, or the thread-local
+//! storage must re-check every claim above.
+//! what the daemon runs).
+//! Big blocks come straight from mmap and go straight back: macOS's malloc
+//! keeps freed large blocks mapped and dirty, which left the daemon at ~1 GB
+//! footprint after a build while ~2 MB was live.
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering::Relaxed};

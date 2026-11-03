@@ -1,4 +1,21 @@
-//! Parallel whole-disk enumeration with getattrlistbulk(2).
+//! Parallel whole-disk enumeration with getattrlistbulk(2).//!
+//! # Safety contract
+//!
+//! `getattrlistbulk(2)` writes a packed buffer and the parser reads it back at
+//! computed offsets. 15 unsafe blocks here, all of them either that parse or a
+//! libc call on a file descriptor this module owns. The invariants:
+//!
+//! 1. **Bounded reads.** Every field read is bounded by the record length the kernel
+//!    wrote in the record's own first word (`rd32(b, 0)`), and the outer loop steps
+//!    by exactly that length, so no read crosses a record or the buffer.
+//! 2. **Presence checks first.** A field is only read when its bit appears in
+//!    `ATTR_CMN_RETURNED_ATTRS`; the attribute offsets are then taken from the
+//!    returned-attributes map, not assumed.
+//! 3. **Descriptor ownership.** Every `fd` opened here is closed exactly once on the
+//!    same path, including on the error branches (the `Drop` for the guard).
+//! 4. **`std::mem::zeroed` on libc structs only**, which are plain-old-data by
+//!    definition, and immediately initialised by the call that receives them.
+
 //!
 //! One syscall returns hundreds of entries with name, type, size, mtime and
 //! flags already attached, so there is no per-file stat. Directories fan out
@@ -647,5 +664,49 @@ mod tests {
         assert!(!names.contains(&"a".to_string()) && !names.contains(&"c".to_string()), "a/b/c must not become a name prune");
         assert!(!names.contains(&"keep.log".to_string()), "a negation must not become a prune");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+    /// The unsafe surface is a budget, not an accident.
+    ///
+    /// 127 unsafe code occurrences across the crate, concentrated in the
+    /// allocator (mmap and free lists), the getattrlistbulk buffer parser, the
+    /// dlopen'd FSEvents API and the qsort_r comparator plumbing - all of them
+    /// places where a safe wrapper does not exist. Each of those modules now carries
+    /// a written safety contract.
+    ///
+    /// This test fails when the count RISES, so a new unsafe block has to be a
+    /// deliberate decision with its own justification rather than something added
+    /// while passing. It does not fail when the count falls.
+    #[test]
+    fn unsafe_surface_does_not_grow() {
+        // 91 blocks, 8 `unsafe fn`, and the rest `unsafe impl`/`unsafe extern`
+        // types for the dlopen'd FSEvents API and the qsort_r comparator.
+        const CEILING: usize = 127;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut found = 0usize;
+        for entry in std::fs::read_dir(&dir).expect("src directory must be readable") {
+            let path = entry.expect("readable dir entry").path();
+            if path.extension().map(|e| e == "rs").unwrap_or(false) {
+                let Ok(text) = std::fs::read_to_string(&path) else { continue };
+                // Only production code: a test may write `unsafe` freely. And only
+                // code, not prose: the safety contracts in these modules discuss
+                // `unsafe` by name, and counting a doc comment would make the budget
+                // grow every time someone explains it.
+                let prod = text.split("#[cfg(test)]").next().unwrap_or(&text);
+                for line in prod.lines() {
+                    let code = line.trim_start();
+                    if code.starts_with("//") {
+                        continue;
+                    }
+                    if code.contains("unsafe {") || code.contains("unsafe fn") || code.contains("unsafe impl") || code.contains("unsafe extern") {
+                        found += 1;
+                    }
+                }
+            }
+        }
+        assert!(
+            found <= CEILING,
+            "unsafe surface grew to {found} occurrences (ceiling {CEILING}). A new unsafe \
+             block needs a safety comment and its own reason, not a raised ceiling."
+        );
     }
 }

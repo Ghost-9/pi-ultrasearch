@@ -308,7 +308,13 @@ impl Git {
 
     /// Repos already known at or under `dir`.
     pub fn known_under(&self, dir: &[u8]) -> Vec<Arc<Repo>> {
-        self.repos.lock().unwrap_or_else(|p| p.into_inner()).iter().filter(|r| r.root.starts_with(dir) && r.root.get(dir.len()).is_none_or(|&b| b == b'/')).cloned().collect()
+        self.repos
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .iter()
+            .filter(|r| r.root.starts_with(dir) && r.root.get(dir.len()).is_none_or(|&b| b == b'/'))
+            .cloned()
+            .collect()
     }
 
     /// FSEvents saw these folders change (`Engine::on_change`; true: and
@@ -384,7 +390,8 @@ impl Git {
             queue.dedup_by(|a, b| Arc::ptr_eq(a, b));
             let now = ms();
             let ripe = |r: &Arc<Repo>| {
-                r.snap.read().unwrap_or_else(|p| p.into_inner()).is_none() || now.saturating_sub(r.last_event.load(Ordering::Relaxed)) >= QUIET.as_millis() as u64
+                r.snap.read().unwrap_or_else(|p| p.into_inner()).is_none()
+                    || now.saturating_sub(r.last_event.load(Ordering::Relaxed)) >= QUIET.as_millis() as u64
             };
             while let Some(i) = queue.iter().position(ripe) {
                 let r = queue.swap_remove(i);

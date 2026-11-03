@@ -1,4 +1,15 @@
 //! Name search: parse a query, scan the index in parallel, rank, top-k.
+//! # Safety contract
+//!
+//! 22 unsafe blocks, all of them function-pointer plumbing for libc's `qsort_r` and
+//! the thread QoS/priority callbacks. The invariants:
+//!
+//! 1. **Documented ABI.** Each `unsafe extern "C" fn(...)` type mirrors the libc
+//!    prototype it is passed as; changing one requires changing the other.
+//! 2. **Comparator state.** The context pointer passed to `qsort_r` is a reference to
+//!    a local that outlives the call, and the comparator only reads it.
+//! 3. **Element size.** `qsort_r` is given the true element size and count of the
+//!    slice being sorted, and the comparator casts back to that same type.
 
 use crate::index::{BM_DOUBLE, BM_FIRST, BM_SECOND, BM_START, CLASSES, Index, ZONE, Zone, char_bit, start_bit};
 use crate::live::Live;

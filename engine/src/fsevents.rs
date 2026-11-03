@@ -1,4 +1,19 @@
 //! Whole-disk FSEvents stream, directory granularity, replayable by event id.
+//! # Safety contract
+//!
+//! The FSEvents C API is reached through `dlopen`/`dlsym`, so 25 unsafe blocks here
+//! are unavoidable without taking a crate dependency. The invariants:
+//!
+//! 1. **Resolved once, then typed.** Each symbol is looked up once and transmuted to
+//!    the signature Apple documents for it; a null handle means the whole module
+//!    reports "unavailable" rather than calling through a null pointer.
+//! 2. **Callback ABI.** Transmuted function pointers use the C calling convention and
+//!    `extern "C"`, matching the callee.
+//! 3. **Lifetime.** The callback's `info` pointer is the `Stream` handle, which
+//!    outlives the stream because it is owned by the caller that started it; the
+//!    stream is invalidated before that owner is dropped.
+//! 4. **Paths from the kernel** are handed over as a count plus a pointer; they are
+//!    copied into owned `Vec<u8>` before the callback returns, never retained.
 
 use std::ffi::{CStr, c_void};
 use std::sync::mpsc::Sender;

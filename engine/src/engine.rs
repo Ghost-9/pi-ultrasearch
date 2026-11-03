@@ -859,7 +859,8 @@ impl Shared {
     /// Does the content index hold every file under `scope` (all it should
     /// hold, without one)?
     fn content_holds(&self, scope: Option<&[u8]>) -> bool {
-        self.content_ready.load(Ordering::Acquire) || scope.is_some_and(|s| self.content_early.lock().unwrap_or_else(|p| p.into_inner()).iter().any(|f| under(s, f)))
+        self.content_ready.load(Ordering::Acquire)
+            || scope.is_some_and(|s| self.content_early.lock().unwrap_or_else(|p| p.into_inner()).iter().any(|f| under(s, f)))
     }
 
     /// (Re)start the FSEvents stream from `since`, replacing any old one.
