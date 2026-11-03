@@ -141,6 +141,16 @@ Latency percentiles, fallback rate, zero-hit diagnostics, CLI-bypass detector, a
   DLP interceptions, CLI bypasses), not just tests.
 - **"Tokens saved" is an estimate**, computed as `150 + 75 × hits` for grep and `100 + 30 × hits` for path searches.
   It is not a prompt-token measurement; an A/B token-accounting harness is on the roadmap.
+- **`status` answers "where did the index go"**, not just "how big is it": `entries_by_root` (entries per
+  top-level folder, largest first), `excluded_names` (the directory names the walk actually prunes), and
+  `scan_root` plus `scan_root_source` so a whole-disk fallback is visible instead of inferred from the entry
+  count. Before these, an index of ~790k entries gave no way to see what was taking the space.
+- **`status.content_policy.effective`** reports the content-index rules actually in force — the size cap, the
+  indexed extensions, the skipped directory names and the generated-artefact exclusions — with a note on what a
+  zero-hit grep does and does not mean. On a default install nothing is configured, so this block used to be
+  `null` everywhere, which was useless at exactly the moment it mattered.
+- **Every command takes `--json`.** `status` and search always did; `bench`, `install` and `uninstall` used to
+  print prose and now emit machine-readable output, so a script no longer has to scrape.
 
 ---
 
@@ -380,6 +390,22 @@ extension is a separate operation because `ultrasearch init` deliberately skips 
    The script clones the extension into `~/.pi/agent/extensions/pi-ultrasearch` only when that directory is
    absent, runs `npm ci` and `npm run build`, and prints the reload instruction. It uses no `sudo`. Run it again
    to rebuild an existing checkout; update that checkout with `git pull` first when installing newer source.
+
+---
+
+## Soak
+
+`python3 scripts/soak.py --seconds 60` runs in CI on macOS; `--hours 48` is the real soak.
+
+It runs the daemon against a synthetic tree that creates, modifies and deletes while the index is live, and
+fails when compactions run away, event lag grows unbounded, RSS grows unbounded, or the daemon stops answering.
+Those are the properties that failed in the incident this was written for: 2,671 MB RSS, 5,210,213 event lag
+and 67 compactions in a row.
+
+It also proves the follower is live: every sample creates a file and asserts that file is findable shortly
+after. Without that check the soak would pass on a daemon that had stopped following events entirely — the
+index would simply never change and every ceiling would hold. `entries` is the *base* index and does not move
+(new files sit in the overlay until compaction), so measuring entries alone is what makes the test vacuous.
 
 ---
 
