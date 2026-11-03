@@ -106,12 +106,10 @@ impl Policy {
     /// Read the policy, or say why it could not be used.
     pub fn load(dir: &Path) -> Result<Policy, String> {
         let env = |k: &str| std::env::var(k).ok().filter(|v| !v.trim().is_empty());
-        let file: Option<PathBuf> = env("ULTRASEARCH_COVERAGE_FILE")
-            .map(PathBuf::from)
-            .or_else(|| {
-                let p = dir.join("coverage.json");
-                p.exists().then_some(p)
-            });
+        let file: Option<PathBuf> = env("ULTRASEARCH_COVERAGE_FILE").map(PathBuf::from).or_else(|| {
+            let p = dir.join("coverage.json");
+            p.exists().then_some(p)
+        });
         let mut policy = match &file {
             Some(p) => {
                 let text = std::fs::read_to_string(p).map_err(|e| format!("coverage: cannot read {}: {e}", p.display()))?;
@@ -168,11 +166,7 @@ impl Policy {
 
 /// Split a comma/colon separated list, ignoring empties.
 fn split(v: &str) -> Vec<Vec<u8>> {
-    v.split([',', ':'])
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(|s| s.trim_start_matches('.').as_bytes().to_vec())
-        .collect()
+    v.split([',', ':']).map(str::trim).filter(|s| !s.is_empty()).map(|s| s.trim_start_matches('.').as_bytes().to_vec()).collect()
 }
 
 /// The policy in force: read once at daemon start.

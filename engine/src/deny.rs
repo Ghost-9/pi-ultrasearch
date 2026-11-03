@@ -99,7 +99,6 @@ impl DenyList {
         let text = std::fs::read_to_string(&file).map_err(|e| format!("security: cannot read deny-list {}: {e}", file.display()))?;
         DenyList::parse(&text, &file.display().to_string())
     }
-
 }
 
 /// A small cache so an unchanged deny file is read once (#23). The mtime of
@@ -142,9 +141,7 @@ impl DenyCache {
         if std::env::var_os("ULTRASEARCH_DENY").is_some() {
             return None;
         }
-        Some(
-            std::env::var_os("ULTRASEARCH_DENY_FILE").map(PathBuf::from).unwrap_or_else(|| self.dir.join("deny.txt")),
-        )
+        Some(std::env::var_os("ULTRASEARCH_DENY_FILE").map(PathBuf::from).unwrap_or_else(|| self.dir.join("deny.txt")))
     }
 }
 

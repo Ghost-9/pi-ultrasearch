@@ -13,13 +13,13 @@
 //!   snap grep <dir> <home> <patterns.txt>   per pattern (one a line; `regex:` for a regex),
 //!                                           every file holding it, as JSON lines (smart case)
 
+use std::path::Path;
+use std::time::Instant;
 use ultrasearch::content::{self, Content};
 use ultrasearch::index::Index;
 use ultrasearch::live::Live;
 use ultrasearch::walk::{self, KIND_DIR, Listing, RawEnt};
 use ultrasearch::{Grep, GrepMode, Query};
-use std::path::Path;
-use std::time::Instant;
 
 fn main() {
     let a: Vec<String> = std::env::args().skip(1).collect();

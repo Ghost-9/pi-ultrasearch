@@ -109,6 +109,15 @@ pub fn excluded_dir(name: &[u8]) -> bool {
     exclude_set().0.iter().any(|d| d.as_slice() == lower.as_slice())
 }
 
+/// The names currently pruned, for `status`: the built-in list plus
+/// `ULTRASEARCH_EXCLUDE_NAMES`. Sorted so the output is stable.
+pub fn excluded_names() -> Vec<String> {
+    let mut v: Vec<String> = exclude_set().0.iter().map(|n| String::from_utf8_lossy(n).into_owned()).collect();
+    v.sort();
+    v.dedup();
+    v
+}
+
 /// True when an entry must be pruned: a cache directory by name, or anything
 /// matching a `*.ext` rule from the ignore files.
 pub fn excluded_entry(name: &[u8], is_dir: bool) -> bool {
@@ -119,10 +128,7 @@ pub fn excluded_entry(name: &[u8], is_dir: bool) -> bool {
     if is_dir && exclude_set().0.iter().any(|d| d.as_slice() == lower.as_slice()) {
         return true;
     }
-    exclude_set()
-        .1
-        .iter()
-        .any(|suf| lower.len() > suf.len() && lower.ends_with(suf.as_slice()))
+    exclude_set().1.iter().any(|suf| lower.len() > suf.len() && lower.ends_with(suf.as_slice()))
 }
 
 /// Folders a scan was refused (EPERM): without Full Disk Access macOS also
@@ -533,21 +539,8 @@ mod tests {
     /// out of the index entirely rather than merely ranking them low.
     #[test]
     fn cache_directories_are_pruned_by_name() {
-        for name in [
-            &b"node_modules"[..],
-            b"target",
-            b".next",
-            b".venv",
-            b"__pycache__",
-            b"DerivedData",
-            b"Pods",
-            b".turbo",
-        ] {
-            assert!(
-                excluded_dir(name),
-                "{:?} must be pruned from the index",
-                String::from_utf8_lossy(name)
-            );
+        for name in [&b"node_modules"[..], b"target", b".next", b".venv", b"__pycache__", b"DerivedData", b"Pods", b".turbo"] {
+            assert!(excluded_dir(name), "{:?} must be pruned from the index", String::from_utf8_lossy(name));
         }
     }
 
@@ -563,19 +556,8 @@ mod tests {
     /// cache name must still be indexed.
     #[test]
     fn pruning_does_not_swallow_similarly_named_folders() {
-        for name in [
-            &b"src"[..],
-            b"docs",
-            b"Downloads",
-            b"node_modules_backup",
-            b"target-notes",
-            b"build",
-        ] {
-            assert!(
-                !excluded_dir(name),
-                "{:?} is real content and must stay indexed",
-                String::from_utf8_lossy(name)
-            );
+        for name in [&b"src"[..], b"docs", b"Downloads", b"node_modules_backup", b"target-notes", b"build"] {
+            assert!(!excluded_dir(name), "{:?} is real content and must stay indexed", String::from_utf8_lossy(name));
         }
         assert!(!excluded_dir(b""), "the empty name is not a cache directory");
     }
@@ -588,11 +570,7 @@ mod tests {
         let d = std::env::temp_dir().join(format!("us-ignore-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&d);
         let f = d.join(".gitignore");
-        std::fs::write(
-            &f,
-            "# a comment\nnode_modules\ndist/\n/out\n*.log\n!keep.log\ndocs/internal\nbuild*\n\n",
-        )
-        .unwrap();
+        std::fs::write(&f, "# a comment\nnode_modules\ndist/\n/out\n*.log\n!keep.log\ndocs/internal\nbuild*\n\n").unwrap();
         let (mut names, mut suffixes) = (Vec::new(), Vec::new());
         read_ignore_file(&f, &mut names, &mut suffixes);
 

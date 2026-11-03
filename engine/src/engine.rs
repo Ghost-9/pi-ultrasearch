@@ -158,6 +158,18 @@ pub struct Status {
     /// count, size cap, root count and warm count. See
     /// `docs/content-index-policy.md`.
     pub content_policy: serde_json::Value,
+
+    // --- Where the index goes (#U6) ---
+    /// Entries per top-level folder under the scan root, largest first. Without
+    /// this an index of 788k entries gave no way to see what was taking the
+    /// space; the answer had to be guessed.
+    pub entries_by_root: Vec<serde_json::Value>,
+    /// The directory names the walk prunes, so the exclusions in force are
+    /// visible rather than remembered.
+    pub excluded_names: Vec<String>,
+    /// The scan root and how it was chosen (`env` or `default`).
+    pub scan_root: String,
+    pub scan_root_source: &'static str,
 }
 
 /// What the last compaction cost, for `Status` (#34).
@@ -505,9 +517,7 @@ impl Engine {
                     // folders that changed since the save, and re-stamp the id
                     // so the next save is replayable again. Ported from
                     // upstream PR #33 (noahdunnagan/fsearch).
-                    log(format!(
-                        "saved event id {from} is ahead of the journal head {head}: relisting folders changed since the save"
-                    ));
+                    log(format!("saved event id {from} is ahead of the journal head {head}: relisting folders changed since the save"));
                     s.watch(head);
                     s.live.write().unwrap().as_mut().unwrap().event_id = head;
                     relist_changed(&s, "event ids re-based below our save", 0);
@@ -623,9 +633,8 @@ impl Engine {
             }
             self.s.index_first(early);
         }
-        let (paths, _) = self.s.with_names(scope, |live| {
-            search_pool().install(|| content::scan_paths(live, q.clone_for_scan(), home, honor_ignore))
-        })?;
+        let (paths, _) =
+            self.s.with_names(scope, |live| search_pool().install(|| content::scan_paths(live, q.clone_for_scan(), home, honor_ignore)))?;
         let _hold = walk::Hold::new();
         Ok((content::verify(g, &paths, q.limit), false))
     }
@@ -669,6 +678,10 @@ impl Engine {
             compactions_postponed: cs.postponed,
             queries_in_flight: self.s.inflight.load(Ordering::Relaxed),
             content_policy: content::policy().summary(),
+            entries_by_root: self.s.entries_by_root(),
+            excluded_names: walk::excluded_names(),
+            scan_root: String::from_utf8_lossy(&env::scan_root()).into_owned(),
+            scan_root_source: if std::env::var_os("ULTRASEARCH_SCAN_ROOT").is_some() { "env" } else { "default" },
         }
     }
 
@@ -719,6 +732,42 @@ fn indexing() -> String {
 }
 
 impl Shared {
+    /// Entries per top-level folder, for `status` (#U6).
+    ///
+    /// An index of ~788k entries gave no way to see what was taking the space, so
+    /// the answer had to be guessed. This walks the base index once and buckets by
+    /// the first path component under the scan root.
+    fn entries_by_root(&self) -> Vec<serde_json::Value> {
+        let root = env::scan_root();
+        let root_s = String::from_utf8_lossy(&root).into_owned();
+        let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        let mut buf: Vec<u8> = Vec::with_capacity(256);
+        {
+            let guard = match self.live.read() {
+                Ok(g) => g,
+                Err(_) => return Vec::new(),
+            };
+            let Some(live) = guard.as_ref() else {
+                return Vec::new();
+            };
+            // Entry 0 is the root itself.
+            for i in 1..live.base.n {
+                live.base.path(i, &mut buf);
+                let s = String::from_utf8_lossy(&buf);
+                let rest = s.strip_prefix(&root_s).unwrap_or(&s);
+                let top = rest.trim_start_matches('/').split('/').next().unwrap_or("");
+                if top.is_empty() {
+                    continue;
+                }
+                *counts.entry(top.to_string()).or_insert(0) += 1;
+            }
+        }
+        let mut v: Vec<(String, usize)> = counts.into_iter().collect();
+        v.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        v.truncate(12);
+        v.into_iter().map(|(name, n)| serde_json::json!({"name": name, "entries": n})).collect()
+    }
+
     fn live(&self) -> RwLockReadGuard<'_, Option<Live>> {
         let (loading, cv) = &self.loading;
         drop(cv.wait_while(loading.lock().unwrap(), |l| *l).unwrap());
@@ -1311,9 +1360,7 @@ fn compact(shared: &Shared) {
         } else {
             "consider ULTRASEARCH_COMPACT_PENDING or a quieter indexed area".to_string()
         };
-        log(format!(
-            "warning: index churn — {churn} compactions in a row were forced by the overlay passing {base} entries; {advice}"
-        ));
+        log(format!("warning: index churn — {churn} compactions in a row were forced by the overlay passing {base} entries; {advice}"));
     }
 }
 

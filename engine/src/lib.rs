@@ -7,8 +7,8 @@ pub mod alloc;
 pub mod content;
 pub mod coverage;
 pub mod deny;
-pub mod env;
 mod engine;
+pub mod env;
 mod fsevents;
 pub mod index;
 pub mod live;
@@ -18,5 +18,5 @@ pub mod symbols;
 pub mod walk;
 
 pub use content::{Case, FileMatches, Grep, GrepResult, Hit};
-pub use engine::{Engine, Found, Options, Status, PROTOCOL_VERSION, default_dir, gated, has_full_disk_access, no_materialize};
+pub use engine::{Engine, Found, Options, PROTOCOL_VERSION, Status, default_dir, gated, has_full_disk_access, no_materialize};
 pub use query::{GrepMode, Query};

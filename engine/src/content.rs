@@ -1430,9 +1430,7 @@ pub fn in_scope(path: &[u8], home: &[u8]) -> bool {
     // root — so ancestors pass here and `Scope::file` applies the rule to
     // each file.
     if let Some(roots) = &crate::coverage::policy().roots
-        && !roots
-            .iter()
-            .any(|r| crate::deny::within(path, r) || crate::deny::within(r, path))
+        && !roots.iter().any(|r| crate::deny::within(path, r) || crate::deny::within(r, path))
     {
         return false;
     }
@@ -3498,7 +3496,9 @@ impl Grep {
             // then the name; or an access-modifier member declaration with no
             // keyword (`public render(`). ASCII word boundaries keep the regex
             // on the fast DFA path even in files with non-ASCII text.
-            GrepMode::Symbol => format!(r"(?-u:\b)(?:(?:{DEFINES})(?:<[^>\n]*>)?[ \t*&]+(?:mut[ \t]+)?|(?:(?:{MODIFIERS})[ \t]+)+){}(?-u:\b)", regex::escape(pattern)),
+            GrepMode::Symbol => {
+                format!(r"(?-u:\b)(?:(?:{DEFINES})(?:<[^>\n]*>)?[ \t*&]+(?:mut[ \t]+)?|(?:(?:{MODIFIERS})[ \t]+)+){}(?-u:\b)", regex::escape(pattern))
+            }
         };
         // (A definition's name is exact unless asked otherwise.)
         let case_insensitive = match mode {
@@ -3971,10 +3971,7 @@ fn matches_in(g: &Grep, path: &[u8], buf: &[u8], text: bool) -> Option<FileMatch
     // when the language has a grammar. The lexical `defined_at` below stays
     // the fast pre-filter and the only confirmation for other languages.
     let ast_defs: Option<std::collections::HashSet<usize>> = if g.mode == GrepMode::Symbol {
-        let ext = Path::new(OsStr::from_bytes(path))
-            .extension()
-            .and_then(OsStr::to_str)
-            .map(str::to_ascii_lowercase);
+        let ext = Path::new(OsStr::from_bytes(path)).extension().and_then(OsStr::to_str).map(str::to_ascii_lowercase);
         ext.and_then(|e| crate::symbols::lang_for_ext(&e))
             .and_then(|l| crate::symbols::declared_lines(buf, l, &g.pattern))
             .map(|lines| lines.into_iter().collect())
@@ -4195,12 +4192,8 @@ fn defined_at(hay: &[u8], p: usize, len: usize) -> bool {
     if in_string_or_comment(prefix) {
         return false;
     }
-    let re = KEYWORD.get_or_init(|| {
-        Regex::new(&format!(
-            r"(?-u:\b)(?:(?:{DEFINES})(?:<[^>\n]*>)?[ \t*&]+(?:mut[ \t]+)?|(?:(?:{MODIFIERS})[ \t]+)+)\z"
-        ))
-        .unwrap()
-    });
+    let re = KEYWORD
+        .get_or_init(|| Regex::new(&format!(r"(?-u:\b)(?:(?:{DEFINES})(?:<[^>\n]*>)?[ \t*&]+(?:mut[ \t]+)?|(?:(?:{MODIFIERS})[ \t]+)+)\z")).unwrap());
     re.is_match(prefix)
 }
 
@@ -5088,9 +5081,7 @@ mod tests {
             FileMatches {
                 path: path.to_vec(),
                 lines: Vec::new(),
-                hits: (0..hits)
-                    .map(|_| Hit { col: 0, ranges: vec![(0, 4)], ..Default::default() })
-                    .collect(),
+                hits: (0..hits).map(|_| Hit { col: 0, ranges: vec![(0, 4)], ..Default::default() }).collect(),
             }
         }
 
@@ -5211,13 +5202,7 @@ mod tests {
 
     impl Gate {
         fn new(parties: usize) -> Gate {
-            Gate {
-                parties,
-                arrived: Default::default(),
-                timed_out: Default::default(),
-                m: Default::default(),
-                cv: Default::default(),
-            }
+            Gate { parties, arrived: Default::default(), timed_out: Default::default(), m: Default::default(), cv: Default::default() }
         }
 
         fn arrive(&self) {
@@ -5228,7 +5213,8 @@ mod tests {
                 self.cv.notify_all();
                 return;
             }
-            let (guard, wait) = self.cv.wait_timeout_while(g, std::time::Duration::from_secs(5), |_| self.arrived.load(SeqCst) < self.parties).unwrap();
+            let (guard, wait) =
+                self.cv.wait_timeout_while(g, std::time::Duration::from_secs(5), |_| self.arrived.load(SeqCst) < self.parties).unwrap();
             if wait.timed_out() {
                 // Never hang the suite on a regression: the lane returns and
                 // the test fails on `timed_out` instead.

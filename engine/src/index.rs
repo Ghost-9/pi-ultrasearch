@@ -1412,3 +1412,46 @@ mod tests {
         assert_eq!(p, b"/d".repeat(301));
     }
 }
+
+impl Index {
+    /// Entries per immediate child of the crawl root, largest first.
+    ///
+    /// One entry here is the root's own child (`Library`, `Developer`, ...); the count
+    /// includes that child and everything under it. This is what lets `status` answer
+    /// "what is taking the space" instead of leaving it to be guessed.
+    pub fn entries_by_top(&self, limit: usize) -> Vec<(Vec<u8>, usize)> {
+        use std::collections::HashMap;
+        let mut counts: HashMap<u32, usize> = HashMap::new();
+        let mut buf = Vec::new();
+        for i in 1..self.n {
+            // Walk to the entry whose parent is the root.
+            let mut child = i as u32;
+            let mut d = self.parent(i);
+            let mut guard = 0;
+            while d != 0 && guard < 256 {
+                // `dir_entry` maps a directory listing back to its own index entry.
+                let up = self.dir_entry(d as usize);
+                if self.dir_parent(d as usize) == 0 {
+                    child = up;
+                    break;
+                }
+                d = self.dir_parent(d as usize);
+                guard += 1;
+            }
+            if d == 0 {
+                continue;
+            }
+            *counts.entry(child).or_insert(0) += 1;
+        }
+        let mut out: Vec<(Vec<u8>, usize)> = counts
+            .into_iter()
+            .map(|(id, n)| {
+                self.path(id as usize, &mut buf);
+                (buf.clone(), n)
+            })
+            .collect();
+        out.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        out.truncate(limit);
+        out
+    }
+}

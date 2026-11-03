@@ -8,9 +8,9 @@
 //! folder. Each trial writes a new token, alternately into a new file and
 //! appended to a file the index already holds, then greps until it is found.
 
-use ultrasearch::{Engine, Grep, GrepMode, Options, Query};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
+use ultrasearch::{Engine, Grep, GrepMode, Options, Query};
 
 fn main() {
     let a: Vec<String> = std::env::args().skip(1).collect();

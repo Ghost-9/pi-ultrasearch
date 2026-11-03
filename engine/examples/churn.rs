@@ -15,17 +15,17 @@
 //! into one segment: what the index would be with nothing dead.
 #![allow(clippy::type_complexity)]
 
-use ultrasearch::Grep;
-use ultrasearch::content::{self, Content};
-use ultrasearch::index::Index;
-use ultrasearch::live::Live;
-use ultrasearch::query::Query;
 use serde_json::json;
 use std::collections::BTreeSet;
 use std::io::Write;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
+use ultrasearch::Grep;
+use ultrasearch::content::{self, Content};
+use ultrasearch::index::Index;
+use ultrasearch::live::Live;
+use ultrasearch::query::Query;
 
 const EDITS: usize = 300;
 const CREATES: usize = 40;

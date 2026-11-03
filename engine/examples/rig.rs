@@ -11,14 +11,14 @@
 //! ones, so the daemon keeps running untouched). Compare builds with
 //! `demo/abba.py`.
 
+use serde_json::{Value, json};
+use std::path::Path;
+use std::time::{Duration, Instant};
 use ultrasearch::Grep;
 use ultrasearch::content::{self, Content};
 use ultrasearch::index::Index;
 use ultrasearch::live::Live;
 use ultrasearch::query::{Query, Searcher};
-use serde_json::{Value, json};
-use std::path::Path;
-use std::time::{Duration, Instant};
 
 /// The daemon's allocator, so timings are the daemon's.
 #[global_allocator]

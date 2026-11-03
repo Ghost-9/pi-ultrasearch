@@ -219,8 +219,10 @@ fn install(login: bool) {
     // reinstalling from the installed copy works too.
     let tmp = bin.with_extension("new");
     std::fs::copy(std::env::current_exe().unwrap(), &tmp).and_then(|_| std::fs::rename(&tmp, &bin)).unwrap_or_else(|e| die(&format!("copy: {e}")));
-    let agents =
-        format!("for coding agents: claude mcp add -s user ultrasearch -- {0} mcp\n                   codex mcp add ultrasearch -- {0} mcp", bin.display());
+    let agents = format!(
+        "for coding agents: claude mcp add -s user ultrasearch -- {0} mcp\n                   codex mcp add ultrasearch -- {0} mcp",
+        bin.display()
+    );
     if !login {
         println!("installed {}; the daemon starts on first use\n{agents}", bin.display());
         return;

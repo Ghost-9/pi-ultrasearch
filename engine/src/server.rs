@@ -2,10 +2,7 @@
 //! `ultrasearch stdio`, `ultrasearch mcp` and the CLI are thin clients.
 
 use crate::frecency::{self, Frecency};
-use ultrasearch::deny::{self, DenyList};
 use crate::git::{self, Git};
-use ultrasearch::walk::{KIND_DIR, KIND_FILE, KIND_LINK, KIND_OTHER};
-use ultrasearch::{Engine, Found, GrepMode, Options, Query};
 use regex::bytes::Regex;
 use serde_json::{Value, json};
 use std::io::{BufRead, BufReader, Write};
@@ -14,6 +11,9 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use ultrasearch::deny::{self, DenyList};
+use ultrasearch::walk::{KIND_DIR, KIND_FILE, KIND_LINK, KIND_OTHER};
+use ultrasearch::{Engine, Found, GrepMode, Options, Query};
 
 pub fn socket_path(dir: &Path) -> PathBuf {
     dir.join("ultrasearch.sock")
@@ -560,7 +560,8 @@ struct Extras {
 }
 
 /// Request fields `Extras` reads, not query filters.
-const EXTRAS: &[&str] = &["offset", "cursor", "glob", "cwd", "git", "ignored", "boost", "near", "budget_ms", "candidates", "early_exit", "low_run", "root"];
+const EXTRAS: &[&str] =
+    &["offset", "cursor", "glob", "cwd", "git", "ignored", "boost", "near", "budget_ms", "candidates", "early_exit", "low_run", "root"];
 /// Frecency reorders this many of the best hits (a fixed window, so pages
 /// agree). Replays did as well with 32-200: a file needs to be among them.
 const RERANK: usize = 256;

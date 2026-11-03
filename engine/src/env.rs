@@ -23,9 +23,7 @@ fn var(name: &str) -> Option<String> {
 /// paths (`/tmp` is `/private/tmp` on macOS, and a symlinked home would
 /// otherwise match nothing).
 pub fn home() -> String {
-    let raw = var("ULTRASEARCH_HOME")
-        .or_else(|| std::env::var("HOME").ok().filter(|v| !v.is_empty()))
-        .unwrap_or_else(|| "/".into());
+    let raw = var("ULTRASEARCH_HOME").or_else(|| std::env::var("HOME").ok().filter(|v| !v.is_empty())).unwrap_or_else(|| "/".into());
     canonical(&raw)
 }
 
@@ -81,10 +79,7 @@ pub fn scan_root() -> Vec<u8> {
 /// Values under 1,000 are ignored (a bar that low compacts on every keystroke).
 pub fn compact_pending() -> usize {
     const DEFAULT: usize = 50_000;
-    var("ULTRASEARCH_COMPACT_PENDING")
-        .and_then(|v| v.trim().parse::<usize>().ok())
-        .filter(|n| *n >= 1_000)
-        .unwrap_or(DEFAULT)
+    var("ULTRASEARCH_COMPACT_PENDING").and_then(|v| v.trim().parse::<usize>().ok()).filter(|n| *n >= 1_000).unwrap_or(DEFAULT)
 }
 
 /// Extra directory names to keep out of the name index, comma- or
@@ -97,12 +92,7 @@ pub fn compact_pending() -> usize {
 /// before this there was no way to stop a noisy tree costing index memory.
 pub fn exclude_names() -> Vec<Vec<u8>> {
     var("ULTRASEARCH_EXCLUDE_NAMES")
-        .map(|v| {
-            v.split([',', ':'])
-                .map(|s| s.trim().to_ascii_lowercase().into_bytes())
-                .filter(|s| !s.is_empty())
-                .collect()
-        })
+        .map(|v| v.split([',', ':']).map(|s| s.trim().to_ascii_lowercase().into_bytes()).filter(|s| !s.is_empty()).collect())
         .unwrap_or_default()
 }
 
@@ -113,9 +103,7 @@ pub fn exclude_names() -> Vec<Vec<u8>> {
 /// warning naming the two remedies that actually work — narrow the scan root, or
 /// add the noisy folder to `ULTRASEARCH_EXCLUDE_NAMES`.
 pub fn max_entries() -> Option<usize> {
-    var("ULTRASEARCH_MAX_ENTRIES")
-        .and_then(|v| v.trim().parse::<usize>().ok())
-        .filter(|n| *n >= 1_000)
+    var("ULTRASEARCH_MAX_ENTRIES").and_then(|v| v.trim().parse::<usize>().ok()).filter(|n| *n >= 1_000)
 }
 
 /// Force the consent-gated folder skip list even with Full Disk Access.

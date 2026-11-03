@@ -18,11 +18,11 @@
 //! prompt are skipped for the real home as well as `<home>` (the rig runs
 //! without Full Disk Access; opening them could pop a prompt).
 
-use ultrasearch::{Engine, GrepMode, Options, Query};
 use serde_json::{Value, json};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
+use ultrasearch::{Engine, GrepMode, Options, Query};
 
 /// The daemon's allocator (src/main.rs), so footprints here are the daemon's:
 /// big buffers straight from mmap and back with munmap.

@@ -9,12 +9,12 @@
 //! `<root>` and records where the wanted paths (relative to it) rank; the
 //! queries and fff's answers come from examples/quality.py.
 
-use ultrasearch::index::Index;
-use ultrasearch::live::Live;
-use ultrasearch::query::{Query, Searcher};
 use serde_json::{Value, json};
 use std::path::Path;
 use std::time::Instant;
+use ultrasearch::index::Index;
+use ultrasearch::live::Live;
+use ultrasearch::query::{Query, Searcher};
 
 fn main() {
     let a: Vec<String> = std::env::args().skip(1).collect();
