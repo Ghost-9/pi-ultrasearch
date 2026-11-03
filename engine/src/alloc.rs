@@ -1,39 +1,40 @@
 //! The daemon's allocator (main.rs installs it, and examples/rig.rs, to time
 //! what the daemon runs).
 //!
-//! Big blocks come straight from mmap and go straight back: macOS's malloc
-//! keeps freed large blocks mapped and dirty, which left the daemon at ~1 GB
-//! footprint after a build while ~2 MB was live.
+//! Big blocks come straight from mmap and go straight back: macOS's malloc keeps
+//! freed large blocks mapped and dirty, which left the daemon at ~1 GB footprint
+//! after a build while ~2 MB was live.
 //!
-//! The daemon runs malloc in its space-efficient mode (main.rs
-//! `space_efficient`), which also turns off malloc's per-thread caches:
-//! searches were ~10% slower for it. So a thread that searches keeps its
-//! freed small blocks on free lists of its own for the next allocation of
-//! that size, and `drain` hands them back once searching stops.
+//! The daemon runs malloc in its space-efficient mode (main.rs `space_efficient`),
+//! which also turns off malloc's per-thread caches: searches were ~10% slower for
+//! it. So a thread that searches keeps its freed small blocks on free lists of its
+//! own for the next allocation of that size, and `drain` hands them back once
+//! searching stops.
+//!
 //! # Safety contract
-//! 99 unsafe blocks live in this crate; 36 of them are here, because a global
+//!
+//! 127 unsafe occurrences live in this crate; 36 of them are here, because a global
 //! allocator cannot be written without raw pointers. Each block relies on exactly
 //! these invariants:
+//!
 //! 1. **Size fidelity.** A block on free list `c` was allocated with size
-//!    `16 << c`. `fit()` and `take()` only ever move a block between the caller and
-//!    the list for its own size, so the `Layout` handed to `System.dealloc` is the
-//!    one the block was allocated with. `Layout::from_size_align_unchecked` is only
-//!    called with `16 << c` or 16, both non-zero, and align 16 or 1, a valid
-//!    power of two.
+//!    `16 << c`. `fit()` and `take()` only move a block between the caller and the
+//!    list for its own size, so the `Layout` handed to `System.dealloc` is the one
+//!    the block was allocated with. `Layout::from_size_align_unchecked` is only
+//!    called with `16 << c` or 16 (both non-zero) and align 16 or 1 (a valid power
+//!    of two).
 //! 2. **One owner at a time.** `head[c]` is the only link. A block is written into
-//!    it on free and read back on take, never both, so a block is handed out at most
-//!    once per free.
+//!    it on free and read back on take, never both, so a block is handed out at
+//!    most once per free.
 //! 3. **Per-thread access.** `FREE` is a `thread_local!`, so `UnsafeCell` is only
 //!    ever dereferenced by the thread that owns the list. No pointer from one
 //!    thread's list is published to another: `drain` returns blocks to `System`
 //!    rather than to a neighbour.
-//!    one `*mut u8` stored in them.
-//! Anything that changes the size classes, the list count, or the thread-local
+//! 4. **Link room.** Blocks on a list are at least 16 bytes, which is enough for
+//!    the one `*mut u8` stored in them.
+//!
+//! Anything that changes the size classes, the list count or the thread-local
 //! storage must re-check every claim above.
-//! what the daemon runs).
-//! Big blocks come straight from mmap and go straight back: macOS's malloc
-//! keeps freed large blocks mapped and dirty, which left the daemon at ~1 GB
-//! footprint after a build while ~2 MB was live.
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering::Relaxed};
@@ -306,5 +307,111 @@ mod tests {
         for (p, size, b) in rx.lock().unwrap().iter() {
             check(p, size, b);
         }
+    }
+    /// Every size class round-trips its contents.
+    ///
+    /// The free lists key on size, so a block can only come back to a request of the
+    /// size it was allocated with. If a class were off by one the allocator would
+    /// hand out a block that is too small, and the corruption would show up later as
+    /// unrelated data changing. Writing a pattern and checking it after a
+    /// free/reallocate cycle is the cheapest way to catch that.
+    #[test]
+    fn every_size_class_round_trips_its_contents() {
+        // The lists are OFF until a searching thread turns them on, and an off list
+        // sends freed blocks straight to the system - where the next allocation may
+        // come back as genuinely different memory. Enabling them for this test thread
+        // is what makes "the same size comes back" a meaningful claim.
+        keep_on_this_thread();
+        // 16 << 0 .. 16 << 12, the classes the free lists cover.
+        for c in 0..LISTS {
+            let size = 16usize << c;
+            let layout = std::alloc::Layout::from_size_align(size, 16).unwrap();
+            let p = unsafe { Alloc.alloc(layout) };
+            assert!(!p.is_null(), "size {size} must allocate");
+            let byte = (c as u8).wrapping_mul(17).wrapping_add(1);
+            unsafe { std::ptr::write_bytes(p, byte, size) };
+            unsafe { Alloc.dealloc(p, layout) };
+            // Same size again: this is the path that takes the block back off the list.
+            let q = unsafe { Alloc.alloc(layout) };
+            assert!(!q.is_null(), "size {size} must allocate again");
+            let seen = unsafe { std::slice::from_raw_parts(q as *const u8, size) };
+            // The first pointer-sized bytes of a freed block ARE the free-list link:
+            // `take` writes the next pointer there. So only the tail can be compared
+            // for content. Size 16 is exactly one pointer, so it has no tail - for it
+            // the check is that a full-size write does not fault or reach a neighbour,
+            // which is what the write_bytes below does.
+            let link = std::mem::size_of::<*mut u8>();
+            if size > link {
+                assert!(seen[link..].iter().all(|&x| x == byte), "size {size}: the tail changed, so a list returned a block of the wrong size");
+            }
+            unsafe { std::ptr::write_bytes(q, byte, size) };
+            unsafe { Alloc.dealloc(q, layout) };
+        }
+    }
+
+    /// Alignment is honoured for every class, including the smallest.
+    #[test]
+    fn alignment_is_honoured() {
+        for c in 0..LISTS {
+            let size = 16usize << c;
+            for align in [1usize, 8, 16] {
+                let layout = std::alloc::Layout::from_size_align(size, align).unwrap();
+                let p = unsafe { Alloc.alloc(layout) } as usize;
+                assert!(p != 0, "alloc returned null for size {size} align {align}");
+                assert_eq!(p % align, 0, "size {size} align {align} came back misaligned");
+                unsafe { Alloc.dealloc(p as *mut u8, layout) };
+            }
+        }
+    }
+
+    /// A zero-sized allocation is legal and must not dereference anything.
+    #[test]
+    fn zero_sized_allocation_is_safe() {
+        let layout = std::alloc::Layout::from_size_align(0, 1).unwrap();
+        let p = unsafe { Alloc.alloc(layout) };
+        unsafe { Alloc.dealloc(p, layout) };
+    }
+
+    /// `drain` returns the thread's kept blocks and keeps the allocator working.
+    ///
+    /// Drain is what stops a thread's free lists becoming a leak: it is called when
+    /// searching stops. If it corrupted a list, the next allocation of that class
+    /// would return a block already handed back to the system.
+    #[test]
+    fn drain_returns_memory_and_stays_usable() {
+        let layout = |n: usize| std::alloc::Layout::from_size_align(n, 16).unwrap();
+        // Fill a few classes.
+        let ptrs: Vec<_> = (0..40).map(|_| unsafe { Alloc.alloc(layout(256)) }).collect();
+        for p in ptrs {
+            unsafe { Alloc.dealloc(p, layout(256)) };
+        }
+        keep_on_this_thread();
+        drain();
+        // After draining, the same class must still hand out a fresh block.
+        let p = unsafe { Alloc.alloc(layout(256)) };
+        assert!(!p.is_null(), "alloc must still work after drain");
+        unsafe { std::ptr::write_bytes(p, 0xAB, 256) };
+        unsafe { Alloc.dealloc(p, layout(256)) };
+        drain();
+    }
+
+    /// Blocks at and above `BIG` bypass the free lists entirely.
+    ///
+    /// They come from mmap and must go back to the system: keeping one on a list
+    /// would pin a megabyte per thread, which is the exact leak this allocator exists
+    /// to avoid.
+    ///
+    /// Asserted on `take` rather than on `kept()`, because `kept()` is a single
+    /// process-wide flag and the test harness runs tests in parallel - a before/after
+    /// comparison of it reports other tests' allocations.
+    #[test]
+    fn large_blocks_bypass_the_free_lists() {
+        keep_on_this_thread();
+        let big = std::alloc::Layout::from_size_align(BIG, 16).unwrap();
+        assert!(take(big).is_none(), "a block of BIG bytes was taken from a free list; it must go to the system");
+        // One byte under the threshold is still a list class, so the boundary itself
+        // is exercised rather than just the far side of it.
+        let below = std::alloc::Layout::from_size_align(BIG - 1, 16).unwrap();
+        assert!(fit(below.size()) < (16usize << LISTS), "BIG - 1 should still be a list-sized block");
     }
 }

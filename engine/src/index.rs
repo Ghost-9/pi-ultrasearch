@@ -1396,23 +1396,6 @@ fn prior_adjust(name: &[u8], depth: u8) -> i32 {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::walk::RawEnt;
-
-    /// A path 300 folders deep keeps its top folders.
-    #[test]
-    fn deep_path() {
-        let ent = |kind, child| RawEnt { name_off: 0, name_len: 1, kind, size: 0, mtime: 0, child };
-        let ls = (0..=300).map(|i| Listing { id: i, names: b"d".to_vec(), ents: vec![if i < 300 { ent(KIND_DIR, i + 1) } else { ent(0, NONE) }] });
-        let idx = Index::build(ls.collect(), 0, 0, b"/h", b"/");
-        let mut p = Vec::new();
-        idx.path(idx.n - 1, &mut p);
-        assert_eq!(p, b"/d".repeat(301));
-    }
-}
-
 impl Index {
     /// Entries per immediate child of the crawl root, largest first.
     ///
@@ -1453,5 +1436,22 @@ impl Index {
         out.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
         out.truncate(limit);
         out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::walk::RawEnt;
+
+    /// A path 300 folders deep keeps its top folders.
+    #[test]
+    fn deep_path() {
+        let ent = |kind, child| RawEnt { name_off: 0, name_len: 1, kind, size: 0, mtime: 0, child };
+        let ls = (0..=300).map(|i| Listing { id: i, names: b"d".to_vec(), ents: vec![if i < 300 { ent(KIND_DIR, i + 1) } else { ent(0, NONE) }] });
+        let idx = Index::build(ls.collect(), 0, 0, b"/h", b"/");
+        let mut p = Vec::new();
+        idx.path(idx.n - 1, &mut p);
+        assert_eq!(p, b"/d".repeat(301));
     }
 }
