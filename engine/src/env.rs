@@ -54,6 +54,20 @@ pub fn data_dir() -> PathBuf {
 ///
 /// Canonicalized for the same reason as `home`: the crawl opens the root
 /// with `O_NOFOLLOW_ANY`, which refuses a path with any symlink in it.
+/// Why the scan root cannot be indexed, or None when it can be listed.
+///
+/// A nonexistent or unreadable root used to produce a healthy-looking status with
+/// `entries: 1` and no error, so a typo read as "an empty disk" rather than "a bad
+/// path". `status` reports this instead.
+pub fn scan_root_error() -> Option<String> {
+    let root = scan_root();
+    let path = String::from_utf8_lossy(&root).into_owned();
+    match std::fs::read_dir(&path) {
+        Ok(_) => None,
+        Err(e) => Some(format!("cannot list {path}: {e}")),
+    }
+}
+
 pub fn scan_root() -> Vec<u8> {
     match var("ULTRASEARCH_SCAN_ROOT") {
         Some(p) => {
@@ -223,6 +237,24 @@ mod tests {
         unsafe {
             std::env::set_var("ULTRASEARCH_SCAN_ROOT", "/tmp");
             assert_eq!(scan_root(), b"/private/tmp");
+            std::env::remove_var("ULTRASEARCH_SCAN_ROOT");
+        }
+    }
+
+    /// A root that cannot be listed says so, and a usable one says nothing.
+    #[test]
+    fn scan_root_error_reports_an_unusable_root() {
+        // SAFETY: see the other env tests - single-threaded within this test module.
+        unsafe {
+            std::env::set_var("ULTRASEARCH_SCAN_ROOT", "/nonexistent-fixture-root-xyz");
+            let e = scan_root_error();
+            assert!(e.is_some(), "a nonexistent root must report why it is unusable");
+            assert!(
+                e.as_deref().unwrap_or("").contains("cannot list"),
+                "the message must say what failed: {e:?}"
+            );
+            std::env::set_var("ULTRASEARCH_SCAN_ROOT", "/tmp");
+            assert!(scan_root_error().is_none(), "/tmp is listable");
             std::env::remove_var("ULTRASEARCH_SCAN_ROOT");
         }
     }

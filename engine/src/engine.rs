@@ -170,6 +170,13 @@ pub struct Status {
     /// The scan root and how it was chosen (`env` or `default`).
     pub scan_root: String,
     pub scan_root_source: &'static str,
+    /// Why the scan root cannot be indexed, when it cannot.
+    ///
+    /// An edge-case pass found that a nonexistent root produced a perfectly healthy
+    /// looking status with `entries: 1` - the root itself - and no error. A typo in
+    /// `ULTRASEARCH_SCAN_ROOT` then reads as "an empty disk" instead of "a bad path".
+    /// Null means the root was usable at the last check.
+    pub scan_root_error: Option<String>,
 }
 
 /// What the last compaction cost, for `Status` (#34).
@@ -682,6 +689,7 @@ impl Engine {
             excluded_names: walk::excluded_names(),
             scan_root: String::from_utf8_lossy(&env::scan_root()).into_owned(),
             scan_root_source: if std::env::var_os("ULTRASEARCH_SCAN_ROOT").is_some() { "env" } else { "default" },
+            scan_root_error: env::scan_root_error(),
         }
     }
 
