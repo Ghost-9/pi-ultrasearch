@@ -26,11 +26,17 @@ jobs:
       # Secret scanning. Runs before the build so a leaked key fails fast and
       # never reaches a cache or artifact. Uses .gitleaks.toml, which allowlists
       # only the redaction fixtures this suite tests against.
-      - name: Secret scan (gitleaks)
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITLEAKS_CONFIG: .gitleaks.toml
-          GITLEAKS_ENABLE_SUMMARY: "true"
+      # The gitleaks CLI, not gitleaks/gitleaks-action: the action now refuses to run
+      # without a paid licence for organisation accounts ("missing gitleaks license"),
+      # which turned this step red for a reason unrelated to the code - twice in one
+      # session, and once on a commit that changed only a test. The CLI is the same
+      # scanner under MIT, so the scan is unchanged and the gate is honest again.
+      - name: Secret scan (gitleaks CLI)
+        run: |
+          VERSION=8.28.0
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_darwin_arm64.tar.gz" \
+            | tar -xz gitleaks
+          ./gitleaks detect --no-banner --redact --config .gitleaks.toml
 
       - name: Install Dependencies
         run: npm ci
