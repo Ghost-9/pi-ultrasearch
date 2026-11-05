@@ -249,4 +249,55 @@ mod tests {
         assert!(!p.configured());
         assert!(p.allows(b"/anywhere/anything", 1));
     }
+    /// A policy with every knob set, to exercise each refusal.
+    fn strict() -> Policy {
+        Policy {
+            extensions: Some(vec![b"rs".to_vec(), b"md".to_vec()]),
+            max_file_bytes: Some(1000),
+            roots: Some(vec![b"/allowed".to_vec()]),
+            source: Some("test".into()),
+            warm: Vec::new(),
+        }
+    }
+
+    /// Each configured knob must refuse on its own. A policy that only enforces the
+    /// last check it happens to run would let a file in through a door it should have
+    /// been stopped at.
+    #[test]
+    fn every_knob_refuses_independently() {
+        let p = strict();
+        assert!(p.allows(b"/allowed/a.rs", 10), "a file that satisfies every rule is allowed");
+
+        assert!(!p.allows(b"/elsewhere/a.rs", 10), "outside the configured roots");
+        assert!(!p.allows(b"/allowed/a.rs", 5000), "over the size cap");
+        assert!(!p.allows(b"/allowed/a.py", 10), "extension not in the allowlist");
+    }
+
+    /// With nothing configured, nothing is refused: the built-in heuristics still apply
+    /// upstream, and a policy object that refuses by default would silently empty the
+    /// content index.
+    #[test]
+    fn an_unconfigured_policy_refuses_nothing() {
+        let p = Policy::default();
+        assert!(!p.configured(), "the default must report itself unconfigured");
+        for path in [&b"/anything/at/all.txt"[..], b"/x", b"/a/b/c.rs"] {
+            assert!(p.allows(path, 1 << 40), "an unconfigured policy must allow {path:?}");
+        }
+    }
+
+    /// `configured` must be true as soon as ANY knob is set - it drives whether the
+    /// summary reports a real policy or the built-in defaults, and a false negative
+    /// there would describe the wrong rules in `status`.
+    #[test]
+    fn configured_tracks_each_knob() {
+        assert!(!Policy::default().configured());
+        for p in [
+            Policy { extensions: Some(vec![b"rs".to_vec()]), ..Default::default() },
+            Policy { max_file_bytes: Some(10), ..Default::default() },
+            Policy { roots: Some(vec![b"/r".to_vec()]), ..Default::default() },
+            Policy { warm: vec![b"/w".to_vec()], ..Default::default() },
+        ] {
+            assert!(p.configured(), "a set knob must make the policy configured");
+        }
+    }
 }

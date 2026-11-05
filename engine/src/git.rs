@@ -733,4 +733,39 @@ mod tests {
         g.changed(&[(&b"/p/repo/.git"[..], false)]);
         assert_eq!(pending(), (Vec::new(), true));
     }
+    /// The filter words are a user-facing vocabulary; each must parse, and an
+    /// unknown word must be refused rather than silently matching everything.
+    #[test]
+    fn filter_words_parse_and_unknowns_are_refused() {
+        for w in ["modified", "staged", "untracked", "ignored", "clean"] {
+            assert!(Sel::parse(w).is_some(), "{w} must be a known filter");
+        }
+        assert!(Sel::parse("not-a-filter").is_none(), "an unknown word must not parse");
+        assert!(Sel::parse("").is_none(), "an empty word must not parse");
+    }
+
+    /// `test` must answer for a status BITMASK the way the words promise. A filter
+    /// that matches everything is the same as no filter, and one that matches nothing
+    /// silently returns an empty result the user cannot distinguish from "no such file".
+    #[test]
+    fn filters_are_selective() {
+        let sel = |w: &str| Sel::parse(w).expect("known word");
+
+        assert!(sel("modified").test(Some(MODIFIED)), "modified accepts a modified file");
+        assert!(!sel("modified").test(Some(IGNORED)), "an ignored file is not modified");
+
+        assert!(sel("untracked").test(Some(UNTRACKED)), "untracked accepts an untracked file");
+        assert!(!sel("untracked").test(Some(MODIFIED)), "untracked rejects a tracked change");
+
+        assert!(sel("staged").test(Some(STAGED)), "staged accepts a staged file");
+        assert!(!sel("staged").test(Some(MODIFIED)), "staged rejects an unstaged change");
+
+        assert!(sel("clean").test(Some(0)), "clean accepts an unmodified file");
+        assert!(!sel("clean").test(Some(MODIFIED)), "clean rejects a modified file");
+
+        // A file git does not report at all matches nothing, including "clean".
+        for w in ["modified", "staged", "untracked", "clean", "ignored"] {
+            assert!(!sel(w).test(None), "{w} must not match a file git does not report");
+        }
+    }
 }

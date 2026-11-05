@@ -150,4 +150,31 @@ mod tests {
         assert!((g.score(b"/p/a\nb.rs", t) - 1.0).abs() < 0.01, "a newline in a name is kept");
         std::fs::remove_dir_all(&dir).unwrap();
     }
+    /// Decay must fall monotonically with age and never go negative. It multiplies
+    /// every score, so a sign error or a non-monotone curve would silently reorder
+    /// results rather than crash.
+    #[test]
+    fn decay_is_monotone_and_bounded() {
+        let mut prev = decay(0);
+        assert!(prev > 0.0 && prev <= 1.0, "fresh decay must be in (0,1]: {prev}");
+        for age in [1u32, 7, 30, 90, 365, 3650] {
+            let d = decay(age);
+            assert!(d <= prev + f32::EPSILON, "decay must not rise with age: {age} -> {d} vs {prev}");
+            assert!(d >= 0.0, "decay must never go negative: {age} -> {d}");
+            prev = d;
+        }
+        assert!(decay(3650) < decay(0), "a decade old must score below fresh");
+    }
+
+    /// The boost is an integer added to a score, so it must stay small and integral.
+    /// A large boost would let one open outrank real relevance.
+    #[test]
+    fn boost_is_bounded() {
+        for s in [0.0f32, 0.001, 0.5, 1.0, 2.0, 100.0] {
+            let b = boost(s);
+            assert!(b >= 0, "a boost must never subtract: {s} -> {b}");
+            assert!(b <= 100, "a boost must stay small next to a score: {s} -> {b}");
+        }
+        assert!(boost(2.0) >= boost(0.5), "boost must not fall as the input rises");
+    }
 }

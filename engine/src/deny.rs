@@ -253,4 +253,26 @@ mod tests {
         // SAFETY: see above.
         unsafe { std::env::remove_var("ULTRASEARCH_DENY_FILE") };
     }
+    /// `within` decides whether a path is inside a denied folder, so an off-by-one on
+    /// the separator would either deny a sibling (`/secrets-notes` under `/secrets`) or
+    /// allow a real child.
+    #[test]
+    fn within_respects_the_path_boundary() {
+        assert!(within(b"/a/b/c", b"/a/b"), "a child is within its parent");
+        assert!(within(b"/a/b", b"/a/b"), "a path is within itself");
+        assert!(!within(b"/a/bc", b"/a/b"), "a sibling with a shared prefix is not within");
+        assert!(!within(b"/a", b"/a/b"), "a parent is not within its child");
+        assert!(!within(b"/x/y", b"/a"), "an unrelated path is not within");
+    }
+
+    /// A deny entry must block the folder itself and everything under it, and must not
+    /// block a name that merely starts with it.
+    #[test]
+    fn a_denied_folder_blocks_its_own_subtree_only() {
+        let list = DenyList { prefixes: vec![b"/secret".to_vec()], configured: true };
+        assert!(list.blocked(b"/secret"), "the folder itself is blocked");
+        assert!(list.blocked(b"/secret/deep/file.txt"), "a file under it is blocked");
+        assert!(!list.blocked(b"/secrets"), "a name starting with it is not blocked");
+        assert!(!list.blocked(b"/public/x"), "an unrelated path is not blocked");
+    }
 }

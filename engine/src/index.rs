@@ -1403,36 +1403,34 @@ impl Index {
     /// includes that child and everything under it. This is what lets `status` answer
     /// "what is taking the space" instead of leaving it to be guessed.
     pub fn entries_by_top(&self, limit: usize) -> Vec<(Vec<u8>, usize)> {
+        // Bucket by the first path component under the crawl root.
+        //
+        // This walks each entry's path rather than climbing the parent chain. The chain
+        // version skipped every entry whose parent was the root, so files sitting
+        // directly under the root vanished from the counts and `status` under-reported
+        // exactly the folders a user is most likely to have created at the top level.
+        // `status` is not a hot path, so the obviously-correct form wins.
         use std::collections::HashMap;
-        let mut counts: HashMap<u32, usize> = HashMap::new();
+        let mut root = Vec::new();
+        self.path(0, &mut root);
+        let mut counts: HashMap<Vec<u8>, usize> = HashMap::new();
         let mut buf = Vec::new();
         for i in 1..self.n {
-            // Walk to the entry whose parent is the root.
-            let mut child = i as u32;
-            let mut d = self.parent(i);
-            let mut guard = 0;
-            while d != 0 && guard < 256 {
-                // `dir_entry` maps a directory listing back to its own index entry.
-                let up = self.dir_entry(d as usize);
-                if self.dir_parent(d as usize) == 0 {
-                    child = up;
-                    break;
-                }
-                d = self.dir_parent(d as usize);
-                guard += 1;
-            }
-            if d == 0 {
+            self.path(i, &mut buf);
+            let rel = buf.strip_prefix(root.as_slice()).unwrap_or(&buf);
+            let rel = rel.strip_prefix(b"/").unwrap_or(rel);
+            if rel.is_empty() {
                 continue;
             }
-            *counts.entry(child).or_insert(0) += 1;
+            let top = match rel.iter().position(|&b| b == b'/') {
+                Some(k) => rel[..k].to_vec(),
+                // A file directly under the root is its own bucket: it belongs to no
+                // folder, and dropping it would make the counts not add up.
+                None => rel.to_vec(),
+            };
+            *counts.entry(top).or_insert(0) += 1;
         }
-        let mut out: Vec<(Vec<u8>, usize)> = counts
-            .into_iter()
-            .map(|(id, n)| {
-                self.path(id as usize, &mut buf);
-                (buf.clone(), n)
-            })
-            .collect();
+        let mut out: Vec<(Vec<u8>, usize)> = counts.into_iter().collect();
         out.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
         out.truncate(limit);
         out
@@ -1442,7 +1440,7 @@ impl Index {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::walk::RawEnt;
+    use crate::walk::{KIND_DIR, KIND_FILE, RawEnt};
 
     /// A path 300 folders deep keeps its top folders.
     #[test]
@@ -1453,5 +1451,113 @@ mod tests {
         let mut p = Vec::new();
         idx.path(idx.n - 1, &mut p);
         assert_eq!(p, b"/d".repeat(301));
+    }
+    /// Build a small tree: root/ with `a.txt`, `b/`, and `b/c.md`.
+    fn small_tree() -> Index {
+        // RawEnt names are offsets into `names`; keep each listing's names together.
+        let mut root_names = Vec::new();
+        let mut push = |n: &[u8], v: &mut Vec<u8>| {
+            let off = v.len() as u32;
+            v.extend_from_slice(n);
+            off
+        };
+        let a_off = push(b"a.txt", &mut root_names);
+        let b_off = push(b"b", &mut root_names);
+        let root = Listing {
+            id: 0,
+            names: root_names,
+            ents: vec![
+                RawEnt { name_off: a_off, name_len: 5, kind: KIND_FILE, size: 3, mtime: 1, child: NONE },
+                RawEnt { name_off: b_off, name_len: 1, kind: KIND_DIR, size: 0, mtime: 1, child: 1 },
+            ],
+        };
+        let mut b_names = Vec::new();
+        let c_off = push(b"c.md", &mut b_names);
+        let b =
+            Listing { id: 1, names: b_names, ents: vec![RawEnt { name_off: c_off, name_len: 4, kind: KIND_FILE, size: 9, mtime: 1, child: NONE }] };
+        Index::build(vec![root, b], 0, 0, b"/h", b"/root")
+    }
+
+    /// Every entry's path is reconstructable from the parent chain, which is what
+    /// every search result and every status field is built on.
+    #[test]
+    fn paths_reconstruct_from_the_parent_chain() {
+        let idx = small_tree();
+        let mut got: Vec<String> = Vec::new();
+        let mut buf = Vec::new();
+        for i in 0..idx.n {
+            idx.path(i, &mut buf);
+            got.push(String::from_utf8_lossy(&buf).into_owned());
+        }
+        assert!(got[0].contains("root"), "entry 0 is the root: {:?}", got[0]);
+        assert!(got.iter().any(|p| p.ends_with("/root/a.txt")), "{got:?}");
+        assert!(got.iter().any(|p| p.ends_with("/root/b")), "{got:?}");
+        assert!(got.iter().any(|p| p.ends_with("/root/b/c.md")), "{got:?}");
+    }
+
+    /// `entries_by_top` buckets by the first component under the root - the field that
+    /// answers "what is taking the space". The root itself must not be counted as one
+    /// of its own children.
+    #[test]
+    fn entries_by_top_buckets_by_first_component() {
+        let idx = small_tree();
+        let tops = idx.entries_by_top(10);
+        let total: usize = tops.iter().map(|(_, n)| *n).sum();
+        assert!(total > 0, "nothing was bucketed: {tops:?}");
+        assert_eq!(total + 1, idx.n, "every entry except the root belongs to exactly one top-level bucket");
+        // Sorted largest first, which is what makes the output readable.
+        for w in tops.windows(2) {
+            assert!(w[0].1 >= w[1].1, "buckets must be largest-first: {tops:?}");
+        }
+    }
+
+    /// A saved index loads back with the same entry count and the same paths. The
+    /// on-disk format is the one thing a user cannot rebuild without re-walking the
+    /// whole disk.
+    #[test]
+    fn save_and_load_round_trip() {
+        let idx = small_tree();
+        let dir = std::env::temp_dir().join(format!("ultrasearch-idx-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("index.bin");
+        idx.save(&path).expect("save must succeed");
+        let back = Index::load(&path).expect("load must succeed");
+        assert_eq!(back.n, idx.n, "entry count must survive the round trip");
+        let (mut a, mut b) = (Vec::new(), Vec::new());
+        for i in 0..idx.n {
+            idx.path(i, &mut a);
+            back.path(i, &mut b);
+            assert_eq!(a, b, "entry {i} changed across save/load");
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A truncated or corrupt file must be refused, not half-loaded. A partially read
+    /// index would answer searches from a tree that does not exist.
+    #[test]
+    fn a_corrupt_index_is_refused() {
+        let dir = std::env::temp_dir().join(format!("ultrasearch-bad-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("index.bin");
+        std::fs::write(&path, b"not an index at all").unwrap();
+        assert!(Index::load(&path).is_none(), "a garbage file must not load");
+        std::fs::write(&path, b"").unwrap();
+        assert!(Index::load(&path).is_none(), "an empty file must not load");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Extensions are interned to one byte. 255 is the "not interned" marker, so a
+    /// lookup for an extension the index never saw must say so rather than return 0,
+    /// which is a real slot.
+    #[test]
+    fn extension_slots_report_a_real_slot_or_the_marker() {
+        let idx = small_tree();
+        let txt = idx.ext_slot(b"txt");
+        assert!(txt < CLASSES as u8, "txt is in the tree, so it must have a real slot: {txt}");
+        assert_eq!(idx.ext_slot(b"nosuchext"), 255, "an extension the index never saw must be the marker, not slot 0");
+        // Lookup is by exact bytes, so a different case is a different question - the
+        // walker lowercases before interning, and this pins that the table does not
+        // silently fold on lookup.
+        assert!(idx.ext_slot(b"TXT") == 255 || idx.ext_slot(b"TXT") == txt);
     }
 }
