@@ -68,7 +68,9 @@ const EXCLUDE_DEFAULT: &[&[u8]] = &[
 /// Prune rules: exact names (directories) and suffixes (`*.log`-style, any
 /// entry). Built once from the built-in list, `ULTRASEARCH_EXCLUDE_NAMES`, and
 /// the scan root's own `.gitignore` / `.ignore`.
-static EXCLUDE: std::sync::OnceLock<(Vec<Vec<u8>>, Vec<Vec<u8>>)> = std::sync::OnceLock::new();
+/// Names and suffixes, as one cache.
+type Rules = (Vec<Vec<u8>>, Vec<Vec<u8>>);
+static EXCLUDE: std::sync::OnceLock<Rules> = std::sync::OnceLock::new();
 
 /// Parse the ignore rules a repository keeps at its root.
 ///

@@ -415,8 +415,11 @@ impl Segment {
         }
         let mut dead = vec![0u64; ndocs.div_ceil(64)];
         if let Ok(b) = std::fs::read(dead_path(dir, id)) {
-            for (w, c) in dead.iter_mut().zip(b.chunks_exact(8)) {
-                *w = u64::from_le_bytes(c.try_into().unwrap());
+            // `as_chunks` states the constant size in the type, so a partial tail is
+            // dropped by construction rather than by a try_into that cannot fail.
+            let (words, _tail) = b.as_chunks::<8>();
+            for (w, c) in dead.iter_mut().zip(words) {
+                *w = u64::from_le_bytes(*c);
             }
             // (Bits past the last doc: a corrupt file.)
             if let Some(w) = dead.last_mut().filter(|_| !ndocs.is_multiple_of(64)) {
@@ -597,12 +600,14 @@ fn content_hash(b: &[u8]) -> u64 {
         let x = [word(w, 0), word(w, 1), word(w, 2), word(w, 3)];
         s = [mix(x[0] ^ K[0], x[1] ^ s[0]), mix(x[1] ^ K[1], x[0] ^ s[1]), mix(x[2] ^ K[2], x[3] ^ s[2]), mix(x[3] ^ K[3], x[2] ^ s[3])];
     };
-    let mut blocks = b.chunks_exact(32);
-    for w in &mut blocks {
+    // `as_chunks` gives the full blocks and the tail in one split, so the size is
+    // in the type and the tail cannot be mis-sliced.
+    let (blocks, tail) = b.as_chunks::<32>();
+    for w in blocks {
         step(w);
     }
     let mut last = [0u8; 32];
-    last[..blocks.remainder().len()].copy_from_slice(blocks.remainder());
+    last[..tail.len()].copy_from_slice(tail);
     step(&last);
     mix(mix(s[0] ^ K[1], s[2] ^ K[2]) ^ s[1], s[3] ^ K[0])
 }

@@ -537,7 +537,7 @@ fn budget_tick(progress: Option<&Progress>, seen: &mut usize, tick: &mut u32, ev
     // The first entry of a piece too: a piece shorter than `every` would
     // otherwise never check the clock at all (40 pieces of a whole-disk
     // scan, 1250 entries each in a fixture: it never fired).
-    if *tick != 1 && *tick % every != 0 {
+    if *tick != 1 && !(*tick).is_multiple_of(every) {
         return true;
     }
     p.scanned.fetch_add(*seen, std::sync::atomic::Ordering::Relaxed);

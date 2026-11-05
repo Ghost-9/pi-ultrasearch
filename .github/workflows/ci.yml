@@ -72,6 +72,18 @@ jobs:
       - name: Engine unit tests (cargo test --release)
         run: cargo test --release --manifest-path engine/Cargo.toml
 
+      # Style is enforced, not hoped for. Runestone's tree went from 91 warnings to
+      # zero and its gate now fails on a single new one; this is the same rule here.
+      # Both are cheap and deterministic, so there is no reason to ratchet instead.
+      - name: Engine formatting
+        run: cargo fmt --all --manifest-path engine/Cargo.toml --check
+
+      - name: Engine lints (must be zero)
+        run: |
+          count=$(cargo clippy --release --all-targets --manifest-path engine/Cargo.toml 2>&1 | grep -cE '^warning: ' || true)
+          echo "clippy warnings: $count (must be 0)"
+          test "$count" -eq 0
+
       - name: Build engine daemon (release)
         run: cargo build --release --manifest-path engine/Cargo.toml
 

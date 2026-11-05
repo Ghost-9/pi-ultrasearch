@@ -1336,12 +1336,12 @@ fn compact(shared: &Shared) {
     let n = idx.n;
     // Advisory ceiling. Truncating here would hide real files, so the index is
     // kept and the operator is told what actually reduces it.
-    if let Some(cap) = env::max_entries() {
-        if n > cap {
-            log(format!(
-                "warning: index holds {n} entries, above ULTRASEARCH_MAX_ENTRIES={cap}; narrow ULTRASEARCH_SCAN_ROOT or add the noisy folders to ULTRASEARCH_EXCLUDE_NAMES"
-            ));
-        }
+    if let Some(cap) = env::max_entries()
+        && n > cap
+    {
+        log(format!(
+            "warning: index holds {n} entries, above ULTRASEARCH_MAX_ENTRIES={cap}; narrow ULTRASEARCH_SCAN_ROOT or add the noisy folders to ULTRASEARCH_EXCLUDE_NAMES"
+        ));
     }
     let bytes = idx.bytes();
     let took = t.elapsed();

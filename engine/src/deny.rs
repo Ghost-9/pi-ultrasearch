@@ -48,6 +48,13 @@ impl DenyList {
         self.prefixes.len()
     }
 
+    /// True when no rule is configured, so `blocked` can only answer from the
+    /// built-in list. Paired with `len` because clippy is right that a public
+    /// length without this invites `if list.len() == 0`.
+    pub fn is_empty(&self) -> bool {
+        self.prefixes.is_empty()
+    }
+
     /// Is `path` denied, by itself or because it is inside a denied folder?
     pub fn blocked(&self, path: &[u8]) -> bool {
         self.prefixes.iter().any(|p| within(path, p))

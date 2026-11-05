@@ -88,12 +88,11 @@ fn declaration_name(node: &tree_sitter::Node<'_>, buf: &[u8]) -> Option<String> 
     if node.kind() == "lexical_declaration" {
         let mut cursor = node.walk();
         for child in node.named_children(&mut cursor) {
-            if child.kind() == "variable_declarator" {
-                if let Some(name) = child.child_by_field_name("name") {
-                    if name.kind() == "identifier" || name.kind() == "type_identifier" {
-                        return sym(name);
-                    }
-                }
+            if child.kind() == "variable_declarator"
+                && let Some(name) = child.child_by_field_name("name")
+                && (name.kind() == "identifier" || name.kind() == "type_identifier")
+            {
+                return sym(name);
             }
         }
         return None;
@@ -102,13 +101,13 @@ fn declaration_name(node: &tree_sitter::Node<'_>, buf: &[u8]) -> Option<String> 
         return sym(name);
     }
     // Rust `impl Policy { .. }` names its type, not a `name` field.
-    if node.kind() == "impl_item" {
-        if let Some(ty) = node.child_by_field_name("type") {
-            if let Some(last) = ty.child_by_field_name("name") {
-                return sym(last);
-            }
-            return sym(ty);
+    if node.kind() == "impl_item"
+        && let Some(ty) = node.child_by_field_name("type")
+    {
+        if let Some(last) = ty.child_by_field_name("name") {
+            return sym(last);
         }
+        return sym(ty);
     }
     None
 }
@@ -128,12 +127,11 @@ pub fn declared_lines(buf: &[u8], lang: Lang, name: &str) -> Option<Vec<usize>> 
         if visited > 200_000 {
             break;
         }
-        if is_declaration(node.kind()) {
-            if let Some(n) = declaration_name(&node, buf) {
-                if n == name {
-                    lines.push(node.start_position().row + 1);
-                }
-            }
+        if is_declaration(node.kind())
+            && let Some(n) = declaration_name(&node, buf)
+            && n == name
+        {
+            lines.push(node.start_position().row + 1);
         }
         if is_body(node.kind()) {
             continue;

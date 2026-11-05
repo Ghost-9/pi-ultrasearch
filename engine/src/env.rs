@@ -249,10 +249,7 @@ mod tests {
             std::env::set_var("ULTRASEARCH_SCAN_ROOT", "/nonexistent-fixture-root-xyz");
             let e = scan_root_error();
             assert!(e.is_some(), "a nonexistent root must report why it is unusable");
-            assert!(
-                e.as_deref().unwrap_or("").contains("cannot list"),
-                "the message must say what failed: {e:?}"
-            );
+            assert!(e.as_deref().unwrap_or("").contains("cannot list"), "the message must say what failed: {e:?}");
             std::env::set_var("ULTRASEARCH_SCAN_ROOT", "/tmp");
             assert!(scan_root_error().is_none(), "/tmp is listable");
             std::env::remove_var("ULTRASEARCH_SCAN_ROOT");
