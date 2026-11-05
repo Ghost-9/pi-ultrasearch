@@ -1260,16 +1260,23 @@ mod tests {
         assert!(a.to_string_lossy().ends_with(".sock"), "it must look like a socket: {a:?}");
     }
 
-    /// Connecting to a directory with no daemon must fail, not hang. A client that
-    /// blocks forever on a stale directory turns a missing daemon into a hung tool.
+    /// `connect` is connect-OR-SPAWN, not connect: with no daemon listening it starts
+    /// one and polls for it. A first version of this test asserted that it fails
+    /// promptly, which is the opposite of the contract - and because it ran inside a
+    /// unit test, `current_exe()` was the test binary, so it spawned a process that
+    /// could not serve and then polled for it. It took 12.5 s in CI and failed.
+    ///
+    /// What is worth pinning without spawning anything is the path validation: a socket
+    /// path too long for the platform must be reported as such rather than retried.
     #[test]
-    fn connecting_without_a_daemon_fails_promptly() {
-        let dir = std::env::temp_dir().join(format!("us-nodaemon-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
+    fn an_unusable_socket_path_is_reported_not_retried() {
+        // A directory name longer than the sockaddr_un limit cannot hold a socket.
+        let deep = std::env::temp_dir().join("x".repeat(200));
+        let sock = socket_path(&deep);
+        assert!(sock.to_string_lossy().len() > 104, "the fixture must exceed the UNIX socket path limit: {}", sock.display());
         let started = std::time::Instant::now();
-        let r = connect(&dir);
-        assert!(r.is_err(), "there is no daemon here, so connect must fail");
-        assert!(started.elapsed() < std::time::Duration::from_secs(5), "connect must not hang: took {:?}", started.elapsed());
-        let _ = std::fs::remove_dir_all(&dir);
+        let r = connect(&deep);
+        assert!(r.is_err(), "an impossible socket path must be an error");
+        assert!(started.elapsed() < std::time::Duration::from_secs(2), "it must not be retried: took {:?}", started.elapsed());
     }
 }
