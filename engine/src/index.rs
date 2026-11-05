@@ -1456,7 +1456,7 @@ mod tests {
     fn small_tree() -> Index {
         // RawEnt names are offsets into `names`; keep each listing's names together.
         let mut root_names = Vec::new();
-        let mut push = |n: &[u8], v: &mut Vec<u8>| {
+        let push = |n: &[u8], v: &mut Vec<u8>| {
             let off = v.len() as u32;
             v.extend_from_slice(n);
             off
