@@ -428,6 +428,48 @@ daemon has indexed that path (the re-scoped live gate derives its ceiling from t
 same run, so a cold index raises both sides of the comparison; warm the path with a couple of grep calls before
 treating a failure as a regression).
 
+### Engine tests and what they cover
+
+`cargo test --release --manifest-path engine/Cargo.toml` — 70 unit tests plus 15 that drive
+a real daemon. The ones that matter most, because a failure there is silent in production:
+
+- **the allocator** (6): every size class round-trips its contents, alignment holds at 1/8/16,
+  a zero-sized allocation is safe, `drain` returns memory and stays usable, and blocks at or
+  above `BIG` bypass the free lists. A custom global allocator tested by one case was the
+  largest uncovered risk in the crate.
+- **the index** (5): paths reconstruct from the parent chain, `entries_by_top` buckets by the
+  first component, save/load round-trips every path, a corrupt or empty file is refused rather
+  than half-loaded, and extension slots report a real slot or the 255 marker.
+- **the ignore forms** (5 integration): `dir/**`, `dir/*`, `**/dir` and plain `dir/` each prune
+  end to end against a real daemon, and a rule the walk cannot honour is refused rather than
+  guessed. The unit test only proves the parser classifies a line; that is not the property
+  that broke.
+- **the policies** (6 coverage, 8 deny): each knob refuses independently, an unconfigured
+  policy refuses nothing, `within` respects the path boundary, and a denied folder blocks its
+  subtree without blocking `/secrets` when `/secret` is denied.
+- **the unsafe surface** (1): pinned at 127 occurrences. It fails when the count grows and not
+  when it shrinks, and it counts code rather than prose, so the four safety contracts can
+  discuss `unsafe` without inflating the budget.
+
+`rustfmt` and `clippy` are both enforced at zero in CI, not ratcheted.
+
+### A soak test, because the worst defect was a time behaviour
+
+`python3 scripts/soak.py --seconds 60` runs in CI on macOS; `--hours 48` is the real soak. It
+runs the daemon against a tree that keeps changing and fails when compactions run away, lag
+grows unbounded, RSS grows unbounded, or the daemon stops answering. It also creates a file
+every sample and asserts that file is findable - without that check the soak would pass on a
+daemon that had stopped following events entirely, because `entries` is the base index and does
+not move.
+
+### Known gap: the shipped app is behind this tree
+
+`/Applications/UltraSearch.app` is 0.2.1; this tree is 0.3.0. The 0.3.0 work is observability,
+tests, guards and docs, plus two behaviour changes (the ignore-file forms and the install
+guard). Shipping it means rebuilding the signed bundle, and Full Disk Access is granted to the
+current signature - so a swap without re-granting FDA would leave the daemon unable to read
+most of the disk. That is a deliberate deferral, not an oversight.
+
 The CI workflow now runs two jobs. `test-macos` (the reference platform) executes
 `typecheck → build → npm test → package smoke → cargo test --release → test:engine → test:gate`, the last on a real
 isolated daemon. `test-linux` runs `typecheck → build → npm test → package smoke → test:gate` (hermetic part; the
