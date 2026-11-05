@@ -601,4 +601,59 @@ mod tests {
         assert!(f.scans.is_empty() && f.attrs.is_some_and(|a| a.kind & FLAG_MOUNT != 0));
         assert!(!walk::is_mount(b"/usr/bin") && !walk::is_mount(b"/Users") && walk::is_mount(b"/System/Volumes/Data"));
     }
+    /// `normalize` is what every path comparison goes through, so a trailing slash left
+    /// on one side would make an entry look absent from its own folder.
+    #[test]
+    fn normalize_strips_trailing_separators_only() {
+        assert_eq!(normalize(b"/a/b/"), b"/a/b");
+        assert_eq!(normalize(b"/a/b///"), b"/a/b");
+        assert_eq!(normalize(b"/a/b"), b"/a/b");
+        assert_eq!(normalize(b"/"), b"/", "the root must stay a root");
+        // Interior separators are structural and must be left alone.
+        assert_eq!(normalize(b"/a//b"), b"/a//b");
+    }
+
+    /// `join` must not double the separator at the root, which is the one place a naive
+    /// implementation gets it wrong.
+    #[test]
+    fn join_handles_the_root_without_a_double_slash() {
+        assert_eq!(join(b"/", b"name"), b"/name");
+        assert_eq!(join(b"/a", b"name"), b"/a/name");
+        assert_eq!(join(b"/a/b", b"name"), b"/a/b/name");
+    }
+
+    /// A deleted entry is reported dead, and the bitmap must not leak across the 64-bit
+    /// word boundary - a file deleted at index 64 reporting index 0 as dead would hide
+    /// an unrelated entry.
+    #[test]
+    fn dead_bitmap_does_not_leak_across_words() {
+        // 130 entries so index 64 and its neighbours exist.
+        let mut names = Vec::new();
+        let mut ents = Vec::new();
+        for i in 0..130u32 {
+            let off = names.len() as u32;
+            let n = format!("f{i}");
+            names.extend_from_slice(n.as_bytes());
+            ents.push(crate::walk::RawEnt {
+                name_off: off,
+                name_len: n.len() as u16,
+                kind: crate::walk::KIND_FILE,
+                size: 1,
+                mtime: 1,
+                child: crate::walk::NONE,
+            });
+        }
+        let listing = crate::walk::Listing { id: 0, names, ents };
+        let idx = Index::build(vec![listing], 0, 0, b"/h", b"/root");
+        assert!(idx.n > 65, "the fixture needs at least 65 entries, has {}", idx.n);
+
+        let mut live = Live::new(idx);
+        live.kill(64);
+        assert!(live.is_dead(64), "the entry that was killed must be dead");
+        assert!(!live.is_dead(0), "killing 64 must not affect 0");
+        assert!(!live.is_dead(63), "killing 64 must not affect its neighbour");
+        assert!(!live.is_dead(65), "killing 64 must not affect the next entry");
+        live.kill(0);
+        assert!(live.is_dead(0) && live.is_dead(64), "both must stay dead");
+    }
 }

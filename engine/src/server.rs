@@ -1248,4 +1248,28 @@ mod tests {
         assert_eq!((n("/p/src/a.rs", "/p/src/b.rs"), n("/p/src/a.rs", "/p/src/a.rs")), (12, 10));
         assert_eq!((n("/p/src/a.rs", "/p/src/ui/c.rs"), n("/p/src/a.rs", "/p/docs/x.md"), n("/p/a/b/c/d.rs", "/q/e.rs")), (9, 6, 0));
     }
+    /// The socket path must be stable for a given directory and different for a
+    /// different one. A collision would let two daemons answer for each other's index.
+    #[test]
+    fn socket_path_is_per_directory() {
+        let a = socket_path(Path::new("/tmp/us-a"));
+        let b = socket_path(Path::new("/tmp/us-b"));
+        assert_ne!(a, b, "two index directories must not share a socket");
+        assert_eq!(a, socket_path(Path::new("/tmp/us-a")), "the same directory must be stable");
+        assert!(a.starts_with("/tmp/us-a"), "the socket lives with its index: {a:?}");
+        assert!(a.to_string_lossy().ends_with(".sock"), "it must look like a socket: {a:?}");
+    }
+
+    /// Connecting to a directory with no daemon must fail, not hang. A client that
+    /// blocks forever on a stale directory turns a missing daemon into a hung tool.
+    #[test]
+    fn connecting_without_a_daemon_fails_promptly() {
+        let dir = std::env::temp_dir().join(format!("us-nodaemon-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let started = std::time::Instant::now();
+        let r = connect(&dir);
+        assert!(r.is_err(), "there is no daemon here, so connect must fail");
+        assert!(started.elapsed() < std::time::Duration::from_secs(5), "connect must not hang: took {:?}", started.elapsed());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
