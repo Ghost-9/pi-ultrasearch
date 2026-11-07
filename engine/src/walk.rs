@@ -78,7 +78,15 @@ const EXCLUDE_DEFAULT: &[&[u8]] = &[
 /// the scan root's own `.gitignore` / `.ignore`.
 /// Names and suffixes, as one cache.
 type Rules = (Vec<Vec<u8>>, Vec<Vec<u8>>);
-static EXCLUDE: std::sync::OnceLock<Rules> = std::sync::OnceLock::new();
+/// The ignore rules in force, keyed by the scan root they were read from.
+///
+/// It used to be a bare `OnceLock`, which cached whatever root happened to be current on
+/// the first call and kept it for the life of the process. In production the root is
+/// fixed, so it never showed - but anything that changes the root at runtime (the test
+/// harness does) got the first root's `.gitignore` and silently no pruning. That surfaced
+/// as an order-dependent failure in the release job: `dir/*` passed when its file ran
+/// first and failed when another suite had warmed the cache with a different root.
+static EXCLUDE: std::sync::Mutex<Option<(Vec<u8>, Rules)>> = std::sync::Mutex::new(None);
 
 /// Parse the ignore rules a repository keeps at its root.
 ///
@@ -129,19 +137,28 @@ fn is_literal_name(pat: &str) -> bool {
     !pat.is_empty() && !pat.contains('/') && !pat.contains('*') && !pat.contains('?') && !pat.contains('[') && !pat.contains(']')
 }
 
-fn exclude_set() -> &'static (Vec<Vec<u8>>, Vec<Vec<u8>>) {
-    EXCLUDE.get_or_init(|| {
-        let mut names: Vec<Vec<u8>> = EXCLUDE_DEFAULT.iter().map(|d| d.to_vec()).collect();
-        names.extend(crate::env::exclude_names());
-        let mut suffixes: Vec<Vec<u8>> = Vec::new();
-        // The scan root's own ignore files: the common case is a repository whose
-        // `.gitignore` already lists its build output.
-        let root = std::path::PathBuf::from(String::from_utf8_lossy(&crate::env::scan_root()).into_owned());
-        for file in [".gitignore", ".ignore"] {
-            read_ignore_file(&root.join(file), &mut names, &mut suffixes);
-        }
-        (names, suffixes)
-    })
+fn exclude_set() -> std::sync::Arc<Rules> {
+    let root = crate::env::scan_root();
+    if let Ok(g) = EXCLUDE.lock()
+        && let Some((at, rules)) = g.as_ref()
+        && *at == root
+    {
+        return std::sync::Arc::new(rules.clone());
+    }
+    let mut names: Vec<Vec<u8>> = EXCLUDE_DEFAULT.iter().map(|d| d.to_vec()).collect();
+    names.extend(crate::env::exclude_names());
+    let mut suffixes: Vec<Vec<u8>> = Vec::new();
+    // The scan root's own ignore files: the common case is a repository whose
+    // `.gitignore` already lists its build output.
+    let dir = std::path::PathBuf::from(String::from_utf8_lossy(&root).into_owned());
+    for file in [".gitignore", ".ignore"] {
+        read_ignore_file(&dir.join(file), &mut names, &mut suffixes);
+    }
+    let rules: Rules = (names, suffixes);
+    if let Ok(mut g) = EXCLUDE.lock() {
+        *g = Some((root, rules.clone()));
+    }
+    std::sync::Arc::new(rules)
 }
 
 /// True when a directory entry's name is a cache directory that must not be
