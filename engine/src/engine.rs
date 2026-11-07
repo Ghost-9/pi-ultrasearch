@@ -757,12 +757,11 @@ impl Shared {
     fn entries_by_root(&self) -> Vec<serde_json::Value> {
         // Cheap path first: the generation is read under the same lock the walk needs.
         let generation = self.live.read().ok().and_then(|g| g.as_ref().map(|l| l.event_id)).unwrap_or(0);
-        if let Ok(cache) = self.roots_cache.lock() {
-            if let Some((at, v)) = cache.as_ref() {
-                if *at == generation {
-                    return v.clone();
-                }
-            }
+        if let Ok(cache) = self.roots_cache.lock()
+            && let Some((at, v)) = cache.as_ref()
+            && *at == generation
+        {
+            return v.clone();
         }
         let computed = self.compute_entries_by_root();
         if let Ok(mut cache) = self.roots_cache.lock() {
