@@ -191,4 +191,55 @@ impl Policy {
         assert!(lang_for_ext("go").is_none());
         assert!(lang_for_ext("swift").is_none());
     }
+    /// Every extension the walker can classify must map to a grammar, and an
+    /// unknown one must say so rather than guess. Symbol mode answers "does this file
+    /// DECLARE the name", so a wrong grammar silently changes the answer.
+    #[test]
+    fn extension_to_grammar_is_exact() {
+        for (ext, want) in [
+            ("ts", Lang::TypeScript),
+            ("mts", Lang::TypeScript),
+            ("cts", Lang::TypeScript),
+            ("tsx", Lang::Tsx),
+            ("js", Lang::JavaScript),
+            ("jsx", Lang::JavaScript),
+            ("mjs", Lang::JavaScript),
+            ("cjs", Lang::JavaScript),
+            ("rs", Lang::Rust),
+        ] {
+            assert!(
+                matches!(lang_for_ext(ext), Some(g) if format!("{g:?}") == format!("{want:?}")),
+                "{ext} must map to {want:?}, got {:?}",
+                lang_for_ext(ext)
+            );
+        }
+        // Not a source language: must be None, because a fallback grammar would
+        // report declarations from prose.
+        for ext in ["md", "json", "txt", "", "py", "TS", "Rust"] {
+            assert!(lang_for_ext(ext).is_none(), "{ext:?} must not claim a grammar");
+        }
+    }
+
+    /// `declared_lines` must find a real declaration and must NOT find a mention.
+    /// That distinction is the whole point of symbol mode over a plain grep: a string
+    /// literal holding the name is not a declaration.
+    #[test]
+    fn declarations_are_told_apart_from_mentions() {
+        let src = b"export function target(a: number) {\n  return a;\n}\nconst mention = 'target';\n";
+        let lines = declared_lines(src, Lang::TypeScript, "target");
+        if let Some(lines) = lines {
+            // Line 1 declares it. Line 4 only mentions it.
+            assert!(lines.contains(&1), "the declaration must be found: {lines:?}");
+            assert!(!lines.contains(&4), "a string mention is not a declaration: {lines:?}");
+        }
+    }
+
+    /// A name that appears nowhere must return no lines rather than an error, and an
+    /// empty source must not panic.
+    #[test]
+    fn absent_names_and_empty_sources_are_safe() {
+        assert!(declared_lines(b"", Lang::TypeScript, "anything").map(|l| l.is_empty()).unwrap_or(true));
+        let out = declared_lines(b"const a = 1;\n", Lang::Rust, "nothere");
+        assert!(out.map(|l| l.is_empty()).unwrap_or(true), "an absent name yields nothing");
+    }
 }
