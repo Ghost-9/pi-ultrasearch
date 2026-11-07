@@ -2,7 +2,7 @@
 
 > Whole-disk filesystem search, trigram content grep, and git-aware code discovery for **Pi Agent**, **T3 Code**, and MCP clients — backed by a persistent resident Rust daemon (`ultrasearch`).
 
-[![Version](https://img.shields.io/badge/version-0.3.1-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.3.2-blue.svg)](CHANGELOG.md)
 [![License: AGPL 3.0](https://img.shields.io/badge/License-AGPL%203.0-purple.svg)](LICENSE)
 [![CI](https://github.com/Ghost-9/pi-ultrasearch/actions/workflows/ci.yml/badge.svg)](https://github.com/Ghost-9/pi-ultrasearch/actions/workflows/ci.yml)
 [![Platform: macOS Apple Silicon](https://img.shields.io/badge/platform-macOS%20Apple%20Silicon-black.svg)]()
@@ -21,7 +21,7 @@ Two artifacts version independently, and that is deliberate:
 | Artifact | Where | Current |
 |---|---|---|
 | **Engine + app** | `engine/Cargo.toml` — the daemon, the CLI and the MCP server | `0.2.1` |
-| **Pi extension** | `package.json` — the native tool surface Pi loads | `0.3.1` |
+| **Pi extension** | `package.json` — the native tool surface Pi loads | `0.3.2` |
 
 `install.sh` reads the engine version from `Cargo.toml` and writes it into both
 `CFBundleShortVersionString` and `CFBundleVersion`, so the app bundle, the crate
@@ -464,7 +464,7 @@ not move.
 
 ### Known gap: the shipped app is behind this tree
 
-`/Applications/UltraSearch.app` is 0.2.1; this tree is 0.3.1. This tree's work since 0.2.1 is observability,
+`/Applications/UltraSearch.app` is 0.2.1; this tree is 0.3.2. This tree's work since 0.2.1 is observability,
 tests, guards and docs, plus two behaviour changes (the ignore-file forms and the install
 guard). Shipping it means rebuilding the signed bundle, and Full Disk Access is granted to the
 current signature - so a swap without re-granting FDA would leave the daemon unable to read
