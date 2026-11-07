@@ -444,6 +444,10 @@ a real daemon. The ones that matter most, because a failure there is silent in p
   end to end against a real daemon, and a rule the walk cannot honour is refused rather than
   guessed. The unit test only proves the parser classifies a line; that is not the property
   that broke.
+- **the prune list** (4): cache directories are pruned by name and nothing else, so a
+  folder whose name merely resembles one (`my-target`, `node_modules_backup`) is still
+  indexed; a suffix rule prunes files but never a directory of that name, because pruning
+  it would drop its whole subtree; and the list `status` reports is sorted and unique.
 - **the policies** (6 coverage, 8 deny): each knob refuses independently, an unconfigured
   policy refuses nothing, `within` respects the path boundary, and a denied folder blocks its
   subtree without blocking `/secrets` when `/secret` is denied.

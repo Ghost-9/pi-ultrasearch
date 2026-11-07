@@ -55,9 +55,16 @@ test("status: freshness and compaction fields are present, typed, and documented
     // Once the first replay has finished, a fresh result is guaranteed and
     // staleness is exactly zero (not "time since the last change", which
     // would make an idle index look stale).
-    await until(async () => (await h.status()).replay_in_progress === false, { timeoutMs: 30_000 });
-    const calm = await h.status();
-    assert.equal(calm.staleness_ms, 0, `caught-up index must report 0 staleness: ${JSON.stringify(calm)}`);
+    // Wait for BOTH facts in ONE status read. Reading `replay_in_progress` and then
+    // `staleness_ms` from two separate calls lets them straddle the moment the replay
+    // ends - the first says false while the second still carries the elapsed time, and
+    // the assertion fails on a race rather than on a defect. That intermittent failure
+    // appeared on the same fixture that otherwise passes 49/49.
+    const calm = await until(async () => {
+      const s = await h.status();
+      return s.replay_in_progress === false && s.staleness_ms === 0 ? s : null;
+    }, { timeoutMs: 30_000 });
+    assert.ok(calm, "a caught-up index must settle to replay_in_progress=false and staleness_ms=0");
     await sleep(300);
     assert.equal((await h.status()).staleness_ms, 0, "an idle index is not stale");
   } finally {
