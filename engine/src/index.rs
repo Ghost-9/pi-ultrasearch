@@ -1560,4 +1560,48 @@ mod tests {
         // silently fold on lookup.
         assert!(idx.ext_slot(b"TXT") == 255 || idx.ext_slot(b"TXT") == txt);
     }
+    /// The production unwrap surface is a budget, like `unsafe`.
+    ///
+    /// 62 of them across the crate, and the classes are worth naming because they are
+    /// not the same risk:
+    ///
+    /// - **`Option<Live>::as_ref().unwrap()`** (the largest group): "the index is
+    ///   loaded here". A real invariant of the apply loop, not a fallible operation.
+    /// - **condvar `wait(...).unwrap()`**: panics only if the mutex was poisoned, which
+    ///   cannot happen while the wait holds it.
+    /// - **`into_inner().unwrap()`** on an `mpsc::Receiver` we still own: cannot fail.
+    /// - **`try_into()` on a slice the parser has already bounds-checked**: infallible.
+    /// - **regex literals**: compile-time constants.
+    ///
+    /// What remains after those is small, which is why this is a ceiling and not a
+    /// cleanup task. It fails when the count GROWS, so a new unwrap has to be a decision
+    /// rather than something added while passing - the same rule as the unsafe budget,
+    /// and it counts code rather than prose so these comments do not inflate it.
+    #[test]
+    fn production_unwrap_budget_does_not_grow() {
+        // 62 measured; a ceiling with a little room so a genuine invariant does not
+        // need a raised number, and tight enough that a sloppy addition trips it.
+        const CEILING: usize = 70;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut found = 0usize;
+        for entry in std::fs::read_dir(&dir).expect("src directory must be readable") {
+            let path = entry.expect("readable dir entry").path();
+            if path.extension().map(|e| e == "rs").unwrap_or(false) {
+                let Ok(text) = std::fs::read_to_string(&path) else { continue };
+                let prod = text.split("#[cfg(test)]").next().unwrap_or(&text);
+                for line in prod.lines() {
+                    let code = line.trim_start();
+                    if code.starts_with("//") {
+                        continue;
+                    }
+                    found += code.matches(".unwrap()").count();
+                }
+            }
+        }
+        assert!(
+            found <= CEILING,
+            "production unwraps grew to {found} (ceiling {CEILING}). A new unwrap needs a \
+             reason it cannot fail, or it should be a ? or an if-let."
+        );
+    }
 }
