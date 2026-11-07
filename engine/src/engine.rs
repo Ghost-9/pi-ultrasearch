@@ -215,6 +215,14 @@ struct Shared {
     dir: PathBuf,
     /// When this engine started, for the uptime in `status` (#45).
     started: std::time::Instant,
+    /// `entries_by_root`, cached against the index generation it was computed for.
+    ///
+    /// The walk is O(entries), and `status` is called often - by the CLI, by the MCP
+    /// surface, and by tests that sample it in a loop. Recomputing 20k paths per call
+    /// was enough to time one out on a loaded CI runner while a grep held the CPU, and
+    /// on a 794k-entry index it would be far worse. Keyed on `event_id`, so it is
+    /// recomputed exactly when the index changes.
+    roots_cache: Mutex<Option<(u64, Vec<serde_json::Value>)>>,
     /// Wakes the apply loop; an empty batch is a no-op wake-up.
     wake: Sender<Vec<fsevents::Event>>,
     save_requested: AtomicBool,
@@ -444,6 +452,7 @@ impl Engine {
         let content = if owner { Content::open(dir.join("content")) } else { Content::open_shared(dir.join("content")) };
         let content_ready = AtomicBool::new(!owner || !content.segs.is_empty());
         let shared = Arc::new(Shared {
+            roots_cache: Mutex::new(None),
             live: RwLock::new(None),
             loading: (Mutex::new(loading.is_some()), Condvar::new()),
             content: RwLock::new(content),
@@ -746,6 +755,23 @@ impl Shared {
     /// the answer had to be guessed. This walks the base index once and buckets by
     /// the first path component under the scan root.
     fn entries_by_root(&self) -> Vec<serde_json::Value> {
+        // Cheap path first: the generation is read under the same lock the walk needs.
+        let generation = self.live.read().ok().and_then(|g| g.as_ref().map(|l| l.event_id)).unwrap_or(0);
+        if let Ok(cache) = self.roots_cache.lock() {
+            if let Some((at, v)) = cache.as_ref() {
+                if *at == generation {
+                    return v.clone();
+                }
+            }
+        }
+        let computed = self.compute_entries_by_root();
+        if let Ok(mut cache) = self.roots_cache.lock() {
+            *cache = Some((generation, computed.clone()));
+        }
+        computed
+    }
+
+    fn compute_entries_by_root(&self) -> Vec<serde_json::Value> {
         let root = env::scan_root();
         let root_s = String::from_utf8_lossy(&root).into_owned();
         let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
