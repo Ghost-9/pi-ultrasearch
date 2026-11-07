@@ -1335,4 +1335,63 @@ mod tests {
         assert!(looks_like_regex("foo|bar") && looks_like_regex("\\bfoo") && !looks_like_regex("|x| x + 1") && !looks_like_regex("a || b"));
         assert!(!looks_like_regex("arr[0]") && looks_like_regex("[a-z]+"));
     }
+    /// A count argument arrives as 20, 20.0 or "20" depending on the client, and a
+    /// hostile or confused one can arrive as anything. It must never produce a page
+    /// size that makes the daemon do unbounded work.
+    #[test]
+    fn count_arguments_are_coerced_and_capped() {
+        let n = |v: serde_json::Value, def: usize| arg_num(&serde_json::json!({"n": v}), "n", def);
+        assert_eq!(n(serde_json::json!(20), 5), 20, "a plain number");
+        assert_eq!(n(serde_json::json!(20.0), 5), 20, "a float that is whole");
+        assert_eq!(n(serde_json::json!("20"), 5), 20, "a numeric string");
+        assert_eq!(n(serde_json::json!(" 20 "), 5), 20, "a padded numeric string");
+        assert_eq!(n(serde_json::json!(null), 7), 7, "absent uses the default");
+        assert_eq!(n(serde_json::json!("abc"), 7), 7, "junk uses the default");
+        assert_eq!(n(serde_json::json!(-5), 7), 7, "negative uses the default");
+        assert_eq!(n(serde_json::json!(0), 7), 7, "zero uses the default");
+        assert_eq!(n(serde_json::json!(1e9), 5), 1000, "a huge count is capped at 1000");
+        assert_eq!(n(serde_json::json!(f64::INFINITY), 5), 5, "infinity is not finite, so default");
+    }
+
+    /// A cursor is an offset the client echoes back. A bad one must be an error rather
+    /// than a silent 0, or a paging loop restarts from the beginning and never ends.
+    #[test]
+    fn cursors_are_validated_not_guessed() {
+        let c = |v: serde_json::Value| cursor(&serde_json::json!({"cursor": v}));
+        assert_eq!(c(serde_json::json!(null)).unwrap(), 0, "absent is the first page");
+        assert_eq!(c(serde_json::json!(5)).unwrap(), 5, "a number is an offset");
+        assert_eq!(c(serde_json::json!("5")).unwrap(), 5, "a numeric string works");
+        assert_eq!(c(serde_json::json!("   ")).unwrap(), 0, "blank is the first page");
+        assert!(c(serde_json::json!("abc")).is_err(), "junk must be an error, not page 1");
+        assert!(c(serde_json::json!([1, 2])).is_err(), "a list is not a cursor");
+        assert!(c(serde_json::json!({"at": 3})).is_err(), "an object is not a cursor");
+    }
+
+    /// String arguments are looked up under several accepted spellings, because clients
+    /// disagree about the key name - and the first present wins so a caller can override
+    /// an alias.
+    #[test]
+    fn string_arguments_accept_the_documented_aliases() {
+        let a = serde_json::json!({"q": "from-q", "query": "from-query", "pattern": null});
+        // The ORDER of the key list decides precedence: the first key present wins, so
+        // a caller listing "q" first gets "q" even when "query" also exists.
+        assert_eq!(arg_str(&a, &["q", "query"]).as_deref(), Some("from-q"));
+        assert_eq!(arg_str(&a, &["query", "q"]).as_deref(), Some("from-query"));
+        assert_eq!(arg_str(&a, &["query"]).as_deref(), Some("from-query"), "the named key wins");
+        assert_eq!(arg_str(&a, &["pattern"]), None, "an explicit null is absent");
+        assert_eq!(arg_str(&a, &["nope"]), None, "an unknown key is absent");
+    }
+
+    /// multi_grep accepts a list, a single string, or a JSON list in a string. An empty
+    /// pattern must be dropped rather than matched, since "" matches every line.
+    #[test]
+    fn patterns_are_normalised_and_empties_dropped() {
+        let p = |v: serde_json::Value| patterns(&v);
+        assert_eq!(p(serde_json::json!(["a", "b"])), vec!["a", "b"]);
+        assert_eq!(p(serde_json::json!(["a", "", "b"])), vec!["a", "b"], "empty patterns dropped");
+        assert_eq!(p(serde_json::json!("single")), vec!["single"]);
+        assert_eq!(p(serde_json::json!("[\"x\",\"y\"]")), vec!["x", "y"], "a JSON list inside a string is unpacked");
+        assert!(p(serde_json::json!("")).is_empty(), "an empty string is no pattern");
+        assert!(p(serde_json::json!(42)).is_empty(), "a number is no pattern");
+    }
 }
