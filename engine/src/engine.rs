@@ -222,7 +222,7 @@ struct Shared {
     /// was enough to time one out on a loaded CI runner while a grep held the CPU, and
     /// on a 794k-entry index it would be far worse. Keyed on `event_id`, so it is
     /// recomputed exactly when the index changes.
-    roots_cache: Mutex<Option<(u64, Vec<serde_json::Value>)>>,
+    roots_cache: Mutex<Option<Vec<serde_json::Value>>>,
     /// Wakes the apply loop; an empty batch is a no-op wake-up.
     wake: Sender<Vec<fsevents::Event>>,
     save_requested: AtomicBool,
@@ -519,6 +519,7 @@ impl Engine {
                 },
             };
             *s.live.write().unwrap_or_else(|p| p.into_inner()) = Some(live);
+            s.refresh_roots();
             s.early.lock().unwrap_or_else(|p| p.into_inner()).clear();
             *s.loading.0.lock().unwrap_or_else(|p| p.into_inner()) = false;
             s.loading.1.notify_all();
@@ -755,19 +756,23 @@ impl Shared {
     /// the answer had to be guessed. This walks the base index once and buckets by
     /// the first path component under the scan root.
     fn entries_by_root(&self) -> Vec<serde_json::Value> {
-        // Cheap path first: the generation is read under the same lock the walk needs.
-        let generation = self.live.read().ok().and_then(|g| g.as_ref().map(|l| l.event_id)).unwrap_or(0);
-        if let Ok(cache) = self.roots_cache.lock()
-            && let Some((at, v)) = cache.as_ref()
-            && *at == generation
-        {
-            return v.clone();
-        }
+        // A pure read. The walk runs when the base index is REPLACED (load, rebuild,
+        // compaction), not here.
+        //
+        // It used to run inline, which was wrong twice over: `status` paid an O(entries)
+        // walk on every call, and it held the live read lock for the duration. Under a
+        // concurrent grep on a loaded CI runner that combination timed a status request
+        // out at 5 s - the cost was invisible locally (95 ms for 20k entries) and only
+        // showed up when something else wanted the CPU or the lock.
+        self.roots_cache.lock().ok().and_then(|c| c.clone()).unwrap_or_default()
+    }
+
+    /// Recompute the per-folder counts. Called where the base index changes.
+    fn refresh_roots(&self) {
         let computed = self.compute_entries_by_root();
         if let Ok(mut cache) = self.roots_cache.lock() {
-            *cache = Some((generation, computed.clone()));
+            *cache = Some(computed);
         }
-        computed
     }
 
     fn compute_entries_by_root(&self) -> Vec<serde_json::Value> {
@@ -931,6 +936,7 @@ impl Shared {
             log(format!("following the owner's save: {} entries, replaying since {}", base.n, base.event_id));
             self.watch(base.event_id);
             *self.live.write().unwrap_or_else(|p| p.into_inner()) = Some(Live::new(base));
+            self.refresh_roots();
         }
         let cdir = self.dir.join("content");
         let changed = std::fs::metadata(&cdir).and_then(|m| m.modified()).ok();
@@ -1371,6 +1377,7 @@ fn compact(shared: &Shared) {
     let bytes = idx.bytes();
     let took = t.elapsed();
     *shared.live.write().unwrap_or_else(|p| p.into_inner()) = Some(Live::new(idx));
+    shared.refresh_roots();
     release_memory();
     {
         let mut cs = shared.compact.lock().unwrap_or_else(|p| p.into_inner());
