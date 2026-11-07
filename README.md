@@ -464,7 +464,7 @@ not move.
 
 ### Known gap: the shipped app is behind this tree
 
-`/Applications/UltraSearch.app` is 0.2.1; this tree is 0.3.0. The 0.3.0 work is observability,
+`/Applications/UltraSearch.app` is 0.2.1; this tree is 0.3.1. This tree's work since 0.2.1 is observability,
 tests, guards and docs, plus two behaviour changes (the ignore-file forms and the install
 guard). Shipping it means rebuilding the signed bundle, and Full Disk Access is granted to the
 current signature - so a swap without re-granting FDA would leave the daemon unable to read
