@@ -468,6 +468,22 @@ not move.
 
 ### The shipped app is current
 
+#### A trap: a CLI-spawned daemon has no Full Disk Access
+
+`connect()` is connect-or-spawn, so any CLI call made while no daemon is running will start
+one. That process inherits the *terminal's* TCC context, not the app bundle's, so it logs
+`no Full Disk Access: skipping consent-gated folders` — and because it takes the index lock
+first, the LaunchAgent's instance exits with `another ultrasearch daemon is running`. The
+result is a daemon that answered, indexes less, and holds the lock so the correctly-
+entitled one cannot start.
+
+Seen during this upgrade: `verify-fda.sh` reported "unavailable" while the app's grant was
+intact, purely because a daemon spawned from a shell was running. The fix at the machine is
+`launchctl bootout` + `bootstrap` with no stray processes; the durable fix is for the
+spawned daemon to notice it lacks the gift and defer, which is not done yet.
+
+
+
 `/Applications/UltraSearch.app` now runs this tree's engine build, and Full Disk Access
 survived the upgrade.
 
