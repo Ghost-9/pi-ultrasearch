@@ -31,19 +31,26 @@ jobs:
       # which turned this step red for a reason unrelated to the code - twice in one
       # session, and once on a commit that changed only a test. The CLI is the same
       # scanner under MIT, so the scan is unchanged and the gate is honest again.
-      - name: Secret scan (gitleaks CLI)
+      # Two sources, because one CDN having a bad day must not turn a secret scan red.
+      # gitleaks/gitleaks-action now refuses to run without a paid licence for
+      # organisation accounts, and the GitHub release CDN answered 504 repeatedly
+      # (including across five retries) while this step was the CLI. So: Homebrew when it
+      # is there, the pinned release tarball otherwise, and the scan itself is unchanged.
+      - name: Secret scan (gitleaks)
         run: |
-          VERSION=8.28.0
-          # Retried: the release CDN answers 504 under load, which turned a secret scan
-          # red for a network reason twice in one session. A scanner that cannot be
-          # downloaded must not read as "a secret was found", and a transient 5xx is not
-          # worth a failed run.
-          curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_darwin_arm64.tar.gz" \
-            -o /tmp/gitleaks.tgz
-          tar -xzf /tmp/gitleaks.tgz gitleaks
-          ./gitleaks detect --no-banner --redact --config .gitleaks.toml
-
+          if command -v gitleaks >/dev/null 2>&1; then
+            echo "using gitleaks already on PATH"
+          elif command -v brew >/dev/null 2>&1; then
+            brew install gitleaks
+          else
+            VERSION=8.28.0
+            curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors \
+              "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_darwin_arm64.tar.gz" \
+              -o /tmp/gitleaks.tgz
+            tar -xzf /tmp/gitleaks.tgz gitleaks
+          fi
+          gitleaks version
+          gitleaks detect --no-banner --redact --config .gitleaks.toml
       - name: Install Dependencies
         run: npm ci
 
