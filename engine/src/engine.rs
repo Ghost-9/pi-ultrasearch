@@ -223,6 +223,10 @@ struct Shared {
     /// on a 794k-entry index it would be far worse. Keyed on `event_id`, so it is
     /// recomputed exactly when the index changes.
     roots_cache: Mutex<Option<Vec<serde_json::Value>>>,
+    /// A refresh is already in flight; do not stack them.
+    roots_pending: std::sync::atomic::AtomicBool,
+    /// This Shared, weakly: the refresh runs on a thread and needs one.
+    me: std::sync::OnceLock<std::sync::Weak<Shared>>,
     /// Wakes the apply loop; an empty batch is a no-op wake-up.
     wake: Sender<Vec<fsevents::Event>>,
     save_requested: AtomicBool,
@@ -453,6 +457,8 @@ impl Engine {
         let content_ready = AtomicBool::new(!owner || !content.segs.is_empty());
         let shared = Arc::new(Shared {
             roots_cache: Mutex::new(None),
+            roots_pending: std::sync::atomic::AtomicBool::new(false),
+            me: std::sync::OnceLock::new(),
             live: RwLock::new(None),
             loading: (Mutex::new(loading.is_some()), Condvar::new()),
             content: RwLock::new(content),
@@ -481,6 +487,7 @@ impl Engine {
             keep: crate::env::scan_root(),
             started: std::time::Instant::now(),
         });
+        let _ = shared.me.set(std::sync::Arc::downgrade(&shared));
         if owner {
             start_content(&shared);
         }
@@ -769,10 +776,38 @@ impl Shared {
 
     /// Recompute the per-folder counts. Called where the base index changes.
     fn refresh_roots(&self) {
-        let computed = self.compute_entries_by_root();
-        if let Ok(mut cache) = self.roots_cache.lock() {
-            *cache = Some(computed);
+        // On a BACKGROUND thread, never on the caller's.
+        //
+        // The walk is O(entries), and the callers are the places the base index is
+        // replaced - which is the apply loop, i.e. exactly the path that decides event
+        // lag. Running it inline made the follower fall behind during churn: the CI soak
+        // caught lag reaching 78,859 against a 50,000 ceiling, on a change that had made
+        // `status` cheap by moving the same walk here. The cost did not disappear; it
+        // moved onto the hot path.
+        //
+        // So: hand it to a thread, keep at most one in flight, and let `status` read
+        // whatever the last completed walk produced. A slightly stale folder breakdown is
+        // worth not stalling the follower.
+        if self.roots_pending.swap(true, std::sync::atomic::Ordering::AcqRel) {
+            return;
         }
+        // Without a Weak (a Shared built directly in a test) do it inline: correctness
+        // first, and there is no runtime to protect in that case.
+        let Some(me) = self.me.get().and_then(|w| w.upgrade()) else {
+            let computed = self.compute_entries_by_root();
+            if let Ok(mut cache) = self.roots_cache.lock() {
+                *cache = Some(computed);
+            }
+            self.roots_pending.store(false, std::sync::atomic::Ordering::Release);
+            return;
+        };
+        let _ = std::thread::Builder::new().name("ultrasearch-roots".into()).spawn(move || {
+            let computed = me.compute_entries_by_root();
+            if let Ok(mut cache) = me.roots_cache.lock() {
+                *cache = Some(computed);
+            }
+            me.roots_pending.store(false, std::sync::atomic::Ordering::Release);
+        });
     }
 
     fn compute_entries_by_root(&self) -> Vec<serde_json::Value> {
