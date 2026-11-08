@@ -86,7 +86,7 @@ type Rules = (Vec<Vec<u8>>, Vec<Vec<u8>>);
 /// harness does) got the first root's `.gitignore` and silently no pruning. That surfaced
 /// as an order-dependent failure in the release job: `dir/*` passed when its file ran
 /// first and failed when another suite had warmed the cache with a different root.
-static EXCLUDE: std::sync::Mutex<Option<(Vec<u8>, Rules)>> = std::sync::Mutex::new(None);
+static EXCLUDE: std::sync::Mutex<Option<(Vec<u8>, std::sync::Arc<Rules>)>> = std::sync::Mutex::new(None);
 
 /// Parse the ignore rules a repository keeps at its root.
 ///
@@ -143,7 +143,12 @@ fn exclude_set() -> std::sync::Arc<Rules> {
         && let Some((at, rules)) = g.as_ref()
         && *at == root
     {
-        return std::sync::Arc::new(rules.clone());
+        // Clone the ARC, never the rules. An earlier version cloned the rules
+        // themselves, which deep-copies every name and suffix - and this runs once per
+        // directory entry, so during churn it turned the walk quadratic. The daemon
+        // stopped answering `status` within seconds and the soak reported "no sample was
+        // taken"; the cost was invisible on a static tree.
+        return std::sync::Arc::clone(rules);
     }
     let mut names: Vec<Vec<u8>> = EXCLUDE_DEFAULT.iter().map(|d| d.to_vec()).collect();
     names.extend(crate::env::exclude_names());
@@ -154,11 +159,11 @@ fn exclude_set() -> std::sync::Arc<Rules> {
     for file in [".gitignore", ".ignore"] {
         read_ignore_file(&dir.join(file), &mut names, &mut suffixes);
     }
-    let rules: Rules = (names, suffixes);
+    let rules = std::sync::Arc::new((names, suffixes));
     if let Ok(mut g) = EXCLUDE.lock() {
-        *g = Some((root, rules.clone()));
+        *g = Some((root, std::sync::Arc::clone(&rules)));
     }
-    std::sync::Arc::new(rules)
+    rules
 }
 
 /// True when a directory entry's name is a cache directory that must not be
