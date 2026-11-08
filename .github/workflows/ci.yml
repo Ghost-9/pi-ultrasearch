@@ -34,8 +34,14 @@ jobs:
       - name: Secret scan (gitleaks CLI)
         run: |
           VERSION=8.28.0
-          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_darwin_arm64.tar.gz" \
-            | tar -xz gitleaks
+          # Retried: the release CDN answers 504 under load, which turned a secret scan
+          # red for a network reason twice in one session. A scanner that cannot be
+          # downloaded must not read as "a secret was found", and a transient 5xx is not
+          # worth a failed run.
+          curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_darwin_arm64.tar.gz" \
+            -o /tmp/gitleaks.tgz
+          tar -xzf /tmp/gitleaks.tgz gitleaks
           ./gitleaks detect --no-banner --redact --config .gitleaks.toml
 
       - name: Install Dependencies
