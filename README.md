@@ -466,31 +466,29 @@ every sample and asserts that file is findable - without that check the soak wou
 daemon that had stopped following events entirely, because `entries` is the base index and does
 not move.
 
-### Known gap: the shipped app is behind this tree
+### The shipped app is current
 
-`/Applications/UltraSearch.app` is 0.2.1; this tree is 0.3.4. This tree's work since 0.2.1 is observability,
-tests, guards and docs, plus two behaviour changes (the ignore-file forms and the install
-guard). Shipping it means rebuilding the signed bundle, and Full Disk Access is granted to the
-current signature - so a swap without re-granting FDA would leave the daemon unable to read
-most of the disk. That is a deliberate deferral, not an oversight.
+`/Applications/UltraSearch.app` now runs this tree's engine build, and Full Disk Access
+survived the upgrade.
 
-The CI workflow now runs two jobs. `test-macos` (the reference platform) executes
-`typecheck → build → npm test → package smoke → cargo test --release → test:engine → test:gate`, the last on a real
-isolated daemon. `test-linux` runs `typecheck → build → npm test → package smoke → test:gate` (hermetic part; the
-live part skips without a daemon) plus a no-daemon CLI smoke test; a third, non-gating job archives the Linux
-daemon compiler output as a known blocker (`docs/linux-daemon-blockers.md`). The package smoke step runs
-`npm pack`, asserts the tarball contains `package/dist/bin/cli.js`, extracts it and runs the packed CLI's `--help`.
-The hermetic mock-socket gate enforces p95 < 10 ms (search) and < 5 ms (grep) on the client IPC path.
+That is worth recording because it nearly did not. The app's version string comes from
+`engine/Cargo.toml`, which is pinned at **0.2.1 on purpose** - the engine is a renamed fork
+of upstream `fsearch` v0.2.1 and that number is its provenance, not a product version. The
+product version lives in `package.json` (0.3.4). So a freshly installed app still reports
+0.2.1, and the honest check is not the version string but the behaviour: the same fixture
+that indexed 35 entries with the old binary indexes 3 with this one, because `.git` is
+pruned.
 
-### Service levels
+The upgrade path that preserves the grant: `scripts/install.sh` with
+`ULTRASEARCH_CODESIGN_IDENTITY` set to the same Apple Development certificate the app was
+originally signed with. TCC matches the designated requirement
+`identifier "com.pi.ultrasearch" and anchor apple generic and certificate leaf[subject.CN] = ...`,
+which contains **no cdhash** - so re-signing with the same identity keeps the requirement
+byte-identical and the grant intact. The ad-hoc default (`-`) instead writes
+`=designated => identifier "com.pi.ultrasearch"`, which drops the certificate clause and
+loses the grant. Verified after this upgrade: requirement identical, `scripts/verify-fda.sh`
+reports granted, and the daemon answers `scan_root_error` (a field 0.2.1 did not have).
 
-The live gate calibrates against the bare daemon socket in the same run
-(`ceiling = max(12 ms, rawP95 × 2 + 1)`) and asserts client overhead < 3 ms; a cold/stale window can only relax the
-absolute ceiling, up to a hard blow-up cap. The contracts this repository promises per scope (warm path, cold/global
-with `budget_ms`, content grep, and the explicitly unmeasured scan path), the evidence each one is enforced by, and the
-release artifact that carries it are in **[`docs/sla.md`](docs/sla.md)**.
-
----
 
 ## Known limits & gaps
 

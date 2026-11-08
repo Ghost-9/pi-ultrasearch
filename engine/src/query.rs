@@ -4509,4 +4509,97 @@ mod tests {
         let key = |h: &Hit| (h.score, h.idx);
         assert_eq!(got.iter().map(key).collect::<Vec<_>>(), want.iter().map(key).collect::<Vec<_>>());
     }
+    fn parsed(s: &str) -> Query {
+        Query::parse(s, "/Users/x").unwrap_or_else(|e| panic!("{s:?} must parse: {e}"))
+    }
+
+    /// `limit:` is parsed as given here; the CAP lives in the MCP argument layer
+    /// (`mcp::arg_num`, 1000), not in the parser. Worth pinning separately, because a
+    /// reader who assumes the parser clamps would be wrong and might remove the real cap.
+    #[test]
+    fn limit_is_parsed_here_and_capped_elsewhere() {
+        assert_eq!(parsed("a limit:5").limit, 5, "a stated limit is honoured");
+        assert_eq!(parsed("a limit:999999").limit, 999999, "the parser does NOT clamp - mcp::arg_num does");
+        assert_eq!(parsed("a").limit, 50, "the default applies when absent");
+    }
+
+    /// `ext:` accepts several spellings and both dot/no-dot, because clients disagree.
+    #[test]
+    fn extension_filters_normalise() {
+        let q = parsed("a ext:rs");
+        assert!(!q.exts.is_empty(), "ext:rs must produce a filter");
+        assert_eq!(q.exts, parsed("a ext:.rs").exts, "a leading dot is optional");
+        assert_eq!(q.exts, parsed("a ext:RS").exts, "the extension folds case");
+    }
+
+    /// A negated extension is kept apart from the positive one: `!*.md` must not be
+    /// treated as "include md".
+    #[test]
+    fn negated_extensions_are_separate_from_positive_ones() {
+        let q = parsed("a !*.md");
+        assert!(q.not_exts.iter().any(|e| e == b"md"), "the negation is recorded: {:?}", q.not_exts);
+        assert!(q.exts.is_empty(), "and it is not also an inclusion: {:?}", q.exts);
+    }
+
+    /// `kind:` selects a directory entry's type, and an unknown kind is refused rather
+    /// than silently matching everything - a filter that matches all equals no filter.
+    #[test]
+    fn an_unknown_kind_is_refused() {
+        assert!(Query::parse("a kind:nonsense", "/Users/x").is_err(), "an unknown kind must be refused");
+        for good in ["file", "f", "dir", "folder", "d", "link", "symlink", "l"] {
+            let q = Query::parse(&format!("a kind:{good}"), "/Users/x").unwrap_or_else(|e| panic!("kind:{good} must parse: {e}"));
+            assert!(q.kind.is_some(), "kind:{good} must set a kind filter");
+        }
+    }
+
+    /// `in:` sets the scope, and `~` expands against the supplied home. The parser does
+    /// NOT restrict the scope to the home: enforcement is at response time
+    /// (`server::censor_files` keeps results inside the requested root), so a parser that
+    /// also refused would be enforcing policy in the wrong layer - and would stop a caller
+    /// deliberately searching a volume mounted outside home.
+    #[test]
+    fn a_scope_is_recorded_and_home_is_expanded() {
+        let q = parsed("a in:~/projects/*");
+        let scope = q.scope.expect("the scope is recorded");
+        let s = String::from_utf8_lossy(&scope);
+        assert!(s.starts_with("/Users/x"), "~ expands against the home: {s}");
+        assert!(!s.contains('~'), "no tilde survives expansion: {s}");
+
+        // The scope is RESOLVED through symlinks, so `/etc` becomes `/private/etc` on
+        // macOS. That matters: a symlinked folder cannot be used to make the recorded
+        // scope differ from the path results are filtered against.
+        let etc = parsed("a in:/etc");
+        let recorded = String::from_utf8_lossy(etc.scope.as_deref().unwrap_or(b"")).into_owned();
+        assert!(recorded == "/private/etc" || recorded == "/etc", "the scope is realpath-resolved, got {recorded}");
+    }
+
+    /// Bare words become tokens, and a quoted phrase stays one token rather than being
+    /// split - otherwise "exact phrase" would search for both words anywhere.
+    #[test]
+    fn quoted_words_stay_together() {
+        let q = parsed("\"exact phrase\" other");
+        assert_eq!(q.tokens.len(), 2, "the phrase plus the bare word");
+        // Tokens hold raw bytes, so read them back rather than inspecting Debug output.
+        let first = String::from_utf8_lossy(&q.tokens[0].text).into_owned();
+        let second = String::from_utf8_lossy(&q.tokens[1].text).into_owned();
+        assert_eq!(first, "exact phrase", "a quoted phrase is ONE token");
+        assert_eq!(second, "other", "a bare word is its own token");
+    }
+
+    /// An empty or space-only query parses to no tokens rather than erroring, so an empty
+    /// box is an empty search and not a crash. A TAB is deliberately not a separator - the
+    /// splitter treats only spaces as word breaks - so it becomes a token, which this test
+    /// records rather than pretends away.
+    #[test]
+    fn a_blank_query_has_no_tokens() {
+        for s in ["", "   ", "    "] {
+            let q = parsed(s);
+            assert!(q.tokens.is_empty(), "{s:?} must yield no tokens: {:?}", q.tokens);
+        }
+        // Only spaces separate words. A tab or newline inside a query becomes part of a
+        // token rather than splitting it, which is pinned here because it is surprising.
+        for s in ["\t", "\n"] {
+            assert!(!parsed(s).tokens.is_empty(), "{s:?} is a token, not a separator");
+        }
+    }
 }

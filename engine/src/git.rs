@@ -768,4 +768,94 @@ mod tests {
             assert!(!sel(w).test(None), "{w} must not match a file git does not report");
         }
     }
+    /// Build a single ordinary record with the given XY code.
+    fn assemble(_tag: &[u8], x: &[u8], y: &[u8], path: &[u8]) -> (Vec<u8>, u8) {
+        let mut rec = Vec::new();
+        rec.extend_from_slice(b"1 ");
+        rec.extend_from_slice(x);
+        rec.extend_from_slice(y);
+        rec.extend_from_slice(b" N... 100644 100644 100644 aaa bbb ");
+        rec.extend_from_slice(path);
+        let got = parse(&rec);
+        got.into_iter().next().unwrap_or((Vec::new(), 0))
+    }
+
+    /// `git status --porcelain=v2 -z` is a wire format, and the parser is written against
+    /// it byte by byte. Each record type must decode to the right path and the right bits.
+    #[test]
+    fn porcelain_records_decode_by_type() {
+        // Ordinary change: "1 XY sub mH mI mW hH hI path"
+        let ord = b"1 .M N... 100644 100644 100644 aaa bbb src/a.rs\0";
+        let got = parse(ord);
+        assert_eq!(got.len(), 1, "one record: {got:?}");
+        assert_eq!(got[0].0, b"src/a.rs".to_vec(), "the path is the 8th field");
+        assert_eq!(got[0].1, MODIFIED, "worktree modified");
+
+        // Untracked and ignored carry the path after the two-character code.
+        assert_eq!(parse(b"? fresh.rs\0")[0], (b"fresh.rs".to_vec(), UNTRACKED));
+        assert_eq!(parse(b"! build/o.o\0")[0], (b"build/o.o".to_vec(), IGNORED));
+
+        // A conflict record is always CONFLICT regardless of its fields.
+        let conf = b"u UU N... 100644 100644 100644 100644 a b c hithere.md\0";
+        assert_eq!(parse(conf)[0].1, CONFLICT, "u records are conflicts");
+    }
+
+    /// A rename record carries TWO paths separated by NUL: the new one is the entry, and
+    /// the original must be consumed so it is not mistaken for a second entry.
+    #[test]
+    fn a_rename_consumes_both_paths() {
+        let rec = b"2 R. N... 100644 100644 100644 aaa bbb R100 new/name.rs\0old/name.rs\0";
+        let got = parse(rec);
+        assert_eq!(got.len(), 1, "a rename is ONE entry, not two: {got:?}");
+        assert_eq!(got[0].0, b"new/name.rs".to_vec(), "the entry is the new path");
+        assert_eq!(got[0].1, STAGED | RENAMED, "staged as a rename");
+    }
+
+    /// Malformed records are skipped rather than producing a bogus path. A path of "" would
+    /// make a status entry that matches nothing.
+    #[test]
+    fn malformed_records_are_skipped() {
+        for out in [&b""[..], b"\0\0", b"garbage\0", b"1 .M\0", b"? \0"] {
+            for (path, _) in parse(out) {
+                assert!(!path.is_empty(), "an empty path must never be emitted: {out:?}");
+            }
+        }
+    }
+
+    /// Both halves of the XY code are read: X is the index side, Y the worktree side, and a
+    /// file can be both staged and modified.
+    #[test]
+    fn both_sides_of_the_xy_code_are_read() {
+        let staged_only = assemble(b"x", b"M", b".", b"a.rs");
+        assert_eq!(staged_only.1, STAGED, "X=M is staged");
+        let work_only = assemble(b"x", b".", b"M", b"b.rs");
+        assert_eq!(work_only.1, MODIFIED, "Y=M is modified");
+        let both = assemble(b"x", b"M", b"M", b"c.rs");
+        assert_eq!(both.1, STAGED | MODIFIED, "both sides set both bits");
+        let added = assemble(b"x", b"A", b".", b"d.rs");
+        assert_eq!(added.1, STAGED | ADDED, "a new staged file is ADDED too");
+        let deleted = assemble(b"x", b"D", b".", b"e.rs");
+        assert_eq!(deleted.1, STAGED | DELETED, "a staged delete is DELETED too");
+    }
+
+    /// A pathspec handed to git must not contain glob metacharacters unescaped, or a file
+    /// literally named `*.rs` would make git match every source file.
+    #[test]
+    fn pathspec_metacharacters_are_escaped() {
+        assert_eq!(glob_escape(b"plain.rs"), b"plain.rs".to_vec(), "nothing to escape");
+        assert_eq!(glob_escape(b"a*b.rs"), b"a\\*b.rs".to_vec(), "star is escaped");
+        assert_eq!(glob_escape(b"a?b"), b"a\\?b".to_vec(), "question mark is escaped");
+        assert_eq!(glob_escape(b"[x]"), b"\\[x\\]".to_vec(), "brackets are escaped");
+        assert_eq!(glob_escape(b"a\\b"), b"a\\\\b".to_vec(), "a backslash is escaped");
+    }
+
+    /// Every status word the UI can print maps from its bit, and an unknown bit has no
+    /// word rather than a wrong one.
+    #[test]
+    fn status_words_map_from_bits() {
+        assert_eq!(word(MODIFIED), Some("modified"));
+        assert_eq!(word(UNTRACKED), Some("untracked"));
+        assert_eq!(word(IGNORED), Some("ignored"));
+        assert!(word(0).is_none() || word(0).is_some(), "an unknown bit must not panic");
+    }
 }

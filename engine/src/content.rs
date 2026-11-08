@@ -5318,4 +5318,85 @@ mod scope_prune_tests {
         assert!(!scope.out_of_scope(&keep, false), "kept file was pruned");
         let _ = std::fs::remove_dir_all(&root);
     }
+    /// The varint codec writes the on-disk segment format, so a round-trip failure is a
+    /// corrupt index rather than a wrong answer. Every boundary value must survive.
+    #[test]
+    fn varint_round_trips_every_boundary() {
+        for v in [0u32, 1, 0x7f, 0x80, 0x3fff, 0x4000, 0x1f_ffff, 0x20_0000, u32::MAX / 2, u32::MAX] {
+            let mut buf = Vec::new();
+            put_varint(&mut buf, v);
+            let (back, used) = varint(&buf);
+            assert_eq!(back, v, "value {v} must round-trip");
+            assert_eq!(used, buf.len(), "the decoder must consume exactly what was written for {v}");
+        }
+    }
+
+    /// A value below 0x80 is one byte, so the common case never pays for the escape form.
+    #[test]
+    fn small_values_are_a_single_byte() {
+        for v in [0u32, 1, 0x7e, 0x7f] {
+            let mut buf = Vec::new();
+            put_varint(&mut buf, v);
+            assert_eq!(buf.len(), 1, "{v} must encode in one byte, got {buf:?}");
+        }
+        let mut buf = Vec::new();
+        put_varint(&mut buf, 0x80);
+        assert_eq!(buf.len(), 2, "0x80 needs the continuation form");
+    }
+
+    /// A truncated varint must not panic or read past the buffer. A short segment is a
+    /// corrupt file, and the reader has to survive it.
+    #[test]
+    fn a_truncated_varint_is_survivable() {
+        for b in [&b""[..], &b"\x80"[..], &b"\x80\x80"[..], &b"\x80\x80\x80\x80\x80"[..]] {
+            let (v, used) = varint(b);
+            assert!(used <= b.len(), "the decoder must not consume past the buffer: {b:?}");
+            let _ = v;
+        }
+    }
+
+    /// The content hash identifies a document's bytes. It must be stable across calls (or
+    /// the index would never deduplicate) and change when the content changes.
+    #[test]
+    fn the_content_hash_is_stable_and_content_sensitive() {
+        let a = content_hash(b"the quick brown fox");
+        assert_eq!(a, content_hash(b"the quick brown fox"), "the same bytes hash the same");
+        assert_ne!(a, content_hash(b"the quick brown fix"), "a changed byte changes the hash");
+        assert_ne!(a, content_hash(b"the quick brown fox "), "trailing space matters");
+        // (assert_ne! treats a 3rd positional arg as a format string, so compare apart.)
+        assert_ne!(content_hash(b""), content_hash(b"a"), "empty differs from non-empty");
+    }
+
+    /// Different lengths must not collide through the length-mixing step, which is the
+    /// classic way a non-cryptographic hash loses short inputs.
+    #[test]
+    fn lengths_do_not_collide() {
+        let mut seen = std::collections::HashSet::new();
+        for n in 0..64usize {
+            let body = vec![b'x'; n];
+            assert!(seen.insert(content_hash(&body)), "length {n} collided with an earlier one");
+        }
+    }
+
+    /// Trigrams are sorted and deduplicated, because the bloom filter counts on a
+    /// canonical list - duplicates would inflate the filter and unsorted output would make
+    /// it order-dependent.
+    #[test]
+    fn trigrams_are_canonical() {
+        let t = trigrams_small(b"aaaa");
+        assert_eq!(t.len(), 1, "one distinct trigram from 'aaaa': {t:?}");
+        let t = trigrams_small(b"abcabcabc");
+        let mut sorted = t.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(t, sorted, "the output is already sorted and unique: {t:?}");
+        assert!(trigrams_small(b"ab").is_empty(), "too short for a trigram");
+    }
+
+    /// Case folding means `ABC` and `abc` share trigrams, so a case-insensitive grep is a
+    /// filter hit rather than a miss.
+    #[test]
+    fn trigrams_fold_case() {
+        assert_eq!(trigrams_small(b"ABC"), trigrams_small(b"abc"), "case must not change the trigram set");
+    }
 }

@@ -39,6 +39,18 @@ impl DenyList {
         DenyList::default()
     }
 
+    /// A list built from explicit path prefixes.
+    ///
+    /// The other constructors read a configuration source, which left no way to build a
+    /// deny list programmatically - so the daemon's enforcement (`server::guard_denied`,
+    /// `server::censor_files`) could not be tested at all, because `server.rs` is a binary
+    /// and a `#[cfg(test)]` helper in the library is not compiled for the binary's tests.
+    /// This is a real constructor, not a test hook: an embedder may want to deny a folder
+    /// without writing a file.
+    pub fn from_prefixes(prefixes: &[&str]) -> DenyList {
+        DenyList { prefixes: prefixes.iter().map(|p| p.as_bytes().to_vec()).collect(), configured: true }
+    }
+
     /// True when a deny source is configured (even if it lists nothing).
     pub fn configured(&self) -> bool {
         self.configured

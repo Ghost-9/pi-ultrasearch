@@ -1604,4 +1604,68 @@ mod tests {
              reason it cannot fail, or it should be a ? or an if-let."
         );
     }
+    /// `entries_by_top` reports at most `limit` buckets, largest first. An unbounded report
+    /// on a real index is thousands of rows nobody reads.
+    #[test]
+    fn entries_by_top_respects_its_limit() {
+        let idx = small_tree();
+        let all = idx.entries_by_top(1000);
+        let two = idx.entries_by_top(2);
+        assert!(two.len() <= 2, "the limit bounds the rows: {}", two.len());
+        assert!(two.len() <= all.len());
+        // The rows returned are the largest ones, not an arbitrary subset.
+        for (i, (_, n)) in two.iter().enumerate() {
+            assert_eq!(*n, all[i].1, "row {i} must be the {i}th largest");
+        }
+    }
+
+    /// A limit of zero returns no buckets rather than panicking or returning everything.
+    #[test]
+    fn a_zero_limit_returns_nothing() {
+        let idx = small_tree();
+        assert!(idx.entries_by_top(0).is_empty(), "zero rows for a zero limit");
+    }
+
+    /// The char-class counts must agree with the entries actually present: the class tables
+    /// are the prefilter every name query goes through, so a count that disagrees with the
+    /// tree would make the filter skip real matches.
+    #[test]
+    fn class_counts_agree_with_the_tree() {
+        let idx = small_tree();
+        let counts = idx.class_counts();
+        let total: u32 = counts.iter().sum();
+        assert!(total > 0, "some class must be non-empty for a tree with names: {counts:?}");
+        // Every entry name is classified, so the total cannot exceed the entry count by
+        // more than the interning duplicates allow.
+        assert!(total as usize <= idx.u * CLASSES, "counts ({total}) cannot exceed names x classes ({})", idx.u * CLASSES);
+    }
+
+    /// `blocks` walks a parent range without repeating or skipping, which is what makes the
+    /// dependent-load path trustworthy.
+    #[test]
+    fn blocks_covers_the_range_exactly_once() {
+        let idx = small_tree();
+        let mut seen = Vec::new();
+        for (range, _block) in idx.blocks(0, idx.d) {
+            for i in range {
+                seen.push(i);
+            }
+        }
+        assert_eq!(seen, (0..idx.d).collect::<Vec<_>>(), "every index in the range appears once, in order");
+        // An empty range yields nothing.
+        let empty: Vec<_> = idx.blocks(0, 0).collect();
+        assert!(empty.is_empty(), "an empty range yields no blocks");
+    }
+
+    /// The name bitmap has one word per 64 names, so its length is derived from the name
+    /// count. Getting that wrong reads uninitialised bits as if they were real.
+    #[test]
+    fn bitmaps_are_sized_for_the_name_count() {
+        let idx = small_tree();
+        let words = idx.words;
+        assert_eq!(words, idx.u.div_ceil(64), "one word per 64 names, rounded up");
+        // Bit 0 exists and answers without panicking.
+        let bm = idx.bitmap(0);
+        assert_eq!(bm.len(), words, "every bitmap is `words` long");
+    }
 }

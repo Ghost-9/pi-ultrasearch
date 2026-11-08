@@ -1279,4 +1279,84 @@ mod tests {
         assert!(r.is_err(), "an impossible socket path must be an error");
         assert!(started.elapsed() < std::time::Duration::from_secs(2), "it must not be retried: took {:?}", started.elapsed());
     }
+
+    /// A scope inside a denied folder must be refused before any work happens. This is
+    /// the daemon's enforcement point: if it passes, every layer behind it serves the
+    /// denied path.
+    #[test]
+    fn a_denied_scope_is_refused() {
+        let deny = DenyList::from_prefixes(&["/secret"]);
+        let err = guard_denied(&deny, Some(b"/secret/deep/file.txt")).expect_err("a denied scope must be refused");
+        assert!(err.contains("denied by policy"), "the refusal must say so: {err}");
+        // The folder itself is denied too, not only its children.
+        assert!(guard_denied(&deny, Some(b"/secret")).is_err(), "the folder itself is denied");
+        // And an unrelated path passes.
+        assert!(guard_denied(&deny, Some(b"/public/x")).is_ok(), "an unrelated path is served");
+        // A name that merely starts with the denied one is not inside it.
+        assert!(guard_denied(&deny, Some(b"/secrets")).is_ok(), "/secrets is not /secret");
+    }
+
+    /// No scope means no policy check - but only because there is nothing to check. A
+    /// list that denies everything must still not block an unscoped request, which is a
+    /// whole-disk search the caller explicitly asked for.
+    #[test]
+    fn an_unscoped_request_is_not_refused() {
+        let deny = DenyList::from_prefixes(&["/secret"]);
+        assert!(guard_denied(&deny, None).is_ok(), "no scope to judge");
+        let empty = DenyList::none();
+        assert!(guard_denied(&empty, Some(b"/anything")).is_ok(), "nothing is denied");
+    }
+
+    /// Result censoring removes denied files from a response and reports how many it took
+    /// out, so the caller can tell a filtered answer from a short one.
+    #[test]
+    fn denied_files_are_censored_from_a_result() {
+        let deny = DenyList::from_prefixes(&["/secret"]);
+        let mut r = serde_json::json!({
+            "files": [
+                {"path": "/public/a.rs"},
+                {"path": "/secret/b.rs"},
+                {"path": "/public/c.rs"}
+            ]
+        });
+        let removed = censor_files(&mut r, &deny, None);
+        assert_eq!(removed, 1, "exactly one file was denied");
+        let left: Vec<&str> = r["files"].as_array().unwrap().iter().filter_map(|f| f["path"].as_str()).collect();
+        assert_eq!(left, vec!["/public/a.rs", "/public/c.rs"], "only allowed paths remain");
+    }
+
+    /// A root boundary keeps results inside the scope that was asked for: a path outside it
+    /// is censored even when it is not denied, because the caller did not ask for it.
+    #[test]
+    fn results_outside_the_scope_root_are_censored() {
+        let deny = DenyList::none();
+        let mut r = serde_json::json!({
+            "files": [{"path": "/root/in.rs"}, {"path": "/elsewhere/out.rs"}]
+        });
+        let removed = censor_files(&mut r, &deny, Some(b"/root"));
+        assert_eq!(removed, 1, "the path outside the root is removed");
+        assert_eq!(r["files"].as_array().unwrap().len(), 1);
+        assert_eq!(r["files"][0]["path"], "/root/in.rs");
+    }
+
+    /// An entry with no path is dropped rather than kept: a file the censor cannot judge
+    /// must not reach the caller.
+    #[test]
+    fn an_entry_without_a_path_is_dropped() {
+        let deny = DenyList::none();
+        let mut r = serde_json::json!({"files": [{"size": 3}, {"path": "/ok/a.rs"}]});
+        let removed = censor_files(&mut r, &deny, None);
+        assert_eq!(removed, 1, "the pathless entry is removed");
+        assert_eq!(r["files"].as_array().unwrap().len(), 1);
+    }
+
+    /// A result with no `files` array is left alone and reports zero, so a non-search
+    /// response is not mangled.
+    #[test]
+    fn a_result_without_files_is_untouched() {
+        let deny = DenyList::from_prefixes(&["/secret"]);
+        let mut r = serde_json::json!({"ok": true, "matches": 3});
+        assert_eq!(censor_files(&mut r, &deny, None), 0);
+        assert_eq!(r["matches"], 3, "the response is unchanged");
+    }
 }

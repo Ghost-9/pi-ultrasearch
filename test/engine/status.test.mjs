@@ -81,10 +81,16 @@ test("status: a change on disk advances the index, and an edit is visible in a r
     writeFile(path.join(h.root, "brand-new-file.txt"), "hello\n");
     // A new file lands in the live overlay, so `entries` (the saved index's
     // count) does not move; `overlay` and findability do.
+    // 45 s, not 20. The property under test is LIVENESS - a created file must become
+    // findable - and this wait is the only thing standing between the suite and a silent
+    // "the daemon stopped following events" regression. On this machine, under a 49-test
+    // parallel run, FSEvent delivery for the fixture could exceed 20 s while the same test
+    // passes 3/3 in isolation and 49/49 in CI. Widening the window does not weaken the
+    // check: a file that never appears still fails.
     const live = await until(async () => {
       const s = await h.status();
       return s.overlay > before.overlay ? s : null;
-    }, { timeoutMs: 20_000 });
+    }, { timeoutMs: 45_000 });
     assert.ok(live, "the new file must appear in the live index");
     assert.ok(live.event_id >= before.event_id, `${live.event_id} vs ${before.event_id}`);
     const hits = await until(async () => {
