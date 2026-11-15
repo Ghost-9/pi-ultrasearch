@@ -1205,6 +1205,87 @@ fn kind_name(k: u8) -> &'static str {
 }
 
 /// Connect to the daemon, starting it if it isn't running.
+/// Start the daemon through its LaunchAgent, which runs in the app bundle's TCC context.
+///
+/// A daemon spawned directly from `connect` inherits the *caller's* context - a terminal,
+/// typically without Full Disk Access - and it takes the index lock first, so the entitled
+/// LaunchAgent instance exits with "another ultrasearch daemon is running". The user is
+/// then left with a daemon that answered, indexes less, and blocks the correct one. That
+/// was observed for real and cost an hour of chasing a phantom FDA problem.
+///
+/// So: if a LaunchAgent exists for this app, ask launchd to start it and wait for its
+/// socket. Returns false when there is no agent or it did not come up, and the caller
+/// falls back to spawning (with a warning) rather than leaving the user with no daemon.
+fn start_via_launch_agent(sock: &Path) -> bool {
+    let Ok(home) = std::env::var("HOME") else { return false };
+    let dir = std::path::PathBuf::from(home).join("Library/LaunchAgents");
+    let Ok(entries) = std::fs::read_dir(&dir) else { return false };
+    // The uid only to build the launchd domain target. Read it without an `unsafe` libc
+    // call: this is a cold path (no daemon is running and a LaunchAgent exists), so one
+    // `id -u` is free, and the unsafe ratchet is there to stop exactly this kind of
+    // "it's only one call" addition.
+    let Ok(uid) = std::process::Command::new("id")
+        .arg("-u")
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .ok_or(())
+    else {
+        return false;
+    };
+    let mut found = false;
+    for e in entries.flatten() {
+        let path = e.path();
+        let name = e.file_name();
+        let name = name.to_string_lossy();
+        if !name.contains("ultrasearch") || !name.ends_with(".plist") {
+            continue;
+        }
+        let label = name.trim_end_matches(".plist").to_string();
+        found = true;
+        // Ensure it is loaded, then start it.
+        //
+        // `kickstart` alone is not enough: it cannot start a job that is not loaded, which
+        // is the state after `bootout` and on a machine where the agent was never
+        // bootstrapped this session. A first version only ran `kickstart`, so in exactly
+        // those cases it failed quietly and the caller fell back to spawning - which is
+        // the degraded daemon this whole function exists to avoid.
+        let target = format!("gui/{uid}/{label}");
+        let kick = |extra: &[&str]| {
+            std::process::Command::new("launchctl").args(extra).stderr(std::process::Stdio::null()).status().map(|s| s.success()).unwrap_or(false)
+        };
+        if !kick(&["kickstart", &target]) {
+            // Bootstrap needs the plist path, which `read_dir` gave us.
+            if !kick(&["bootstrap", &format!("gui/{uid}"), &path.to_string_lossy()]) {
+                continue;
+            }
+            if !kick(&["kickstart", &target]) {
+                continue;
+            }
+        }
+        // The agent loads the saved index before it answers, so this waits a few seconds
+        // longer than a direct spawn would. Worth it: it is the only instance that can
+        // read the whole disk.
+        for _ in 0..900 {
+            if UnixStream::connect(sock).is_ok() {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+    if found {
+        let _ = writeln!(
+            std::io::stderr(),
+            "ultrasearch: a LaunchAgent exists but did not answer at {}; starting a daemon \
+             directly, which will NOT have the app bundle's Full Disk Access",
+            sock.display()
+        );
+    }
+    false
+}
+
 pub fn connect(dir: &Path) -> std::io::Result<UnixStream> {
     let sock = socket_path(dir);
     match UnixStream::connect(&sock) {
@@ -1212,6 +1293,10 @@ pub fn connect(dir: &Path) -> std::io::Result<UnixStream> {
         // Too long for a socket (a long HOME): no daemon could listen there.
         Err(e) if e.kind() == std::io::ErrorKind::InvalidInput => return Err(std::io::Error::new(e.kind(), format!("{}: {e}", sock.display()))),
         Err(_) => {}
+    }
+    // Prefer the entitled instance before falling back to spawning one.
+    if start_via_launch_agent(&sock) {
+        return UnixStream::connect(&sock);
     }
     let log = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("daemon.log"))?;
     use std::os::unix::process::CommandExt;
