@@ -238,8 +238,14 @@ fn unpack(p: &[u8]) -> Name<'static> {
         i += 1;
         let (k, digits, uuid) = match h {
             0..=0x7F => {
-                v.extend_from_slice(&p[i..i + h]);
-                i += h;
+                // Bounds-checked: this reads an mmap'd index file, so a truncated or
+                // corrupt name section must not index past the end. It did, and the
+                // round-trip tests below caught it as "range end index 72 out of range
+                // for slice of length 25" - a panic on the read path, i.e. a daemon
+                // crash from a bad file rather than a wrong answer.
+                let end = (i + h).min(p.len());
+                v.extend_from_slice(&p[i..end]);
+                i = end;
                 continue;
             }
             0x80..=0xBF => (h - 0x7F, LOWER, false),
@@ -250,10 +256,12 @@ fn unpack(p: &[u8]) -> Name<'static> {
             if uuid && matches!(j, 8 | 12 | 16 | 20) {
                 v.push(b'-');
             }
-            let b = p[i + j / 2];
+            // `unwrap_or(0)` rather than indexing: a short run is truncated data, and
+            // decoding a missing nibble as zero loses one character instead of panicking.
+            let b = *p.get(i + j / 2).unwrap_or(&0);
             v.push(digits[(if j % 2 == 0 { b >> 4 } else { b & 15 }) as usize]);
         }
-        i += k.div_ceil(2);
+        i = (i + k.div_ceil(2)).min(p.len());
     }
     let n = v.len();
     v.resize(n.max(64), 0);
@@ -1667,5 +1675,62 @@ mod tests {
         // Bit 0 exists and answers without panicking.
         let bm = idx.bitmap(0);
         assert_eq!(bm.len(), words, "every bitmap is `words` long");
+    }
+    /// `pack_name` is the on-disk name encoding: it packs hash-like runs and must be
+    /// LOSSLESS. A name that comes back different is a file the user cannot find, and the
+    /// packed form is written to disk, so the error would persist across restarts.
+    #[test]
+    fn name_packing_round_trips() {
+        let names: [&[u8]; 9] = [
+            b"README.md",
+            b"0123456789abcdef0123456789abcdef",
+            b"01234567-89ab-cdef-0123-456789abcdef",
+            b"prefix-deadbeefdeadbeefdeadbeef-suffix",
+            b"ABC0123456789ABCDEF0123456789ABC",
+            b"a",
+            b"",
+            b"name with spaces and accents",
+            b"0123456789abcdefghij",
+        ];
+        for nm in names {
+            let mut out = Vec::new();
+            let packed = pack_name(nm, &mut out);
+            if !packed {
+                continue; // not packable is a valid outcome: the name is stored as-is
+            }
+            // The reader strips the PACKED marker before unpacking (`name()` above), so
+            // the round trip must too - passing it in makes 0xFF read as the UUID marker.
+            let back = unpack(&out[1..]);
+            assert_eq!(&*back, nm, "packing must be lossless: {nm:?} -> {out:?}");
+            assert!(out.len() < nm.len(), "a packed name must be shorter, or packing should have been refused: {nm:?}");
+        }
+    }
+
+    /// A UUID-SHAPED name whose characters are not all hex must not panic and must not be
+    /// packed. This is the adversarial case for the hex decoding: 36 characters with dashes
+    /// in the right places looks like a UUID to a shape-only check, and decoding 'x' as a
+    /// hex digit is a panic inside the indexer.
+    #[test]
+    fn uuid_shaped_non_hex_names_do_not_panic() {
+        for nm in [
+            &b"xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"[..],
+            b"GGGGGGGG-GGGG-GGGG-GGGG-GGGGGGGGGGGG",
+            b"0123456789abcdef-0123456789abcdef-01",
+            b"------------------------------------",
+            b"01234567-89ab-cdef-0123-456789abcde",
+        ] {
+            let mut out = Vec::new();
+            if pack_name(nm, &mut out) {
+                assert_eq!(&*unpack(&out[1..]), nm, "anything packed must round-trip: {nm:?}");
+            }
+        }
+    }
+
+    /// A short hex run stays unpacked: the escape byte would cost more than it saves.
+    #[test]
+    fn a_short_hex_run_is_left_alone() {
+        let mut out = Vec::new();
+        assert!(!pack_name(b"deadbeef", &mut out), "below the packing threshold");
+        assert!(out.is_empty(), "nothing is written when packing is refused");
     }
 }

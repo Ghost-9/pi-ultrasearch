@@ -96,11 +96,21 @@ fn space_efficient() {
 
 fn print_one(req: &serde_json::Value, raw: bool) {
     let mut s = server::connect(&data_dir()).unwrap_or_else(|e| die(&format!("cannot reach daemon: {e}")));
-    s.write_all(format!("{req}\n").as_bytes()).unwrap();
+    // A daemon that dies mid-request must report that, not panic. These were `unwrap()`,
+    // so a crashed or restarted daemon produced a panic with a backtrace where the user
+    // needed one sentence - and killing the daemon is a thing users do.
+    if let Err(e) = s.write_all(format!("{req}\n").as_bytes()) {
+        die(&format!("the daemon closed the connection before the request was sent: {e}"));
+    }
     // One request only: the daemon needn't keep the cores warm for a next one.
     let _ = s.shutdown(std::net::Shutdown::Write);
     let mut line = String::new();
-    BufReader::new(&s).read_line(&mut line).unwrap();
+    if let Err(e) = BufReader::new(&s).read_line(&mut line) {
+        die(&format!("the daemon stopped answering: {e}"));
+    }
+    if line.trim().is_empty() {
+        die("the daemon closed the connection without replying (is it out of memory, or being restarted?)");
+    }
     if raw {
         print!("{line}");
         return;
@@ -123,7 +133,7 @@ fn print_one(req: &serde_json::Value, raw: bool) {
 
 fn stdio() {
     let s = server::connect(&data_dir()).unwrap_or_else(|e| die(&format!("cannot reach daemon: {e}")));
-    let mut up = s.try_clone().unwrap();
+    let mut up = s.try_clone().unwrap_or_else(|e| die(&format!("cannot open a second handle on the daemon socket: {e}")));
     std::thread::spawn(move || {
         for line in std::io::stdin().lock().lines() {
             let Ok(line) = line else { break };
@@ -163,7 +173,7 @@ fn bench(qs: &str, as_json: bool) {
             ultrasearch::alloc::keep_on_this_thread();
         })
         .build()
-        .unwrap();
+        .unwrap_or_else(|e| die(&format!("cannot start the search thread pool: {e}")));
     let run = || -> Vec<String> {
         let (Some(g), Some(c)) = (&grep, &content) else {
             let mut p = Vec::new();
