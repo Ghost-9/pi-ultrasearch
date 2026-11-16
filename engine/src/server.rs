@@ -1141,6 +1141,12 @@ fn grep(v: &Value, cx: &Ctx, root: Option<&[u8]>, deny: &DenyList) -> Result<Val
         "considered": r.candidates,
         "scanned": r.read,
         "indexing": engine.status().content_pending,
+        // The content index skips files larger than this, so a zero-hit answer is not a
+        // statement about a file above the cap. Measured: a 1,400,022-byte .txt containing
+        // a unique marker returned `files: []` and `complete: true`, exactly as if the
+        // marker were absent - while the same marker in a 23-byte file was found. Reporting
+        // the cap lets a caller qualify the answer instead of trusting it blindly.
+        "content_max_file_bytes": ultrasearch::content::MAX_FILE,
         "files": files,
     });
     if let Some(n) = next {

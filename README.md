@@ -131,7 +131,14 @@ first, with their first lines.
 | `path`, `maxResults`, `context`, `cursor` | as above; `context` is lines around each match |
 | `output_mode` | `content` (default), `files_with_matches`, `count` |
 
-The socket answer carries `complete`. It is honest: a search stopped by its time budget
+The socket answer carries `content_max_file_bytes`, and it matters: the content index
+skips files larger than that (1 MiB unless a coverage policy raises it). Measured: a
+1,400,022-byte `.txt` containing a unique marker returned `files: []` with `complete: true`
+— exactly what a genuine absence looks like — while the same marker in a 23-byte file was
+found. So `complete: true` means "I finished searching what I index", not "this text is not
+on disk". For a whole-disk answer, narrow the search or use the name index.
+
+The socket answer also carries `complete`. It is honest: a search stopped by its time budget
 returns `complete: false` with whatever it found, which is **not** the same as "no match".
 A pattern that genuinely does not occur returns `complete: true`, zero files, and a tiny
 `considered` count.
