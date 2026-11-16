@@ -91,6 +91,14 @@ jobs:
       - name: Engine unit tests (cargo test --release)
         run: cargo test --release --manifest-path engine/Cargo.toml
 
+      # Release turns OFF overflow checks, so `--release` alone cannot see arithmetic that
+      # wraps on a value read from a damaged file. Six such sites existed in the index and
+      # segment loaders: they panicked here (debug) and wrapped silently in release, where a
+      # wrapped total satisfies the size check that is supposed to reject the file. Debug runs
+      # are slower; this is the only step that can catch that class.
+      - name: Engine unit tests (debug, overflow checks on)
+        run: cargo test --manifest-path engine/Cargo.toml
+
       # Style is enforced, not hoped for. Runestone's tree went from 91 warnings to
       # zero and its gate now fails on a single new one; this is the same rule here.
       # Both are cheap and deterministic, so there is no reason to ratchet instead.
