@@ -1294,6 +1294,12 @@ pub fn connect(dir: &Path) -> std::io::Result<UnixStream> {
         Err(e) if e.kind() == std::io::ErrorKind::InvalidInput => return Err(std::io::Error::new(e.kind(), format!("{}: {e}", sock.display()))),
         Err(_) => {}
     }
+    // "Do not start a daemon": for tests, and for an embedder that must not have a process
+    // appear as a side effect of a query. A caller then gets the honest failure and reports
+    // the degradation instead of silently starting something.
+    if !ultrasearch::env::spawn_allowed() {
+        return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "no daemon is listening and ULTRASEARCH_NO_SPAWN is set"));
+    }
     // Prefer the entitled instance before falling back to spawning one.
     if start_via_launch_agent(&sock) {
         return UnixStream::connect(&sock);

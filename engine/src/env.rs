@@ -110,6 +110,15 @@ pub fn exclude_names() -> Vec<Vec<u8>> {
         .unwrap_or_default()
 }
 
+/// Whether a query may start a daemon when none is listening (`ULTRASEARCH_NO_SPAWN`).
+///
+/// Set to anything but "0" to forbid it. A query that finds no daemon then fails with what
+/// is actually true instead of spawning one - which matters for tests, and for an embedder
+/// that should not leave a process behind because someone typed a search.
+pub fn spawn_allowed() -> bool {
+    var("ULTRASEARCH_NO_SPAWN").is_none_or(|v| v == "0")
+}
+
 /// An advisory ceiling on indexed entries (`ULTRASEARCH_MAX_ENTRIES`).
 ///
 /// Exceeding it does **not** truncate the index: dropping entries would silently

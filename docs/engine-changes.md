@@ -18,6 +18,9 @@ config file sees the same searches and the same index as v0.2.1.
 
 | Change | File | Why |
 |---|---|---|
+| `ULTRASEARCH_NO_SPAWN` - set to anything but `0` and a query will not start a daemon. It
+  fails with "no daemon is listening" instead of spawning one, which is what a test suite or
+  an embedder needs. Added after the MCP tests spawned a daemon per malformed request.
 | `ULTRASEARCH_DIR` / `HOME` / `SCAN_ROOT` (one name each; the pre-rebrand spellings went with the rename) | `env.rs`, `main.rs`, `mcp.rs`, `server.rs`, `walk.rs` | Run a real daemon over a fixture tree on its own socket, without touching the live index or crawling the whole disk. `SCAN_ROOT` is canonicalized: the crawl opens the root with `O_NOFOLLOW_ANY`, which refuses a path containing a symlink (`/tmp`). |
 | `Index::build(…, root)` and `Index::path(0)` return the crawl root | `index.rs` | Paths must exist on disk; before this, a fixture scan root produced `/file.txt`. |
 | `Index::lookup` strips the crawl root | `index.rs` | Otherwise `lookup(home)` failed under an isolated root and the content index never built. |

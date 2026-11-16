@@ -1395,3 +1395,92 @@ mod tests {
         assert!(p(serde_json::json!(42)).is_empty(), "a number is no pattern");
     }
 }
+
+#[cfg(test)]
+mod hostile_requests {
+    use super::*;
+
+    /// A client can send anything. No message may panic the server.
+    ///
+    /// This is the surface the `unwrap()`s in this file sit behind: `params` is whatever JSON
+    /// the caller sent, and MCP clients are not all well behaved. Previously only hand tidying
+    /// stood between a malformed request and a panic in the tool layer; this walks the shapes.
+    #[test]
+    fn malformed_messages_never_panic() {
+        let dir = std::env::temp_dir().join(format!("us-mcp-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        // These cases reach the tool layer, which would otherwise spawn a real daemon for
+        // each one - slow, and it leaves a process behind. The switch exists for exactly
+        // this; the tools then report the honest failure.
+        let previous = std::env::var_os("ULTRASEARCH_NO_SPAWN");
+        // SAFETY: no other test in this binary spawns a daemon (the suite runs in seconds and
+        // a spawn costs 60s+), and the value is restored at the end of this test.
+        unsafe { std::env::set_var("ULTRASEARCH_NO_SPAWN", "1") };
+        let mut s = Session::new(dir.clone());
+
+        let cases: Vec<Value> = vec![
+            json!(null),
+            json!(1),
+            json!("a string"),
+            json!([1, 2, 3]),
+            json!([]),
+            json!({}),
+            json!({"jsonrpc": "2.0"}),
+            json!({"id": 1}),
+            json!({"id": 1, "method": "unknown/method"}),
+            json!({"id": 1, "method": "initialize", "params": null}),
+            json!({"id": 1, "method": "initialize", "params": []}),
+            json!({"id": 1, "method": "initialize", "params": {"protocolVersion": 42}}),
+            json!({"id": 1, "method": "tools/call", "params": null}),
+            json!({"id": 1, "method": "tools/call", "params": {}}),
+            json!({"id": 1, "method": "tools/call", "params": {"name": "nope", "arguments": {}}}),
+            json!({"id": 1, "method": "tools/call", "params": {"name": "find_files"}}),
+            json!({"id": 1, "method": "tools/call", "params": {"name": "find_files", "arguments": null}}),
+            json!({"id": 1, "method": "tools/call", "params": {"name": "find_files", "arguments": []}}),
+            json!({"id": 1, "method": "tools/call", "params": {"name": "find_files", "arguments": "x"}}),
+            json!({"id": 1, "method": "tools/call", "params": {"name": "find_files", "arguments": {"query": 1}}}),
+            json!({"id": 1, "method": "tools/call", "params": {"name": "find_files", "arguments": {"query": null}}}),
+            json!({"id": 1, "method": "tools/call", "params": {"name": "find_files", "arguments": {"query": {"a": 1}}}}),
+            json!({"id": 1, "method": "tools/call", "params": {"name": "find_files", "arguments": {"query": "x", "limit": -1}}}),
+            json!({"id": 1, "method": "tools/call", "params": {"name": "grep", "arguments": {"pattern": ""}}}),
+            json!({"id": 1, "method": "tools/call", "params": {"name": "grep", "arguments": {"pattern": "a", "globs": "not-an-array"}}}),
+            json!({"id": 1, "method": "tools/call", "params": {"name": "grep", "arguments": {"pattern": "a", "globs": [1, null]}}}),
+            json!({"id": 1, "method": "tools/call", "params": {"name": "multi_grep", "arguments": {"patterns": []}}}),
+            json!({"id": 1, "method": "tools/call", "params": {"name": "multi_grep", "arguments": {"patterns": ["", null]}}}),
+            json!({"id": 1, "method": "tools/call", "params": {"name": "multi_grep", "arguments": {"patterns": "x"}}}),
+            json!({"id": null, "method": "tools/list"}),
+            json!({"method": "tools/list"}),
+            json!({"id": 1, "method": "tools/list", "params": {"cursor": {"deep": true}}}),
+            // A reply to one of our own requests, with nonsense inside.
+            json!({"id": 9, "result": {"roots": "not-an-array"}}),
+            json!({"id": 9, "result": {"roots": [null, {}, {"uri": 5}]}}),
+            json!({"id": 9, "error": {"code": "not-a-number"}}),
+        ];
+
+        let mut replied = 0;
+        for m in &cases {
+            if s.message(m).is_some() {
+                replied += 1;
+            }
+            // Nothing may be left half-processed.
+            s.outbox.clear();
+        }
+        // Without this the test could pass by rejecting everything before the tool layer.
+        assert!(replied > 10, "expected most messages to be answered, got {replied}");
+
+        // And a well-formed call must still produce a reply rather than a panic when no
+        // daemon is running: the tools degrade, they do not crash.
+        let ok = s.message(&json!({
+            "id": 99, "method": "tools/call",
+            "params": {"name": "find_files", "arguments": {"query": "zzz-no-such-file"}}
+        }));
+        assert!(ok.is_some(), "a valid call is still answered");
+        // SAFETY: as above; restore whatever was there before.
+        match previous {
+            Some(v) => unsafe { std::env::set_var("ULTRASEARCH_NO_SPAWN", v) },
+            None => unsafe { std::env::remove_var("ULTRASEARCH_NO_SPAWN") },
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

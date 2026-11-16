@@ -623,7 +623,9 @@ security error for every tool, and hits outside it are dropped and counted as
 
 `ULTRASEARCH_DIR`, `ULTRASEARCH_HOME` and `ULTRASEARCH_SCAN_ROOT` run a real
 daemon over a fixture tree on its own socket without touching the live index or
-crawling the whole disk. `test/engine/harness.mjs` does exactly that, and
+crawling the whole disk. Add `ULTRASEARCH_NO_SPAWN=1` when the run must not leave
+a daemon behind: a query then reports "no daemon is listening" rather than starting
+one. `test/engine/harness.mjs` does exactly that, and
 `node bench/engine-ab.mjs` compares two binaries over one fixture with
 alternating rounds, medians, bootstrap CIs and an output-equivalence check
 (raw samples in `bench/results/engine/`).
