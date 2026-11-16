@@ -4441,25 +4441,30 @@ fn ic_get(b: &[u8], pos: &mut usize, out: &mut [u32], lo: u32, hi: u32) {
 /// half passed over is decoded, to find where the upper one starts). About
 /// half the values are read, on average. (`passed`: room for those.)
 fn ic_has(b: &[u8], mut pos: usize, mut n: usize, mut lo: u32, mut hi: u32, x: u32, passed: &mut [u32]) -> bool {
+    // `n` arrives from a segment header, so a damaged segment can claim more values than
+    // `lo..=hi` can hold. The exact-size check below then never fires, `low` runs past `hi`,
+    // and the subtraction that computes `k` underflows: measured as "attempt to subtract with
+    // overflow" here, reachable through `Postings` with a header whose len exceeds its n.
+    // Every subtraction is saturating for that reason; a nonsense range then finds nothing.
     while n > 0 && (lo..=hi).contains(&x) {
-        if (hi - lo) as usize + 1 == n {
+        if hi.saturating_sub(lo) as usize + 1 == n {
             return true;
         }
         let m = n / 2;
-        let low = lo + m as u32;
-        let k = width(hi - (n - 1 - m) as u32 - low);
-        let v = low + get_bits(b, pos, k);
+        let low = lo.saturating_add(m as u32);
+        let k = width(hi.saturating_sub((n.saturating_sub(1).saturating_sub(m)) as u32).saturating_sub(low));
+        let v = low.saturating_add(get_bits(b, pos, k));
         pos += k as usize;
         if x <= v {
             if x == v {
                 return true;
             }
-            (n, hi) = (m, v - 1);
+            (n, hi) = (m, v.saturating_sub(1));
         } else {
             if m > 0 {
-                ic_get(b, &mut pos, &mut passed[..m], lo, v - 1);
+                ic_get(b, &mut pos, &mut passed[..m], lo, v.saturating_sub(1));
             }
-            (n, lo) = (n - m - 1, v + 1);
+            (n, lo) = (n.saturating_sub(m + 1), v.saturating_add(1));
         }
     }
     false
@@ -5132,6 +5137,36 @@ mod segment_hardening {
     /// The first version of this test was vacuous: every hand-built shape was rejected at the
     /// magic check, so it proved only that `fields()` rejects nonsense. It now writes a REAL
     /// segment with `write_segment`, asserts it loads, and then damages that same file.
+    /// A posting list longer than the document count it belongs to must not panic the reader.
+    ///
+    /// `Ic` takes its count from the postings and its `n` from the segment header, and nothing
+    /// requires the count to fit the range `0..=n-1`. The writer refuses to produce that shape
+    /// (pushing 40 postings for 3 documents panics in `push`), so it arrives the way the other
+    /// damaged-input cases do: from bytes whose header disagrees with their contents. When the
+    /// count exceeds the range, `ic_has` searches a range smaller than the count it was handed,
+    /// `low` runs past `hi`, and the subtraction that computes `k` underflowed.
+    #[test]
+    fn a_posting_list_longer_than_its_documents_does_not_panic() {
+        let list: Vec<u32> = (0..40u32).collect(); // values must be < n for the writer
+        let mut p = Postings::default();
+        // Enough documents that the writer picks interpolative encoding (list.len() * 8 <= n)
+        // rather than a bitset, which is the decoder under test.
+        p.push(400, 7, &list);
+        let f = p.offs[0];
+        let at = (f & !(BITSET | SKIPS)) as usize;
+        // Now claim three documents for it, as a damaged header would.
+        assert_eq!(f & BITSET, 0, "this must be an interpolative list, not a bitset");
+        let ic = Ic::new(&p.post[at..], f & SKIPS != 0, 3);
+        assert!(ic.len > 3, "the fixture must actually exceed the document count, or this proves nothing: len={}", ic.len);
+        let mut tmp = [0u32; BLOCK];
+        for j in 0..ic.blocks() {
+            for x in [0u32, 1, 2, 5, u32::MAX] {
+                // Must return, not unwind.
+                let _ = ic.has(j, x, &mut tmp);
+            }
+        }
+    }
+
     #[test]
     fn a_damaged_segment_never_panics_the_decoder() {
         let base = std::env::temp_dir().join(format!("us-seg-{}", std::process::id()));
@@ -5235,6 +5270,28 @@ mod decode_hardening {
     ///
     /// Both encodings are exercised - one block, and the skip-table form - because the two
     /// take different branches in `Ic::new` and only the second reads the u32 length prefix.
+    /// `ic_has` subtracts `v - 1` and `hi - lo` while walking a range it did not choose.
+    ///
+    /// The safety argument is that `n == 1` returns early, so `m >= 1`, so `low >= 1`, so
+    /// `v >= 1`. That is a chain of three implications over untrusted integers, and it is the
+    /// same shape as the arithmetic that used to panic in `ic_get`. This walks the hostile
+    /// combinations directly rather than trusting the argument.
+    #[test]
+    fn membership_checks_never_panic_on_hostile_ranges() {
+        let mut passed = [0u32; 64];
+        let buffers: [&[u8]; 4] = [&[], &[0u8], &[0xFFu8; 4], &[0xA5u8; 16]];
+        for b in buffers {
+            for n in 0usize..=8 {
+                for (lo, hi) in [(0u32, 0u32), (0, 1), (1, 0), (0, u32::MAX), (u32::MAX, 0), (u32::MAX, u32::MAX), (5, 5), (5, 4)] {
+                    for x in [0u32, 1, 5, u32::MAX] {
+                        // Must return, not unwind.
+                        let _ = ic_has(b, 0, n, lo, hi, x, &mut passed);
+                    }
+                }
+            }
+        }
+    }
+
     #[test]
     fn a_well_formed_list_still_round_trips() {
         for list in [(0..40u32).map(|i| i * 7).collect::<Vec<_>>(), (0..300u32).map(|i| i * 3).collect::<Vec<_>>()] {
