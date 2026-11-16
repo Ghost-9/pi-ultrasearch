@@ -97,38 +97,63 @@ Planned performance work (tail latency, content coverage, concurrency, token acc
 
 ## Tool surface
 
-### 1. `ultrasearch_query`
-Indexed file and path discovery, scoped to the active worktree (nearest `.git`), with an optional `global: true`.
-- Strict zero typo tolerance: misspellings return 0 results (verified).
-- Globs and filters: `src/**/*.{ts,tsx}`, `ext:rs`, `git:modified`, `git:staged`, `git:untracked`.
-- Proximity re-ranking with `near:` or the `near` parameter.
-- Respects declared `.gitignore` / `.ignore` rules in the scope root (outside git repos too).
+**Three** MCP tools. These are the whole surface: a host that namespaces its servers prefixes
+them (this machine's Magpie exposes `ultrasearch__find_files`), but the names inside the
+server carry no `ultrasearch_` prefix.
 
-### 2. `ultrasearch_grep`
-Indexed trigram content search with four modes:
-- `literal` (default), `regex`, `symbol` (AST declaration tags/priority), `semantic` (**experimental — see below**).
-- `semantic` is intent keyword expansion, not a vector or embedding search. Measured on the
-  project's own gold fixtures it is **not ready to rely on**: semantic nDCG@10 **0.194**,
-  semantic-paraphrase recall@10 **0.175**, success@3 **0.10**, and **false-positive rate 1.00** on
-  the paraphrase lane. It returns ten files for queries with no matching subject. Use `literal`
-  or `symbol`; use `semantic` only to explore, never to gate a decision. Tracked as a known
-  measurement, not a capability.
-- Optional `context` lines (0–5) and `tag_symbols` for `[def:fn]`-style annotations.
-- Enterprise DLP scrubbing before anything reaches the prompt.
-- Content index covers the daemon's tracked text corpus — see *Known limits* below.
+An earlier version of this section documented six tools, including `ultrasearch_locate` and
+`ultrasearch_metrics`, and called the first one `ultrasearch_query`. None of that was true of
+the shipped server, so a reader who followed it would look for tools that do not exist. The
+list below was taken from the running server's own `tools/list`.
 
-### 3. `ultrasearch_multi_grep`
-Multi-pattern OR retrieval in one call with per-file match merging.
+### 1. `find_files`
+Find files by name: fuzzy and typo-tolerant, over the whole path. All words must match.
+Inline filters: `*.rs`, `src/`, `src/**/*.rs`, `!test/`, `git:modified`. A lone `name/` finds
+folders; an empty query lists files changed in git, then those worked on lately.
 
-### 4. `ultrasearch_locate`
-Exact filename resolution (`package.json`, `Cargo.toml`, …) with deduplication.
+| argument | meaning |
+|---|---|
+| `query` (required) | name words and filters, e.g. `config *.ts !test/` |
+| `path` | folder to search: relative to the project, absolute, or `/` |
+| `maxResults` | default 20 |
+| `cursor` | from the previous result, for the next page |
 
-### 5. `ultrasearch_recent`
-Frecency-ranked recent files, updated through the Pi `tool_execution_end` lifecycle hook.
+### 2. `grep`
+Indexed content search. Give a bare identifier or literal text from one line, not code
+syntax; a regex is detected (`\b`, `.*`, `a|b`, `[a-z]`) or forced with `regex`. Smart case.
+Prefix filters (`*.rs`, `src/`, `!test/`) or a file name to search one file. Definitions come
+first, with their first lines.
 
-### 6. `ultrasearch_metrics`
-Latency percentiles, fallback rate, zero-hit diagnostics, CLI-bypass detector, and honest "tokens saved"
-(is an estimate — see below).
+| argument | meaning |
+|---|---|
+| `query` (required) | filters, then the text, e.g. `*.rs fn parse` |
+| `regex` | treat the text as a regex (default: detected) |
+| `path`, `maxResults`, `context`, `cursor` | as above; `context` is lines around each match |
+| `output_mode` | `content` (default), `files_with_matches`, `count` |
+
+The socket answer carries `complete`. It is honest: a search stopped by its time budget
+returns `complete: false` with whatever it found, which is **not** the same as "no match".
+A pattern that genuinely does not occur returns `complete: true`, zero files, and a tiny
+`considered` count.
+
+### 3. `multi_grep`
+Multi-pattern OR retrieval in one call, with per-file match merging. Patterns are literal:
+never escape them.
+
+| argument | meaning |
+|---|---|
+| `patterns` (required) | literal patterns, any of which may match |
+| `constraints` | file filters, e.g. `*.{ts,tsx} !test/` |
+| `path`, `maxResults`, `context`, `output_mode`, `cursor` | as for `grep` |
+
+### Not MCP tools
+The daemon also answers `recent`, `status`, `ping`, `glob`, `git`, `open` and `save` on its
+socket. `recent` is real (frecency, updated through the host's `tool_execution_end` hook) and
+the telemetry counters are real, but neither is exposed as a tool.
+
+The previously documented `semantic` grep mode is not in the shipped schemas either. Its
+measured behaviour is kept in *Known limits* for the record; it is not reachable, so do not
+plan around it.
 
 ---
 
