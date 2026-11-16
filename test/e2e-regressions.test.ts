@@ -41,6 +41,32 @@ function track(client: UltraSearchClient): UltraSearchClient {
 
 const liveClient = track(new UltraSearchClient());
 const daemonUp = await liveClient.ping();
+
+// A live daemon only knows what it was told to scan. These fixtures live in `os.tmpdir()`,
+// which is normally NOT under the daemon's scan root, so the two live tests below asked it
+// to find a file it had never been asked to look at and waited the full 45 s before failing.
+// Measured on this machine: `tmp` is /var/folders/... while the daemon indexes /Users/batra.
+//
+// So prove coverage before asserting on it. A probe file is written into the temp root and
+// looked for; if the daemon does not report it, the fixture path is out of scope and the
+// test says exactly that instead of blaming the product.
+let liveScope: string | false = daemonUp ? false : "UltraSearch daemon not running (live regression skipped)";
+if (!liveScope) {
+  const probeName = `ults-scope-probe-${Date.now()}`;
+  const probe = path.join(tmp, `${probeName}.txt`);
+  fs.writeFileSync(probe, "probe\n");
+  const seen = await waitFor(async () => {
+    const r = await liveClient.search(`${probeName}.txt`, { limit: 5, skipAudit: true });
+    return (r.hits ?? []).length > 0 ? r : null;
+  }, 8000);
+  fs.rmSync(probe, { force: true });
+  if (!seen) {
+    liveScope = `UltraSearch daemon does not index ${tmp} (live regression skipped)`;
+  }
+}
+// Only these two need the daemon to have INDEXED a file under `tmp`; the frecency test
+// drives a mock daemon and is fine with any live one.
+const liveIndexing = liveScope;
 const liveOnly = daemonUp ? false : "UltraSearch daemon not running (live regression skipped)";
 
 // ---------------------------------------------------------------------------
@@ -107,7 +133,7 @@ function git(args: string[], cwd: string): string {
   return execFileSync("git", args, { cwd, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] });
 }
 
-test("worktree scoping: two linked worktrees resolve independently and never leak across", { skip: liveOnly }, async () => {
+test("worktree scoping: two linked worktrees resolve independently and never leak across", { skip: liveIndexing }, async () => {
   const base = path.join(tmp, "worktrees");
   const wtA = path.join(base, "wt-a");
   const wtB = path.join(base, "wt-b");
@@ -168,7 +194,7 @@ test("ignore rules: declared .gitignore patterns filter results (hermetic)", asy
   assert.equal(res.filteredCount, 2, "both the secret file and the ignored build dir must be filtered");
 });
 
-test("ignore rules: live daemon results honour the scope's .gitignore", { skip: liveOnly }, async () => {
+test("ignore rules: live daemon results honour the scope's .gitignore", { skip: liveIndexing }, async () => {
   const dir = path.join(tmp, "ignore-live");
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, ".gitignore"), "secret-*\n");

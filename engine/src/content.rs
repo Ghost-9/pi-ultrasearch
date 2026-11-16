@@ -377,7 +377,10 @@ impl Segment {
             let (f, m) = varint(&dict[at + n..]);
             at += n + m;
             key += d;
-            let bytes = &post[p..p + (f >> 2) as usize];
+            // Also unchecked: `post` is the index's posting bytes, so a corrupt length
+            // field ran past the end. An empty slice loses one trigram from the answer
+            // instead of taking the daemon down.
+            let bytes = post.get(p..p.saturating_add((f >> 2) as usize)).unwrap_or(&[]);
             p += bytes.len();
             (key, f & 3, bytes)
         })
@@ -4474,9 +4477,14 @@ struct Ic<'a> {
 impl<'a> Ic<'a> {
     fn new(bytes: &'a [u8], skips: bool, n: u32) -> Ic<'a> {
         if skips {
-            let len = u32::from_le_bytes(bytes[..4].try_into().unwrap()) as usize;
-            let t = 4 + 8 * (len.div_ceil(BLOCK) - 1);
-            return Ic { len, n, skips: &bytes[4..t], bits: &bytes[t..], start: 0 };
+            // Every one of these slices used to be an `unwrap()` or an unchecked index on
+            // bytes read straight out of the index file, so a truncated or corrupt index
+            // panicked the daemon instead of simply not finding the trigram. A malformed
+            // block now decodes to an empty list: the postings it would have contributed are
+            // absent, which is the same answer corruption should give.
+            let len = bytes.get(..4).and_then(|h| h.try_into().ok()).map(u32::from_le_bytes).map_or(0, |v| v as usize);
+            let t = (4 + 8 * len.div_ceil(BLOCK).saturating_sub(1)).min(bytes.len());
+            return Ic { len, n, skips: bytes.get(4..t).unwrap_or(&[]), bits: bytes.get(t..).unwrap_or(&[]), start: 0 };
         }
         // An Elias-gamma count.
         let z = get_bits(bytes, 0, 32).trailing_zeros();
@@ -4490,8 +4498,15 @@ impl<'a> Ic<'a> {
 
     /// Skip entry `j`: (block j's last content, where block j + 1 starts).
     fn skip(&self, j: usize) -> (u32, usize) {
-        let e = u64::from_le_bytes(self.skips[8 * j..8 * j + 8].try_into().unwrap());
-        (e as u32, (e >> 32) as usize)
+        // Out of range means the block count disagrees with the skip table, which is
+        // corruption. Report the first block rather than indexing past the end.
+        match self.skips.get(8 * j..8 * j + 8).and_then(|b| b.try_into().ok()) {
+            Some(b) => {
+                let e = u64::from_le_bytes(b);
+                (e as u32, (e >> 32) as usize)
+            }
+            None => (0, 0),
+        }
     }
 
     /// Where block `j` starts: the least content it can hold, and its bits.
@@ -4502,7 +4517,7 @@ impl<'a> Ic<'a> {
     /// The first block from `from` on ending at or past `x` (else the last):
     /// steps doubling along the skip entries, then a binary search.
     fn block_at(&self, from: usize, x: u32) -> usize {
-        let last = self.blocks() - 1;
+        let last = self.blocks().saturating_sub(1);
         let (mut lo, mut hi, mut step) = (from, from, 1);
         while hi < last && self.skip(hi).0 < x {
             (lo, hi, step) = (hi + 1, (hi + step).min(last), step * 2);
@@ -4521,7 +4536,7 @@ impl<'a> Ic<'a> {
             let last = self.skip(j).0;
             return x == last || (x < last && ic_has(self.bits, pos, BLOCK - 1, lo, last - 1, x, tmp));
         }
-        ic_has(self.bits, pos, self.len - BLOCK * j, lo, self.n - 1, x, tmp)
+        ic_has(self.bits, pos, self.len.saturating_sub(BLOCK * j), lo, self.n.saturating_sub(1), x, tmp)
     }
 
     /// Block `j`'s contents into `out`; how many.
@@ -5093,6 +5108,73 @@ fn open_ahead_sized(path: &[u8]) -> Option<(std::fs::File, u64)> {
         unsafe { libc::fcntl(f.as_raw_fd(), libc::F_RDADVISE, &ra) };
     }
     Some((f, len))
+}
+
+#[cfg(test)]
+mod decode_hardening {
+    use super::*;
+
+    /// A truncated or corrupt postings block must decode to nothing, not panic.
+    ///
+    /// Both shapes here used to be unchecked: the skip table was indexed as
+    /// `skips[8*j..8*j+8]` and the length was read as `bytes[..4]`, straight out of the
+    /// index file. A short file therefore panicked the daemon on a read, which is the
+    /// worst place for it - the index is a cache, so its corruption must degrade the
+    /// answer, never take the process down.
+    #[test]
+    fn malformed_postings_decode_to_nothing() {
+        for (bytes, skips) in [
+            (&[][..], true),
+            (&[0u8][..], true),
+            (&[1u8, 2][..], true),
+            (&[0xFFu8, 0xFF, 0xFF, 0xFF][..], true),
+            (&[0xA5u8; 12][..], true),
+            (&[][..], false),
+            (&[0u8][..], false),
+            (&[0xAAu8; 7][..], false),
+        ] {
+            let ic = Ic::new(bytes, skips, 10);
+            // Whatever the bytes claim, these must all be answerable.
+            let n = ic.blocks();
+            for j in 0..n.min(4) {
+                let _ = ic.skip(j);
+                let _ = ic.start_of(j);
+            }
+            let _ = ic.skip(n + 5);
+            let mut tmp = [0u32; BLOCK];
+            if n > 0 {
+                let _ = ic.has(0, 0, &mut tmp);
+                let _ = ic.block(0, &mut tmp);
+            }
+        }
+    }
+
+    /// The guard must not have broken the decoder: well-formed lists still round-trip.
+    ///
+    /// Both encodings are exercised - one block, and the skip-table form - because the two
+    /// take different branches in `Ic::new` and only the second reads the u32 length prefix.
+    #[test]
+    fn a_well_formed_list_still_round_trips() {
+        for list in [(0..40u32).map(|i| i * 7).collect::<Vec<_>>(), (0..300u32).map(|i| i * 3).collect::<Vec<_>>()] {
+            let n = 10_000usize;
+            let mut p = Postings::default();
+            p.push(n, 7, &list);
+            let f = p.offs[0];
+            assert_eq!(f & 1, 0, "these sizes must encode as interpolative, not a bitset");
+            // `offs` packs the offset with flags in the top two bits (BITSET 1<<31, SKIPS 1<<30).
+            let at = (f & !(BITSET | SKIPS)) as usize;
+            let ic = Ic::new(&p.post[at..], f & SKIPS != 0, n as u32);
+            assert_eq!(ic.len, list.len(), "the count survives the encoding");
+            assert_eq!(ic.blocks(), list.len().div_ceil(BLOCK));
+            let mut got = Vec::new();
+            let mut out = [0u32; BLOCK];
+            for j in 0..ic.blocks() {
+                let k = ic.block(j, &mut out);
+                got.extend_from_slice(&out[..k]);
+            }
+            assert_eq!(got, list, "decoded values match what was encoded");
+        }
+    }
 }
 
 #[cfg(test)]
