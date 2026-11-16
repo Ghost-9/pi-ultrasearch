@@ -5621,3 +5621,95 @@ mod scope_prune_tests {
         assert_eq!(trigrams_small(b"ABC"), trigrams_small(b"abc"), "case must not change the trigram set");
     }
 }
+
+/// Structured fuzz over the interpolative decoder.
+///
+/// Two rounds of hardening were done by reading the code and reasoning about the arithmetic,
+/// and both times a neighbouring function was missed: `ic_get` was fixed, `ic_has` beside it
+/// was not. So this walks the decoder instead of reading it.
+///
+/// The first version of this test fed random bytes and passed with the `ic_has` bug restored -
+/// random bytes almost never form a valid interpolative header, so it proved nothing. The shape
+/// that actually breaks is a real list whose header claims fewer documents than it has
+/// postings, so that is what this builds: encode a genuine list, then decode it with a smaller
+/// `n` than the one it was written for. That is a damaged segment, expressed exactly.
+#[cfg(test)]
+mod decoder_fuzz {
+    use super::*;
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            self.0 >> 17
+        }
+        fn upto(&mut self, n: u64) -> u64 {
+            if n == 0 { 0 } else { self.next() % n }
+        }
+    }
+
+    /// A genuine list, decoded with a document count smaller than it really had.
+    #[test]
+    fn a_list_decoded_with_too_few_documents_returns() {
+        let mut rng = Rng(0x5EED_1234_ABCD);
+        let mut tmp = [0u32; BLOCK];
+        let mut cases = 0;
+        for _ in 0..400 {
+            // Enough documents that the writer picks interpolative encoding.
+            let docs = 64 + rng.upto(2_000) as usize;
+            let count = 1 + rng.upto((docs / 8).min(300) as u64) as usize;
+            let mut list: Vec<u32> = Vec::with_capacity(count);
+            let mut v = 0u32;
+            for _ in 0..count {
+                v = v.saturating_add(1 + rng.upto(3) as u32);
+                if (v as usize) >= docs {
+                    break;
+                }
+                list.push(v);
+            }
+            if list.is_empty() {
+                continue;
+            }
+            let mut p = Postings::default();
+            p.push(docs, 7, &list);
+            let f = p.offs[0];
+            if f & BITSET != 0 {
+                continue; // bitsets do not go through the interpolative decoder
+            }
+            let at = (f & !(BITSET | SKIPS)) as usize;
+            // Claim fewer documents than the list was written for, which is the damaged shape.
+            let claimed = rng.upto(list.len() as u64) as u32;
+            let ic = Ic::new(&p.post[at..], f & SKIPS != 0, claimed);
+            cases += 1;
+            for j in 0..ic.blocks().min(16) {
+                for x in [0u32, claimed, rng.upto(1_000) as u32] {
+                    let _ = ic.has(j, x, &mut tmp);
+                }
+                let _ = ic.block(j, &mut tmp);
+            }
+        }
+        assert!(cases > 100, "the generator must produce real cases, got {cases}");
+    }
+
+    /// Random bytes still must not panic the header parser.
+    #[test]
+    fn arbitrary_bytes_never_panic_the_parser() {
+        let mut rng = Rng(0xC0FF_EE00_1234);
+        let mut tmp = [0u32; BLOCK];
+        for _ in 0..3_000 {
+            let len = rng.upto(64) as usize;
+            let mut buf = vec![0u8; len];
+            for b in buf.iter_mut() {
+                *b = rng.next() as u8;
+            }
+            let n = rng.upto(5_000) as u32;
+            for skips in [false, true] {
+                let ic = Ic::new(&buf, skips, n);
+                for j in 0..ic.blocks().min(8) {
+                    let _ = ic.has(j, rng.upto(5_000) as u32, &mut tmp);
+                    let _ = ic.block(j, &mut tmp);
+                }
+            }
+        }
+    }
+}
