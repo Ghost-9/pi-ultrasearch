@@ -13,8 +13,16 @@ files created, modified and deleted while the index is live - and fails when:
   * a file created now is not findable a moment later (the follower is losing to the
     event stream) - measured directly; `event_lag` itself is reported but not asserted,
     because it counts system-wide events since the index was last written
-  * RSS grows without bound (an unbounded structure)
+  * memory grows without bound (an unbounded structure)
   * the daemon stops answering (a wedge)
+
+Memory is measured as the process's physical footprint, not RSS. On macOS RSS counts mapped
+file pages the kernel drops on demand, and the index is memory-mapped, so the daemon reads
+158 MB RSS while holding 18.9 MB - and this soak's own daemon reads 12.7 MB RSS against a
+3.2 MB footprint. Asserting a bound on RSS therefore measures the page cache, not the process:
+it would fail a healthy daemon whose pages happen to be resident and pass a leaking one that
+had released them. RSS is still printed, because the original report was in RSS and a reading
+should stay comparable to it.
 
 Two durations:
     python3 scripts/soak.py              # ~60 s, the CI gate
@@ -40,7 +48,7 @@ BIN = os.environ.get("ULTRASEARCH_BIN") or os.path.join(ROOT, "engine", "target"
 
 # Thresholds. Deliberately loose: this is a collapse detector, not a benchmark.
 MAX_COMPACTIONS_PER_MIN = 30      # the bug produced 67 in a *row*
-MAX_RSS_GROWTH_MB = 120           # the bug reached 2,671 MB total
+MAX_GROWTH_MB = 120               # the bug reached 2,671 MB RSS; threshold kept loose
 STATUS_TIMEOUT_S = 10
 
 
@@ -85,12 +93,43 @@ class Tree:
 
 
 def rss_mb(pid):
+    """Resident size - kept only for continuity with the original report.
+
+    RSS is NOT memory use on macOS: it counts mapped file pages the kernel can drop at any
+    moment. The daemon sits at 158 MB RSS while its physical footprint is 18.9 MB, because the
+    index is memory-mapped. Asserting growth on RSS would fail a healthy daemon and pass a
+    leaking one that happens to have released file pages. `footprint_mb` is the number that
+    matters; this one is reported so a reading can still be compared to the 2,671 MB original.
+    """
     try:
         out = subprocess.run(["ps", "-o", "rss=", "-p", str(pid)],
                              capture_output=True, text=True, timeout=10).stdout.strip()
         return int(out) / 1024.0 if out else None
     except (subprocess.SubprocessError, ValueError):
         return None
+
+
+def footprint_mb(pid):
+    """Physical footprint: the memory the process is actually holding.
+
+    Read from `vmmap -summary`, which is slow, so this is called once per sample rather than
+    per assertion. Returns None where the tool is unavailable, and the caller then falls back
+    to RSS with a note rather than silently measuring the wrong thing.
+    """
+    try:
+        out = subprocess.run(["vmmap", "-summary", str(pid)],
+                             capture_output=True, text=True, timeout=30).stdout
+    except subprocess.SubprocessError:
+        return None
+    for line in out.splitlines():
+        if "Physical footprint:" in line:
+            parts = line.split()
+            # "Physical footprint:         18.9M"
+            for tok in reversed(parts):
+                if tok and tok[-1] in "MKG" and tok[:-1].replace(".", "", 1).isdigit():
+                    value = float(tok[:-1])
+                    return value * {"K": 1 / 1024, "M": 1.0, "G": 1024}[tok[-1]]
+    return None
 
 
 def search(env, term, timeout=STATUS_TIMEOUT_S):
@@ -153,6 +192,7 @@ def main():
             return 1
         start_compact = first.get("compactions", 0)
         rss0 = rss_mb(daemon.pid)
+        fp0 = footprint_mb(daemon.pid)
 
         while time.time() - t0 < window:
             tree.churn()
@@ -170,6 +210,7 @@ def main():
                 fails.append(f"the daemon stopped answering status at t+{time.time() - t0:.0f}s")
                 break
             rss = rss_mb(daemon.pid)
+            fp = footprint_mb(daemon.pid)
             samples.append({
                 "t": round(time.time() - t0),
                 "entries": st.get("entries"),
@@ -185,13 +226,14 @@ def main():
                 # minutes, during a concurrent cargo build. The churn was not the cause.
                 "global": st.get("event_id"),
                 "rss_mb": rss,
+                "footprint_mb": fp,
             })
             elapsed_min = max((time.time() - t0) / 60.0, 1e-9)
             rate = (st.get("compactions", 0) - start_compact) / elapsed_min
             line = (f"  t+{time.time() - t0:5.0f}s  base {st.get('entries'):>5}  "
                     f"overlay {st.get('overlay'):>4}  "
                     f"compact {st.get('compactions'):>3} ({rate:5.1f}/min)  "
-                    f"lag {st.get('event_lag'):>6}  rss {rss or 0:6.1f} MB")
+                    f"lag {st.get('event_lag'):>6}  fp {fp or 0:5.1f} MB  rss {rss or 0:6.1f} MB")
             print(line)
 
             if rate > MAX_COMPACTIONS_PER_MIN:
@@ -207,8 +249,14 @@ def main():
             #
             # The probe above is the assertion that means something: a file created now must
             # be findable a moment later. That measures "the follower is keeping up" directly.
-            if rss and rss0 and rss - rss0 > MAX_RSS_GROWTH_MB:
-                fails.append(f"RSS grew {rss - rss0:.0f} MB, over the {MAX_RSS_GROWTH_MB} MB ceiling - an unbounded structure")
+            # Asserted on physical footprint, not RSS. See `rss_mb`: RSS on macOS counts
+            # mapped file pages that the kernel reclaims on demand, so a bound on it measures
+            # the page cache rather than the process, and an earlier version of this soak
+            # reported "RSS bounded" for six hours while never once looking at real memory.
+            growth = (fp - fp0) if (fp and fp0) else ((rss - rss0) if (rss and rss0) else None)
+            metric = "footprint" if (fp and fp0) else "RSS (footprint unavailable)"
+            if growth is not None and growth > MAX_GROWTH_MB:
+                fails.append(f"{metric} grew {growth:.0f} MB, over the {MAX_GROWTH_MB} MB ceiling - an unbounded structure")
     finally:
         daemon.send_signal(signal.SIGTERM)
         try:
@@ -229,13 +277,18 @@ def main():
     print(f"  overlay       : {last['overlay']}")
     print(f"  compactions   : {last['compactions']} (from {start_compact})")
     print(f"  final lag     : {last['lag']}")
-    print(f"  RSS           : {rss0:.1f} -> {last['rss_mb'] or 0:.1f} MB")
+    fp_vals = [s["footprint_mb"] for s in samples if s.get("footprint_mb")]
+    if fp_vals:
+        print(f"  footprint     : {fp0:.1f} -> {last['footprint_mb'] or 0:.1f} MB "
+              f"(peak {max(fp_vals):.1f})")
+    print(f"  RSS           : {rss0:.1f} -> {last['rss_mb'] or 0:.1f} MB "
+          f"(page cache included; not memory use)")
 
     if fails:
         for f in fails:
             print(f"  FAIL: {f}", file=sys.stderr)
         return 1
-    print("  OK: compactions bounded, new files visible, RSS bounded, daemon answered throughout")
+    print("  OK: compactions bounded, new files visible, memory bounded, daemon answered throughout")
     if tmp and args.keep:
         print(f"  fixture kept at {tmp}")
     return 0
