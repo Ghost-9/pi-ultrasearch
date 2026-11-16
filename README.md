@@ -174,6 +174,21 @@ plan around it.
   indexed extensions, the skipped directory names and the generated-artefact exclusions — with a note on what a
   zero-hit grep does and does not mean. On a default install nothing is configured, so this block used to be
   `null` everywhere, which was useless at exactly the moment it mattered.
+- **`event_lag` is not a backlog.** It is `fsevents::current_id() - index.event_id`: the
+  live system-wide event counter minus the id stamped when the index was last *written*. Three
+  things follow, and all three matter when reading `status`:
+  - it grows on an idle daemon, because nothing writes the index when nothing changes.
+    Measured on an isolated daemon with 21 entries and no churn: `event_id` never moved and
+    `event_lag` climbed 4,817 → 63,064 in 60 seconds against an untouched index.
+  - it is not comparable between machines; a busier system advances the counter faster.
+  - a large value does **not** mean the daemon is behind. A daemon on a quiet tree can report
+    six figures while having processed everything it was given.
+
+  What it is genuinely good for: noticing that the index has not been written in a long time.
+  For "is the follower losing to the event stream", measure what matters — whether a file
+  created now is findable a few seconds later. The soak used to fail on this number and
+  reported a wedge that was not there; it now reports the system-wide event rate alongside,
+  which is what distinguishes the two.
 - **Every command takes `--json`.** `status` and search always did; `bench`, `install` and `uninstall` used to
   print prose and now emit machine-readable output, so a script no longer has to scrape.
 

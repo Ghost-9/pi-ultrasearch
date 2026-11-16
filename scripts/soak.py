@@ -10,7 +10,9 @@ This runs the daemon against a synthetic tree that churns the way a real one doe
 files created, modified and deleted while the index is live - and fails when:
 
   * compactions run away (the churn detector stopped working)
-  * event lag grows without bound (the follower is losing to the event stream)
+  * a file created now is not findable a moment later (the follower is losing to the
+    event stream) - measured directly; `event_lag` itself is reported but not asserted,
+    because it counts system-wide events since the index was last written
   * RSS grows without bound (an unbounded structure)
   * the daemon stops answering (a wedge)
 
@@ -38,7 +40,6 @@ BIN = os.environ.get("ULTRASEARCH_BIN") or os.path.join(ROOT, "engine", "target"
 
 # Thresholds. Deliberately loose: this is a collapse detector, not a benchmark.
 MAX_COMPACTIONS_PER_MIN = 30      # the bug produced 67 in a *row*
-MAX_LAG = 50_000                  # the bug reached 5,210,213
 MAX_RSS_GROWTH_MB = 120           # the bug reached 2,671 MB total
 STATUS_TIMEOUT_S = 10
 
@@ -195,18 +196,17 @@ def main():
 
             if rate > MAX_COMPACTIONS_PER_MIN:
                 fails.append(f"compactions ran at {rate:.0f}/min, over the {MAX_COMPACTIONS_PER_MIN}/min ceiling - the churn detector is not holding")
-            if (st.get("event_lag") or 0) > MAX_LAG:
-                # Record what the machine was doing, because an absolute lag over a
-                # system-wide id is not the daemon's backlog.
-                global_rate = ""
-                if len(samples) >= 2:
-                    prev = samples[-2]
-                    elapsed = max(1e-6, samples[-1]["t"] - prev["t"])
-                    made = (samples[-1]["global"] or 0) - (prev["global"] or 0)
-                    global_rate = (
-                        f" ({made / elapsed:,.0f} system-wide events/s in that interval)"
-                    )
-                fails.append(f"event lag reached {st.get('event_lag')}{global_rate}, over the {MAX_LAG} ceiling - the follower is losing to the event stream")
+            # `event_lag` is deliberately NOT asserted here.
+            #
+            # It is `fsevents::current_id() - index.event_id`: a live system-wide counter
+            # minus the id stamped when the index was last written. It therefore grows on an
+            # idle daemon - measured on an isolated one with 21 entries and no churn, it
+            # climbed 4817 -> 63064 in 60 s against an untouched index - and it moves with
+            # whatever else the machine is doing. A ceiling on it reported a wedge that did
+            # not exist, twice.
+            #
+            # The probe above is the assertion that means something: a file created now must
+            # be findable a moment later. That measures "the follower is keeping up" directly.
             if rss and rss0 and rss - rss0 > MAX_RSS_GROWTH_MB:
                 fails.append(f"RSS grew {rss - rss0:.0f} MB, over the {MAX_RSS_GROWTH_MB} MB ceiling - an unbounded structure")
     finally:
@@ -235,7 +235,7 @@ def main():
         for f in fails:
             print(f"  FAIL: {f}", file=sys.stderr)
         return 1
-    print("  OK: compactions bounded, lag bounded, RSS bounded, daemon answered throughout")
+    print("  OK: compactions bounded, new files visible, RSS bounded, daemon answered throughout")
     if tmp and args.keep:
         print(f"  fixture kept at {tmp}")
     return 0
