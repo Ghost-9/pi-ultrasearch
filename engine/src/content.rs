@@ -175,8 +175,12 @@ const NS: usize = 20;
 
 #[rustfmt::skip]
 fn lens(ndocs: usize, ntri: usize, plen: usize, paths_len: usize, nwords: usize, nown: usize, dict_len: usize) -> [usize; NS] {
-    let (d, c) = (ndocs * 4, nown * 4);
-    [ntri.div_ceil(DICT) * 12, dict_len, plen, ndocs.div_ceil(PATHS) * 4, paths_len, d, d, d, ndocs, d, d, d, d, d, c, c, c * 2, c, c + 4, nwords * 8]
+    // Header fields: saturate so a damaged length makes the total unreachable instead of
+    // overflowing (a panic in debug, a wrap that passes the size check in release).
+    let d = ndocs.saturating_mul(4);
+    let c = nown.saturating_mul(4);
+    [
+        ntri.div_ceil(DICT).saturating_mul(12), dict_len, plen, ndocs.div_ceil(PATHS).saturating_mul(4), paths_len, d, d, d, ndocs, d, d, d, d, d, c, c, c.saturating_mul(2), c, c.saturating_add(4), nwords.saturating_mul(8)]
 }
 
 impl Segment {
@@ -4411,7 +4415,7 @@ fn ic_put(w: &mut Bits, a: &[u32], lo: u32, hi: u32) {
 /// Read what `ic_put` wrote of `out.len()` values within lo..=hi, from bit `pos`.
 fn ic_get(b: &[u8], pos: &mut usize, out: &mut [u32], lo: u32, hi: u32) {
     let n = out.len();
-    if (hi - lo) as usize + 1 == n {
+    if (hi.saturating_sub(lo)) as usize + 1 == n {
         for (k, o) in out.iter_mut().enumerate() {
             *o = lo + k as u32;
         }
@@ -4419,13 +4423,13 @@ fn ic_get(b: &[u8], pos: &mut usize, out: &mut [u32], lo: u32, hi: u32) {
     }
     let m = n / 2;
     let low = lo + m as u32;
-    let k = width(hi - (n - 1 - m) as u32 - low);
+    let k = width(hi.saturating_sub((n.saturating_sub(1).saturating_sub(m)) as u32).saturating_sub(low));
     let x = low + get_bits(b, *pos, k);
     *pos += k as usize;
     out[m] = x;
     let (left, right) = out.split_at_mut(m);
     if m > 0 {
-        ic_get(b, pos, left, lo, x - 1);
+        ic_get(b, pos, left, lo, x.saturating_sub(1));
     }
     if m + 1 < n {
         ic_get(b, pos, &mut right[1..], x + 1, hi);
@@ -4488,7 +4492,9 @@ impl<'a> Ic<'a> {
         }
         // An Elias-gamma count.
         let z = get_bits(bytes, 0, 32).trailing_zeros();
-        let len = (1 << z | get_bits(bytes, z as usize + 1, z)) as usize;
+        // `z` is the position of the first set bit, so 32 (no bit set) is possible on
+        // damaged input and `1 << 32` overflows a u32.
+        let len = if z >= 32 { 0 } else { (1u32 << z | get_bits(bytes, z as usize + 1, z)) as usize };
         Ic { len, n, skips: &[], bits: bytes, start: 2 * z as usize + 1 }
     }
 
@@ -4544,12 +4550,15 @@ impl<'a> Ic<'a> {
         let (lo, mut pos) = self.start_of(j);
         if j + 1 < self.blocks() {
             let last = self.skip(j).0;
-            ic_get(self.bits, &mut pos, &mut out[..BLOCK - 1], lo, last - 1);
+            // Saturating: `last`, `len` and `n` all come from the segment file. With a
+            // damaged header these subtracted below zero, which panicked in a debug build
+            // and wrapped in a release one.
+            ic_get(self.bits, &mut pos, &mut out[..BLOCK - 1], lo, last.saturating_sub(1));
             out[BLOCK - 1] = last;
             return BLOCK;
         }
-        let n = self.len - BLOCK * j;
-        ic_get(self.bits, &mut pos, &mut out[..n], lo, self.n - 1);
+        let n = self.len.saturating_sub(BLOCK * j).min(BLOCK);
+        ic_get(self.bits, &mut pos, &mut out[..n], lo, self.n.saturating_sub(1));
         n
     }
 
@@ -5108,6 +5117,79 @@ fn open_ahead_sized(path: &[u8]) -> Option<(std::fs::File, u64)> {
         unsafe { libc::fcntl(f.as_raw_fd(), libc::F_RDADVISE, &ra) };
     }
     Some((f, len))
+}
+
+#[cfg(test)]
+mod segment_hardening {
+    use super::*;
+
+    /// A damaged content segment must be skipped, never panic the decoder.
+    ///
+    /// `Content::open_shared` mmaps whatever the manifest lists, so a torn segment - a crash
+    /// mid-write, a half-copied directory - is an ordinary event. The header's length fields
+    /// are multiplied before the size check, so extreme values are the interesting case.
+    ///
+    /// The first version of this test was vacuous: every hand-built shape was rejected at the
+    /// magic check, so it proved only that `fields()` rejects nonsense. It now writes a REAL
+    /// segment with `write_segment`, asserts it loads, and then damages that same file.
+    #[test]
+    fn a_damaged_segment_never_panics_the_decoder() {
+        let base = std::env::temp_dir().join(format!("us-seg-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).expect("temp dir");
+
+        // A valid segment with two documents and a posting list.
+        let docs = vec![
+            DocMeta { path: std::borrow::Cow::Borrowed(b"/one.rs"), size: 12, mtime: 1, rank: 0, gid: 0 },
+            DocMeta { path: std::borrow::Cow::Borrowed(b"/two.rs"), size: 34, mtime: 2, rank: 0, gid: 0 },
+        ];
+        let mut postings = Postings::default();
+        postings.push(docs.len(), 7, &[0, 1]);
+        let valid = base.join("valid");
+        std::fs::create_dir_all(&valid).expect("valid dir");
+        write_segment(&valid, 1, &docs, &[], vec![postings]).expect("write a real segment");
+        std::fs::write(valid.join("manifest"), "1\n").expect("manifest");
+        let good = Content::open_shared(valid.clone());
+        assert_eq!(good.segs.len(), 1, "the fixture must actually load, or nothing below is tested");
+        assert_eq!(good.segs[0].ndocs, 2);
+
+        let original = std::fs::read(seg_path(&valid, 1)).expect("read the segment");
+        assert!(original.len() > 64, "a real segment is not tiny");
+
+        let shapes: Vec<(&str, Vec<u8>)> = vec![
+            ("empty", Vec::new()),
+            ("magic only", original[..8].to_vec()),
+            ("header only", original[..4096.min(original.len())].to_vec()),
+            ("truncated to a third", original[..original.len() / 3].to_vec()),
+            ("truncated mid-posting", original[..(original.len() * 2 / 3)].to_vec()),
+            ("header claims maxima", {
+                let mut v = original.clone();
+                for k in 0..7 {
+                    v[8 + k * 8..16 + k * 8].copy_from_slice(&u64::MAX.to_le_bytes());
+                }
+                v
+            }),
+            ("bytes flipped mid-file", {
+                let mut v = original.clone();
+                for b in v.iter_mut().skip(64).take(200) {
+                    *b ^= 0xFF;
+                }
+                v
+            }),
+        ];
+
+        let mut reached_decoder = false;
+        for (i, (name, bytes)) in shapes.iter().enumerate() {
+            let dir = base.join(format!("shape{i}"));
+            std::fs::create_dir_all(&dir).expect("shape dir");
+            std::fs::write(dir.join("manifest"), format!("1 {name}\n")).expect("manifest");
+            std::fs::write(seg_path(&dir, 1), bytes).expect("segment");
+            let content = Content::open_shared(dir);
+            reached_decoder |= !content.segs.is_empty();
+        }
+        assert!(reached_decoder, "every damaged shape was rejected before decoding; the test proves nothing");
+        let _ = std::fs::remove_dir_all(&base);
+    }
 }
 
 #[cfg(test)]

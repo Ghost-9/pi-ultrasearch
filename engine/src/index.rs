@@ -930,7 +930,7 @@ impl Index {
             n64: n.div_ceil(64),
             blocks,
             name_shift,
-            groups: (u + 1).div_ceil(1 << name_shift),
+            groups: (u.saturating_add(1)).div_ceil(1usize.checked_shl(name_shift as u32).unwrap_or(usize::MAX)),
             u1: u + 1,
             run_words,
             event_id: event_id as u64,
@@ -1019,7 +1019,9 @@ pub(crate) fn layout<const N: usize>(lens: &[usize; N]) -> ([usize; N], usize) {
     let mut at = HDR;
     for (k, &l) in lens.iter().enumerate() {
         off[k] = at;
-        at = (at + l + 63) & !63;
+        // Saturate: a total that overflows is a file too large to exist, and the caller's
+        // size check must reject it rather than wrapping to something that fits.
+        at = at.saturating_add(l).saturating_add(63) & !63;
     }
     (off, at)
 }
@@ -1104,12 +1106,22 @@ impl NameInfo {
 #[rustfmt::skip]
 fn section_lens(n: usize, d: usize, u: usize, names_len: usize, blocks: usize, shift: usize, w: [usize; 7]) -> [usize; NSEC] {
     let n64 = n.div_ceil(64);
-    let runs = |len: usize, words: usize| (len.div_ceil(64) + 1 + words) * 8 + 8;
-    let z = n.div_ceil(ZONE) * std::mem::size_of::<Zone>();
+    // Every one of these reads a header field: saturate rather than overflow, so a damaged
+    // file produces a total too large to satisfy the size check and is rejected. A shift
+    // that does not fit is treated as the largest possible, for the same reason.
+    let shift = 1usize.checked_shl(shift as u32).unwrap_or(usize::MAX);
+    let runs = |len: usize, words: usize| {
+        len.div_ceil(64)
+            .saturating_add(1)
+            .saturating_add(words)
+            .saturating_mul(8)
+            .saturating_add(8)
+    };
+    let z = n.div_ceil(ZONE).saturating_mul(std::mem::size_of::<Zone>());
     [
-        u.div_ceil(64) * NBITMAPS * 8, (u + 1).div_ceil(1 << shift) * 4, (u + 1) * 2, names_len, bits_len(n, width(u)), bits_len(n, 4),
-        n64 * 8, n64 * 4, bits_len(blocks, width(d)), runs(n, w[0]), runs(n, w[1]), runs(d, w[2]), runs(d, w[3]), runs(d, w[4]),
-        runs(d, w[5]), d, runs(d, w[6]), bits_len(u + 1, width(n + 1)), bits_len(n, width(n)), u, u * 4, u, 256 * 16, z,
+        u.div_ceil(64).saturating_mul(NBITMAPS).saturating_mul(8), (u.saturating_add(1)).div_ceil(shift).saturating_mul(4), (u.saturating_add(1)).saturating_mul(2), names_len, bits_len(n, width(u)), bits_len(n, 4),
+        n64.saturating_mul(8), n64.saturating_mul(4), bits_len(blocks, width(d)), runs(n, w[0]), runs(n, w[1]), runs(d, w[2]), runs(d, w[3]), runs(d, w[4]),
+        runs(d, w[5]), d, runs(d, w[6]), bits_len(u.saturating_add(1), width(n.saturating_add(1))), bits_len(n, width(n)), u, u.saturating_mul(4), u, 256 * 16, z,
     ]
 }
 
@@ -1160,7 +1172,10 @@ fn read(p: &[u8], b: usize, w: u32) -> u32 {
 }
 
 fn bits_len(len: usize, w: u32) -> usize {
-    (len * w as usize).div_ceil(8) + 8
+    // Saturating: `len` and `w` come from the file's header, where a damaged field can be
+    // u64::MAX. Overflow here panicked in a debug build and silently wrapped in a release
+    // one, and a wrapped total passes the size check that is supposed to reject bad files.
+    len.saturating_mul(w as usize).div_ceil(8).saturating_add(8)
 }
 
 /// Write `v` into zeroed `out` as `Bits` of width `w`.
@@ -1442,6 +1457,92 @@ impl Index {
         out.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
         out.truncate(limit);
         out
+    }
+}
+
+#[cfg(test)]
+mod malformed_input {
+    use super::*;
+
+    /// Loading a damaged index must return None, never panic.
+    ///
+    /// The index is a cache built from files on disk, so a torn write, a crash during
+    /// compaction, or a half-copied file are ordinary events. `Index::load` returns
+    /// `Option`, which says the caller already expects failure - but the header fields it
+    /// reads are attacker-shaped (a length field can be `u64::MAX`) and the section maths
+    /// multiplies them, so this walks the shapes that have to be survivable.
+    ///
+    /// This exists because the remaining `unwrap()`s in this file were judged safe by
+    /// reading them. A judgement is not evidence; this is.
+    #[test]
+    fn a_damaged_index_never_panics_the_loader() {
+        let dir = std::env::temp_dir().join(format!("us-badindex-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("index.bin");
+
+        let mut cases: Vec<(&str, Vec<u8>)> = Vec::new();
+        cases.push(("empty", Vec::new()));
+        cases.push(("one byte", vec![0u8]));
+        cases.push(("magic only", MAGIC.to_vec()));
+        cases.push(("short of magic", b"FSIDX0".to_vec()));
+        cases.push(("wrong magic", b"NOTANIDX".to_vec()));
+        cases.push(("magic and nothing else", {
+            let mut v = MAGIC.to_vec();
+            v.resize(32, 0);
+            v
+        }));
+        // Padded to a body the header asks for, so the size check passes and the decode
+        // below it actually runs. Without a body every shape stops at the size check and
+        // the test proves nothing (it did exactly that on the first attempt).
+        let padded = |fields: [u64; 15]| {
+            let mut v = header(MAGIC, &fields);
+            v.resize(64 * 1024, 0);
+            v
+        };
+        cases.push(("header of zeros", padded([0u64; 15])));
+        cases.push(("header of ones", padded([1u64; 15])));
+        // The lengths are multiplied in `section_lens` and added in `layout`; `u64::MAX`
+        // there is the overflow case.
+        cases.push(("header of maxima", padded([u64::MAX; 15])));
+        cases.push(("huge counts", padded([1u64 << 40, 1 << 40, 1 << 40, 1 << 40, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0])));
+        cases.push((
+            "counts too large for the file",
+            header(MAGIC, &[1u64 << 40, 1u64 << 40, 1u64 << 40, 1u64 << 40, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0]),
+        ));
+        cases.push(("plausible but truncated body", {
+            let mut v = header(MAGIC, &[8, 0, 8, 8, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0]);
+            v.truncate(header(MAGIC, &[0u64; 15]).len());
+            v
+        }));
+        cases.push(("header then garbage", {
+            let mut v = header(MAGIC, &[8, 0, 8, 8, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0]);
+            v.extend_from_slice(&[0xAA; 4096]);
+            v
+        }));
+        cases.push(("pseudo-random bytes", {
+            let mut s = 0x2545F4914F6CDD1Du64;
+            (0..8192)
+                .map(|_| {
+                    s ^= s << 13;
+                    s ^= s >> 7;
+                    s ^= s << 17;
+                    (s >> 24) as u8
+                })
+                .collect()
+        }));
+
+        let mut loaded_any = false;
+        for (name, bytes) in cases {
+            std::fs::write(&path, &bytes).expect("write fixture");
+            let got = Index::load(&path);
+            // Either answer is fine; not panicking is the assertion.
+            loaded_any |= got.is_some();
+            let _ = got.map(|i| (i.n, i.bytes(), name));
+        }
+        // Otherwise every fixture was rejected at the magic and the test proves only that.
+        assert!(loaded_any, "no shape loaded; the decode path below the header was never exercised");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
 

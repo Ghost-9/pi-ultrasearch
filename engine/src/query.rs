@@ -4331,6 +4331,77 @@ fn rank_tweaks(flags: u8, kind: u8, mtime: u32, now: u32) -> i32 {
 }
 
 #[cfg(test)]
+mod malformed_queries {
+    use super::*;
+
+    /// Arbitrary user text must never panic the parser.
+    ///
+    /// The remaining `unwrap()`s in this file are reached from a query string the user
+    /// typed, so "it cannot happen" is not an argument - the input is whatever they type.
+    /// `Part::Star(_).max_by_key(..).unwrap()` is the one that looks reachable: it assumes
+    /// a glob always has at least one alternative.
+    #[test]
+    fn arbitrary_queries_parse_without_panicking() {
+        let home = "/Users/nobody";
+        let mut cases: Vec<String> = vec![
+            String::new(),
+            "-".into(),
+            "--".into(),
+            "- -".into(),
+            "a".into(),
+            "*".into(),
+            "**".into(),
+            "***".into(),
+            "?".into(),
+            "??".into(),
+            "[]".into(),
+            "{}".into(),
+            "[a-".into(),
+            "[".into(),
+            "]".into(),
+            "\\".into(),
+            "/".into(),
+            "//".into(),
+            "..".into(),
+            ".".into(),
+            "re:".into(),
+            "re:[".into(),
+            "re:(".into(),
+            "re:*".into(),
+            "re:a{".into(),
+            "@".into(),
+            "~".into(),
+            "$HOME".into(),
+            "a:b".into(),
+            "\u{0}\u{1}\u{2}".into(),
+            "\u{feff}".into(),
+            "日本語".into(),
+            "🙂🙂".into(),
+            "%".into(),
+            "100%".into(),
+            "=".into(),
+            "==".into(),
+            "-*".into(),
+            "* -a".into(),
+            "a b c d e f g h i j k l m n o p".into(),
+            "a".repeat(10_000),
+            "-a ".repeat(200),
+            "re:.*".into(),
+            "path:/Users/nobody/file.txt".into(),
+        ];
+        cases.push("-".repeat(64));
+        cases.push(format!("-{}", "a".repeat(500)));
+
+        for q in cases {
+            // Either answer is acceptable; not panicking is the assertion.
+            if let Ok(parsed) = Query::parse(&q, home) {
+                let _ = parsed.tokens.len();
+            }
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::walk::{Listing, NONE, RawEnt};
