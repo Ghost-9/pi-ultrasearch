@@ -17,6 +17,14 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Condvar, Mutex, RwLock, RwLockReadGuard};
 use std::time::{Duration, Instant};
 
+/// How long a stream may run without `HISTORY_DONE` before the replay window is closed.
+///
+/// fseventsd keeps a bounded history; a saved event id older than it yields no replay and
+/// no completion flag. Long enough that a real 14-hour catch-up is not cut short (the events
+/// arrive within seconds when fseventsd still has them), short enough that a daemon does not
+/// report itself stale for its whole uptime.
+const REPLAY_WINDOW_SECS: u64 = 30;
+
 // Every search scans the whole overlay (~1 ms per 100k entries), and a
 // follower starting up replays everything since the save, so fold it into
 // the base once it grows: ~1 s of CPU and a ~280 MB write, about hourly on a
@@ -937,7 +945,7 @@ impl Shared {
     }
 
     /// (Re)start the FSEvents stream from `since`, replacing any old one.
-    fn watch(&self, since: u64) {
+    fn watch(self: &std::sync::Arc<Self>, since: u64) {
         // A stream started at (or past) the newest event id has no history to
         // replay, and FSEvents does not send HISTORY_DONE for it — the flag
         // that closes the window below never arrives. Treating that stream as
@@ -952,6 +960,37 @@ impl Shared {
         }
         self.since.store(since, Ordering::Relaxed);
         let n = self.streams.fetch_add(1, Ordering::Relaxed) + 1;
+        // Close the replay window even when `HISTORY_DONE` never arrives.
+        //
+        // fseventsd keeps only so much history. When the saved event id is older than
+        // what it still holds, a stream started from it is given no historical events
+        // and no `HISTORY_DONE` - the one flag that ever ended the window. Observed on
+        // this machine: `replay_in_progress` still true and `staleness_ms` still equal
+        // to the whole uptime after 12 minutes, with `event_lag` 13, i.e. long caught up
+        // but reporting itself stale forever.
+        //
+        // A stream that has been running this long without finishing is caught up in
+        // practice: the lag is drained and nothing is being replayed. The generation
+        // counter keeps a later `watch` from being closed early by this one.
+        if replay {
+            let me = self.clone();
+            spawn("ultrasearch-replay-window", move || {
+                for _ in 0..REPLAY_WINDOW_SECS {
+                    std::thread::sleep(Duration::from_secs(1));
+                    if !me.replaying.load(Ordering::Relaxed) {
+                        return;
+                    }
+                    if me.streams.load(Ordering::Relaxed) != n {
+                        return;
+                    }
+                }
+                if me.replaying.load(Ordering::Relaxed) && me.streams.load(Ordering::Relaxed) == n {
+                    log("replay window closed by timeout: no HISTORY_DONE arrived");
+                    me.replaying.store(false, Ordering::Relaxed);
+                    me.mark_caught_up();
+                }
+            });
+        }
         // 10 ms: a change shows in ~12 ms (fseventsd's own delay); at 0.1 s,
         // one made within 0.1 s of another (save then rename) took ~100 ms.
         // `Pace` keeps a busy folder from being listed that often.
@@ -961,7 +1000,7 @@ impl Shared {
 
     /// A follower picks up what the owner wrote: a newer name-index save
     /// (replaying FSEvents from it) and content segment changes.
-    fn follow(&self) {
+    fn follow(self: &std::sync::Arc<Self>) {
         let path = self.dir.join("index.bin");
         let saved = Index::saved_event_id(&path).unwrap_or(0);
         let ours = self.live.read().unwrap_or_else(|p| p.into_inner()).as_ref().map_or(0, |l| l.base.event_id);
