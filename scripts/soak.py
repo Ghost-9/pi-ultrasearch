@@ -175,6 +175,14 @@ def main():
                 "overlay": st.get("overlay"),
                 "compactions": st.get("compactions"),
                 "lag": st.get("event_lag"),
+                # The global event id, so the lag can be read as a RATE rather than an
+                # absolute. `event_lag` is `last_event_id - event_id` over the system-wide
+                # FSEvents stream, so a machine doing other work moves it even when the
+                # daemon is keeping up. Measured: two runs of the same binary over the same
+                # tree - 302 s of churn (216 files) peaked at lag 85, while a 1505 s run
+                # (100 files, a third of the churn rate) reached 88203 in its first four
+                # minutes, during a concurrent cargo build. The churn was not the cause.
+                "global": st.get("event_id"),
                 "rss_mb": rss,
             })
             elapsed_min = max((time.time() - t0) / 60.0, 1e-9)
@@ -188,7 +196,17 @@ def main():
             if rate > MAX_COMPACTIONS_PER_MIN:
                 fails.append(f"compactions ran at {rate:.0f}/min, over the {MAX_COMPACTIONS_PER_MIN}/min ceiling - the churn detector is not holding")
             if (st.get("event_lag") or 0) > MAX_LAG:
-                fails.append(f"event lag reached {st.get('event_lag')}, over the {MAX_LAG} ceiling - the follower is losing to the event stream")
+                # Record what the machine was doing, because an absolute lag over a
+                # system-wide id is not the daemon's backlog.
+                global_rate = ""
+                if len(samples) >= 2:
+                    prev = samples[-2]
+                    elapsed = max(1e-6, samples[-1]["t"] - prev["t"])
+                    made = (samples[-1]["global"] or 0) - (prev["global"] or 0)
+                    global_rate = (
+                        f" ({made / elapsed:,.0f} system-wide events/s in that interval)"
+                    )
+                fails.append(f"event lag reached {st.get('event_lag')}{global_rate}, over the {MAX_LAG} ceiling - the follower is losing to the event stream")
             if rss and rss0 and rss - rss0 > MAX_RSS_GROWTH_MB:
                 fails.append(f"RSS grew {rss - rss0:.0f} MB, over the {MAX_RSS_GROWTH_MB} MB ceiling - an unbounded structure")
     finally:
