@@ -32,6 +32,8 @@ Exit code 0 means every assertion held for the whole window.
 """
 
 import argparse
+import contextlib
+import io
 import json
 import os
 import random
@@ -152,12 +154,8 @@ def status(env, timeout=STATUS_TIMEOUT_S):
         return None
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--hours", type=float, default=0, help="0 means the 60 s gate window")
-    ap.add_argument("--seconds", type=float, default=0, help="explicit window, overrides --hours")
-    ap.add_argument("--keep", action="store_true", help="leave the fixture tree on disk")
-    args = ap.parse_args()
+def run_soak(args):
+    """The soak proper. `args` needs `seconds`, `hours` and `keep`."""
 
     window = args.seconds or (args.hours * 3600 if args.hours else 60.0)
     sample_every = 5.0 if window <= 300 else 60.0
@@ -203,7 +201,16 @@ def main():
             probe_name = os.path.basename(probe).replace(".txt", "")
             time.sleep(sample_every)
             found = search(env, probe_name)
-            if found is not None and probe_name not in found:
+            # `None` means the search itself did not come back. That used to skip the check
+            # entirely, so a daemon that answered `status` but not `search` passed the one
+            # assertion that matters - the same shape as every other instrument defect found
+            # here: a probe that reports success when it measured nothing.
+            if found is None:
+                fails.append(
+                    f"the daemon did not answer a search at t+{time.time() - t0:.0f}s, so the "
+                    f"visibility probe could not run"
+                )
+            elif probe_name not in found:
                 fails.append(f"a file created {sample_every:.0f}s ago ({os.path.basename(probe)}) is not findable - the follower is not keeping up")
             st = status(env)
             if st is None:
@@ -292,6 +299,51 @@ def main():
     if tmp and args.keep:
         print(f"  fixture kept at {tmp}")
     return 0
+
+
+
+
+def selftest():
+    """Fail if this soak would pass without actually checking anything.
+
+    A probe that cannot fail reports success, and this file already had one: when a search did
+    not answer, `found` was None and the visibility check was skipped entirely, so a daemon that
+    answered `status` but not `search` produced "OK: new files visible" without ever looking.
+    Verified against the old logic - it returned 0 and printed OK.
+
+    So the check lives with the tool: break `search`, run the soak, require a failure.
+    """
+    global search
+    real = search
+    search = lambda *a, **k: None
+    args = argparse.Namespace(seconds=45, hours=0, keep=False)
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(buf):
+            rc = run_soak(args)
+    finally:
+        search = real
+    if rc == 0:
+        print("  SELFTEST FAILED: the soak passed with search broken - its assertions are inert")
+        return 1
+    if "did not answer a search" not in buf.getvalue():
+        print(f"  SELFTEST FAILED: it failed, but not for the right reason: {buf.getvalue()[:160]}")
+        return 1
+    print("  selftest OK: breaking search makes the soak fail")
+    return 0
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--hours", type=float, default=0, help="0 means the 60 s gate window")
+    ap.add_argument("--seconds", type=float, default=0, help="explicit window, overrides --hours")
+    ap.add_argument("--keep", action="store_true", help="leave the fixture tree on disk")
+    ap.add_argument("--selftest", action="store_true",
+                    help="run with search deliberately broken; the soak must fail")
+    args = ap.parse_args()
+    if args.selftest:
+        return selftest()
+    return run_soak(args)
 
 
 if __name__ == "__main__":

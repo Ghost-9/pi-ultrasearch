@@ -120,11 +120,22 @@ jobs:
       # The 2,671 MB / 67-compaction defect was a *time* behaviour: it needed the
       # daemon to run against a churning tree before it appeared, and nothing in
       # this workflow ran long enough to see it. This does, briefly, and asserts the
-      # properties that failed: compactions bounded, event lag bounded, RSS flat, the
-      # daemon still answering, and a file created seconds ago still findable.
+      # properties that failed: compactions bounded, memory bounded, the daemon still
+      # answering, and a file created seconds ago still findable.
       # `python3 scripts/soak.py --hours 48` runs the real weekend soak.
-      - name: Soak (churn, bounded compactions and lag, live follower)
+      #
+      # Memory is the process footprint, not RSS: RSS on macOS counts memory-mapped file
+      # pages the kernel reclaims on demand, so this daemon reads 158 MB RSS while holding
+      # 18.9 MB, and asserting on it measured the page cache rather than the process.
+      - name: Soak (churn, bounded compactions and memory, live follower)
         run: python3 scripts/soak.py --seconds 60
+
+      # The soak has already had one assertion that could not fail: a search that did not
+      # answer left `found` None and the visibility check was skipped, so a daemon answering
+      # `status` but not `search` produced "OK: new files visible" without ever looking.
+      # This runs the soak with `search` broken and requires it to fail.
+      - name: Soak selftest (the soak must fail when its probe is broken)
+        run: python3 scripts/soak.py --selftest
 
       - name: Benchmark gate (hermetic strict + live floor-derived)
         run: npm run test:gate
