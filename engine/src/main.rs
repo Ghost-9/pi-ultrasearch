@@ -374,15 +374,37 @@ fn install(login: bool, as_json: bool) {
 fn uninstall(as_json: bool) {
     launchctl(&["bootout", &format!("{}/{LABEL}", domain())]);
     let _ = std::fs::remove_file(plist_path());
+    // Only the agent this binary owns is removed. The shipped app registers its own label, and
+    // without saying so the command answered `ok: true` and "removed LaunchAgent mt.nd..." while
+    // that other agent kept the daemon running - a user who asked to uninstall would still see a
+    // daemon serving. `install` already refuses in the mirror-image case; uninstall has to be as
+    // honest about what it left alone.
+    let other = foreign_agent();
     if as_json {
-        println!(
-            "{}",
-            serde_json::json!({
-                "ok": true, "removed_login_agent": LABEL, "index_kept_at": data_dir().display().to_string(),
-            })
-        );
+        let mut out = serde_json::json!({
+            "ok": true, "removed_login_agent": LABEL,
+            "index_kept_at": data_dir().display().to_string(),
+        });
+        if let Some(o) = &other {
+            // `foreign_agent` returns the plist FILE name; the label is what `launchctl` wants,
+            // and the first version of this message printed both wrongly - the file name as the
+            // label, and `gui/gui/501` because `domain()` already carries the "gui/" prefix.
+            let label = o.strip_suffix(".plist").unwrap_or(o);
+            out["other_agent_still_manages_the_daemon"] = serde_json::json!(label);
+            out["note"] = serde_json::json!(format!(
+                "{label} still manages an UltraSearch daemon (installed by the app, not by this \
+                 binary). The daemon keeps running until it is stopped: launchctl bootout {} \
+                 {label}, or run the app's installer with --uninstall.", domain()
+            ));
+        }
+        println!("{out}");
     } else {
         println!("removed LaunchAgent {LABEL}; index kept in {}", data_dir().display());
+        if let Some(o) = &other {
+            let label = o.strip_suffix(".plist").unwrap_or(o);
+            println!("note: {label} still manages an UltraSearch daemon - installed by the app, not by this binary.");
+            println!("      the daemon keeps running until that agent is stopped.");
+        }
     }
 }
 
