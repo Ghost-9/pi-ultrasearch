@@ -1129,6 +1129,7 @@ fn grep(v: &Value, cx: &Ctx, root: Option<&[u8]>, deny: &DenyList) -> Result<Val
             j
         })
         .collect();
+    let st = engine.status();
     let mut out = json!({
         "ok": true,
         "took_us": t.elapsed().as_micros() as u64,
@@ -1140,7 +1141,14 @@ fn grep(v: &Value, cx: &Ctx, root: Option<&[u8]>, deny: &DenyList) -> Result<Val
         // what the index proposed, `scanned` how many files were read.
         "considered": r.candidates,
         "scanned": r.read,
-        "indexing": engine.status().content_pending,
+        "indexing": st.content_pending,
+        // How much text there is to search at all. Without it, "no candidates" and "no
+        // documents indexed" read the same: a daemon whose content index is empty answers
+        // `files: []`, `complete: true`, and every counter at zero - which is what a caller
+        // would otherwise read as "the text is not there". Measured on a daemon started with
+        // its own state directory: 0 candidates, 0 scanned, complete true, while the file it
+        // was pointed at contained the marker and had never been content-indexed.
+        "content_docs": st.content_docs,
         // The content index skips files larger than this, so a zero-hit answer is not a
         // statement about a file above the cap. Measured: a 1,400,022-byte .txt containing
         // a unique marker returned `files: []` and `complete: true`, exactly as if the
