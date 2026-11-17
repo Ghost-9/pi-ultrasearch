@@ -468,6 +468,21 @@ index would simply never change and every ceiling would hold. `entries` is the *
 
 ## Testing & CI
 
+### Is the installed app actually this source?
+
+```sh
+./scripts/verify-deployed.sh
+```
+
+Checksums cannot answer it: a codesigned bundle never hash-matches a cargo build. Neither can
+mtimes - a commit that only adds `#[cfg(test)]` code touches `engine/src` without changing what
+ships, and that alone made this app look fourteen minutes stale when it was current.
+
+So the script compares behaviour. Each binary serves its own tiny tree in its own state
+directory and both are asked the same name question; if the answers differ the install is not
+the source. It exits non-zero if a probe produces nothing rather than reporting a pass it did
+not earn. Measured on this machine: the installed app matches the repo build.
+
 ### On `unwrap` in the engine
 
 There are 69 `unwrap`/`expect` calls in the engine's non-test code. They were audited rather
