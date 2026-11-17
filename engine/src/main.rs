@@ -22,7 +22,8 @@ const USAGE: &str = "usage:
   ultrasearch install [--login]      copy to ~/.local/bin; --login also starts the daemon at login
                                 (needs Full Disk Access granted to ~/.local/bin/ultrasearch-daemon)
   ultrasearch uninstall             remove the login agent (keeps the index)
-  ultrasearch bench <query...>      time a query in-process against the saved index";
+  ultrasearch bench <query...>      time a query in-process against the saved index
+  ultrasearch init                  not implemented here: harness registration is in the npm CLI";
 
 const LABEL: &str = "mt.nd.ultrasearch";
 
@@ -68,6 +69,26 @@ fn main() {
         ),
         Some("install") => install(args.iter().any(|a| a == "--login"), json_flag(&args)),
         Some("uninstall") => uninstall(json_flag(&args)),
+        // The README documents `ultrasearch init` for harness registration, and that command
+        // lives in the npm CLI, not in this binary. Without an arm here the word fell through to
+        // search: `ultrasearch init --list` quietly listed files matching "init" and exited 0,
+        // so a user following the installer's own next step would think it had worked. Every
+        // other command name already shadows a query; this one says why.
+        Some("init") => {
+            let json = json_flag(&args);
+            let note = "`init` is not a command in this binary. Harness registration lives in the \
+                        npm CLI: npm i -g pi-ultrasearch, then `ultrasearch init --list`.";
+            // NOT `print_one`: that sends its argument to the daemon as a request. Handing it an
+            // error object sent `{"ok":false,...}` over the socket, which the daemon read as a
+            // search with no query and answered with every match it could find - so the first
+            // version of this arm printed 5 KB of file paths and then exited 2.
+            if json {
+                println!("{}", serde_json::json!({"ok": false, "error": note}));
+            } else {
+                eprintln!("ultrasearch: {note}");
+            }
+            std::process::exit(2);
+        }
         Some(_) => {
             let json = args.iter().any(|a| a == "--json");
             let q: Vec<&str> = args.iter().map(String::as_str).filter(|a| *a != "--json").collect();

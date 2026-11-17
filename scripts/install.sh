@@ -159,8 +159,13 @@ Full Disk Access (required for whole-disk search):
   when the bundle identifier is unchanged. See docs/engine-rebrand.md for the
   optional stable signing identity and scripts/verify-fda.sh.
 
-Next step (harness registration; requires the phase-1 \`init\` command):
-  ultrasearch init --list
+Next step:
+  printf '{"op":"status","id":1}\n' | nc -U "$SUPPORT_DIR/ultrasearch.sock"
+
+Harness registration is a different artefact: "ultrasearch init" lives in the npm CLI
+(npm i -g pi-ultrasearch, then "ultrasearch init --list"), not in this app bundle. The app's
+binary treats an unrecognised first word as a search, so "ultrasearch init" here would look for
+files named init and quietly succeed at the wrong thing - it now says so instead.
 
 State directory (index, content index, logs) — left untouched:
   $SUPPORT_DIR

@@ -130,7 +130,12 @@ test("packaging: dry-run plan is complete and performs no bootstrap", { skip: pr
     assert.match(res.stdout, /\[dry-run\] codesign/);
     assert.match(res.stdout, /\[dry-run\] launchctl bootstrap/);
     assert.match(res.stdout, /Full Disk Access/);
-    assert.match(res.stdout, /ultrasearch init --list/);
+    // The plan used to end by telling the user to run `ultrasearch init --list`, which is a
+    // command in the npm CLI - not in this app bundle. The app's binary treats an unrecognised
+    // first word as a search, so that instruction quietly listed files named "init" and exited
+    // 0. The guidance now names where init actually lives, and the binary says so too.
+    assert.match(res.stdout, /npm CLI/, "the plan must say where `init` lives");
+    assert.match(res.stdout, /npm i -g pi-ultrasearch/);
     assert.doesNotMatch(res.stdout, /^ok: wrote /m, "dry-run must not write files");
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
