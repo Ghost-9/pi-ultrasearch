@@ -68,7 +68,13 @@ variables for its index, scan root and content policy (see [`engine/BUILD.md`](e
 > **Scope matters more than the machine here.** The figures below are from 2026-10-14 and are
 > labelled by the scope they were taken against; "small repo" is a few thousand files. The
 > deployment these were re-checked on (2026-11-17, same M1 Pro) indexes the whole disk:
-> **930,961 entries and 81,321 content documents.** Measured there, one warm connection, no
+> **930,961 entries and 81,321 content documents.** These are figures for a **compacted** index:
+> a daemon keeps new and changed paths in an overlay until it reaches the compaction bar
+> (50,000 entries by default, `ULTRASEARCH_COMPACT_PENDING`), so a long-running daemon answers
+> slower than this. Measured on the live daemon 126 minutes after a restart, with a 43,745-entry
+> overlay and nothing else of mine running: path search `soak.py` p50 **3.57 ms**, `README`
+> **15.25 ms**, `status` **0.64 ms** - a few milliseconds rather than a few tenths, and still
+> single-digit for the common case. Measured there, one warm connection, no
 > concurrency: IPC ping p50 **0.423 ms** / p95 2.56 ms over 100 calls; path search `soak.py`
 > p50 **0.40 ms** / p95 1.55 ms; path search `README` (very many matches) p50 **3.22 ms** /
 > p95 21.6 ms; trigram grep `fn main` p50 **4.23 ms** / p95 15.7 ms. Still single-digit
