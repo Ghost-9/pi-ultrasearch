@@ -394,7 +394,8 @@ fn uninstall(as_json: bool) {
             out["note"] = serde_json::json!(format!(
                 "{label} still manages an UltraSearch daemon (installed by the app, not by this \
                  binary). The daemon keeps running until it is stopped: launchctl bootout {} \
-                 {label}, or run the app's installer with --uninstall.", domain()
+                 {label}, or run the app's installer with --uninstall.",
+                domain()
             ));
         }
         println!("{out}");
