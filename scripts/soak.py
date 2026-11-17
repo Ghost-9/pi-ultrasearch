@@ -191,6 +191,7 @@ def run_soak(args):
                               stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
 
     fails = []
+    missing = []  # samples where the daemon answered without a status field
     samples = []
     t0 = time.time()
     try:
@@ -254,12 +255,21 @@ def run_soak(args):
                 "footprint_mb": fp,
             })
             elapsed_min = max((time.time() - t0) / 60.0, 1e-9)
-            rate = (st.get("compactions", 0) - start_compact) / elapsed_min
-            line = (f"  t+{time.time() - t0:5.0f}s  base {st.get('entries'):>5}  "
-                    f"overlay {st.get('overlay'):>4}  "
-                    f"compact {st.get('compactions'):>3} ({rate:5.1f}/min)  "
-                    f"lag {st.get('event_lag'):>6}  fp {fp or 0:5.1f} MB  rss {rss or 0:6.1f} MB")
-            print(line)
+            # Every field is formatted directly, so a status reply that omits one kills the run
+            # with `TypeError: unsupported format string passed to NoneType.__format__`. That is
+            # what ended a two-hour soak: the daemon answered without `entries`, the line blew
+            # up, and the log simply stopped - which then looked like a healthy run to anything
+            # reading the last line.
+            def num(v, default=0):
+                return default if v is None else v
+            rate = (num(st.get("compactions")) - start_compact) / elapsed_min
+            if st.get("entries") is None:
+                missing.append(f"t+{time.time() - t0:.0f}s")
+            line = (f"  t+{time.time() - t0:5.0f}s  base {num(st.get('entries')):>5}  "
+                    f"overlay {num(st.get('overlay')):>4}  "
+                    f"compact {num(st.get('compactions')):>3} ({rate:5.1f}/min)  "
+                    f"lag {num(st.get('event_lag')):>6}  fp {fp or 0:5.1f} MB  rss {rss or 0:6.1f} MB")
+            print(line, flush=True)
 
             if rate > MAX_COMPACTIONS_PER_MIN:
                 fails.append(f"compactions ran at {rate:.0f}/min, over the {MAX_COMPACTIONS_PER_MIN}/min ceiling - the churn detector is not holding")
@@ -302,6 +312,9 @@ def run_soak(args):
     print(f"  overlay       : {last['overlay']}")
     print(f"  compactions   : {last['compactions']} (from {start_compact})")
     print(f"  final lag     : {last['lag']}")
+    if missing:
+        print(f"  incomplete    : {len(missing)} status reply(ies) had no fields at {missing[0]}"
+              + (f" .. {missing[-1]}" if len(missing) > 1 else ""))
     fp_vals = [s["footprint_mb"] for s in samples if s.get("footprint_mb")]
     if fp_vals:
         print(f"  footprint     : {fp0:.1f} -> {last['footprint_mb'] or 0:.1f} MB "
