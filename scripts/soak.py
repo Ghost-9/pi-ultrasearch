@@ -337,30 +337,54 @@ def run_soak(args):
 def selftest():
     """Fail if this soak would pass without actually checking anything.
 
-    A probe that cannot fail reports success, and this file already had one: when a search did
-    not answer, `found` was None and the visibility check was skipped entirely, so a daemon that
-    answered `status` but not `search` produced "OK: new files visible" without ever looking.
-    Verified against the old logic - it returned 0 and printed OK.
+    Every assertion in this file has to be able to fire, or it is decoration. Each one is
+    broken here in turn and the soak is required to fail for that specific reason:
 
-    So the check lives with the tool: break `search`, run the soak, require a failure.
+      * the visibility probe, by making `search` return nothing - the original defect, where a
+        daemon answering `status` but not `search` produced "OK: new files visible"
+      * the memory ceiling, by setting it below zero so any reading crosses it
+      * the compaction ceiling, likewise
+
+    The status probe is covered too: it is what every other assertion reads from.
     """
-    global search
-    real = search
-    search = lambda *a, **k: None
-    args = argparse.Namespace(seconds=45, hours=0, keep=False)
-    buf = io.StringIO()
-    try:
-        with contextlib.redirect_stderr(buf):
-            rc = run_soak(args)
-    finally:
-        search = real
-    if rc == 0:
-        print("  SELFTEST FAILED: the soak passed with search broken - its assertions are inert")
+    checks = []
+
+    def run_with(fail_substring, mutate, restore):
+        args = argparse.Namespace(seconds=40, hours=0, keep=False)
+        buf = io.StringIO()
+        mutate()
+        try:
+            with contextlib.redirect_stderr(buf), contextlib.redirect_stdout(io.StringIO()):
+                rc = run_soak(args)
+        finally:
+            restore()
+        if rc == 0:
+            checks.append((fail_substring, "PASSED (inert)"))
+        elif fail_substring not in buf.getvalue():
+            checks.append((fail_substring, f"failed for another reason: {buf.getvalue()[:80]}"))
+        else:
+            checks.append((fail_substring, "failed correctly"))
+
+    def swap(name, value):
+        real = globals()[name]
+        return (lambda: globals().__setitem__(name, value)), (lambda: globals().__setitem__(name, real))
+
+    m1, r1 = swap("search", lambda *a, **k: None)
+    run_with("did not answer a search", m1, r1)
+    m2, r2 = swap("MAX_GROWTH_MB", -1)
+    run_with("footprint grew", m2, r2)
+    m3, r3 = swap("MAX_COMPACTIONS_PER_MIN", -1)
+    run_with("compactions ran at", m3, r3)
+
+    bad = 0
+    for want, got in checks:
+        ok = got == "failed correctly"
+        bad += 0 if ok else 1
+        print(f"  {want:34} {got}")
+    if bad:
+        print("  SELFTEST FAILED: an assertion above cannot fire, so it proves nothing")
         return 1
-    if "did not answer a search" not in buf.getvalue():
-        print(f"  SELFTEST FAILED: it failed, but not for the right reason: {buf.getvalue()[:160]}")
-        return 1
-    print("  selftest OK: breaking search makes the soak fail")
+    print("  selftest OK: all three assertions fire when broken")
     return 0
 
 
