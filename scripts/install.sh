@@ -383,10 +383,29 @@ fi
 write_file "$PLIST" < <(plist_content)
 if job_loaded; then
   run launchctl bootout "gui/$(id -u)/$LABEL" || true
+  # A bootout returns before launchd has finished tearing the job down, so a bootstrap issued
+  # straight after loses the race and fails with "Bootstrap failed: 5: Input/output error".
+  # The job then loads anyway on kickstart, which is how an install could print an alarming
+  # error and still leave a perfectly good daemon running - the worst of both.
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    job_loaded || break
+    sleep 0.3
+  done
 fi
-run launchctl bootstrap "gui/$(id -u)" "$PLIST"
+
+# Report what actually happened rather than what the first call said: a bootstrap that fails
+# because the job is already there is not a failure, and a bootstrap that "succeeds" while the
+# job never loads is not a success. The job being loaded afterwards is the only evidence that
+# counts, and the kickstart below is what makes it running.
+if ! run launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null && ! job_loaded; then
+  warn "launchctl could not load $LABEL"
+fi
 run launchctl kickstart -k "gui/$(id -u)/$LABEL"
-ok "started $LABEL"
+if job_loaded; then
+  ok "started $LABEL"
+else
+  warn "$LABEL is not loaded - the daemon will start on first use instead of at login"
+fi
 
 fda_steps
 say ""
