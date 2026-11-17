@@ -145,13 +145,24 @@ def search(env, term, timeout=STATUS_TIMEOUT_S):
 
 
 def status(env, timeout=STATUS_TIMEOUT_S):
-    """Ask the daemon. None means it did not answer - which is itself a failure."""
-    try:
-        r = subprocess.run([BIN, "status"], capture_output=True, text=True,
-                           env=env, timeout=timeout)
-        return json.loads(r.stdout)
-    except (subprocess.SubprocessError, json.JSONDecodeError, OSError):
-        return None
+    """Ask the daemon. None means it did not answer - which is itself a failure.
+
+    A timeout is retried once at four times the limit before it counts. Measured: the same call
+    takes 7 ms at rest and up to 3.5 s while the machine sits at load 22, a 500x slowdown, so a
+    busy machine can cross a fixed 10 s limit without the daemon being wedged. The six-hour run
+    ended exactly that way - one failed probe at load ~100, no crash report, 69 good samples
+    either side - and it was reported as "the daemon stopped answering", which is a verdict on
+    the product drawn from a measurement of the machine.
+    """
+    for attempt, limit in ((1, timeout), (2, timeout * 4)):
+        try:
+            r = subprocess.run([BIN, "status"], capture_output=True, text=True,
+                               env=env, timeout=limit)
+            return json.loads(r.stdout)
+        except (subprocess.SubprocessError, json.JSONDecodeError, OSError):
+            if attempt == 2:
+                return None
+    return None
 
 
 def run_soak(args):
@@ -214,7 +225,14 @@ def run_soak(args):
                 fails.append(f"a file created {sample_every:.0f}s ago ({os.path.basename(probe)}) is not findable - the follower is not keeping up")
             st = status(env)
             if st is None:
-                fails.append(f"the daemon stopped answering status at t+{time.time() - t0:.0f}s")
+                try:
+                    _load = os.getloadavg()[0]
+                except (OSError, AttributeError):
+                    _load = -1.0
+                fails.append(
+                    f"the daemon stopped answering status at t+{time.time() - t0:.0f}s "
+                    f"(load {_load:.1f}; a retry at 4x the timeout also failed)"
+                )
                 break
             rss = rss_mb(daemon.pid)
             fp = footprint_mb(daemon.pid)
