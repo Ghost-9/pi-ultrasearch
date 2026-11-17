@@ -468,6 +468,28 @@ index would simply never change and every ceiling would hold. `entries` is the *
 
 ## Testing & CI
 
+### Testing the content index
+
+A daemon started directly for a test (`ULTRASEARCH_DIR=<temp> ... serve`) reports
+`content_docs: 0` forever, whatever `ULTRASEARCH_WARM`, `ULTRASEARCH_CONTENT_ROOTS` or the scan
+root are set to. Names index normally; only the content side stays empty, so a `grep` against
+such a fixture returns `complete: true` with no files and cannot be told apart from "the text is
+not there".
+
+Two rounds went into that before it was clear. The content index belongs to the installed daemon:
+a file created under `$HOME` is searchable through it within about five seconds. So content
+behaviour is tested against the real daemon, not a fixture:
+
+```bash
+mkdir -p ~/ultrasearch-probe && printf 'x = 1  # marker\n' > ~/ultrasearch-probe/a.py
+sleep 5
+# then grep for "marker" over the real socket; the file is found
+```
+
+Verified that way, and correct: a binary file, an unreadable file (`chmod 000`) and a file over
+`max_file_bytes` are all excluded from results, which is what `content_policy.note` says will
+happen. The soak measures names and memory only, so it never covered this either.
+
 ### Is the installed app actually this source?
 
 ```sh
