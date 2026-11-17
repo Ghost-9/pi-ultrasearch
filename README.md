@@ -468,6 +468,27 @@ index would simply never change and every ceiling would hold. `entries` is the *
 
 ## Testing & CI
 
+### On `unwrap` in the engine
+
+There are 69 `unwrap`/`expect` calls in the engine's non-test code. They were audited rather
+than removed, and the audit found each one guarded by a local invariant rather than by luck:
+
+- `query.rs` removes a positive token only inside `if !negate && positives >= 8`, so the
+  `position(|t| !t.negate).unwrap()` that follows always finds one.
+- `mcp.rs` pops a glob only under `p.globs.len() == 1`.
+- `content.rs` calls `run.next().unwrap()` only after refilling `run` to `at..min(at+k, n)` with
+  `at < n`, so the range cannot be empty.
+
+The rule that matters for this codebase is not "no unwraps" but "no unwrap reachable from
+damaged input". The decoder and the segment loader are the parts that read bytes off disk, and
+those were hardened and then fuzzed: the committed test runs 400 structured cases (real
+interpolative encodings decoded with a deliberately wrong document count) and 3,000 random-byte
+cases through the header parser, and both were run at 75x that depth locally - 30,000 and
+60,000 - while nothing new appeared. That fuzz found a real panic (`ic_has`, fixed); its first
+version did not, because random bytes almost never form a valid interpolative header, which is
+why the structured cases exist.
+
+
 ```bash
 npm test            # unit + integration + MCP conformance + interop suites (integration tests skip cleanly without the daemon)
 npm run test:gate   # hermetic mock-socket latency gate + live daemon gate (skips live if unavailable)
