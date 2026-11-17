@@ -490,6 +490,21 @@ Verified that way, and correct: a binary file, an unreadable file (`chmod 000`) 
 `max_file_bytes` are all excluded from results, which is what `content_policy.note` says will
 happen. The soak measures names and memory only, so it never covered this either.
 
+Measured against the installed daemon, all converging without stale results:
+
+| event | observed |
+|---|---|
+| file created | findable in 0-2 s |
+| file deleted | gone immediately |
+| file modified | new text found, old text gone, immediately |
+| 60 files created, half rewritten, every fifth deleted | exactly the expected 48 after 2 s |
+| 30 files created and deleted faster than a pass | 0 stale hits |
+| directory removed with 10 indexed files | 10 before, 0 after |
+
+Use a unique token for these. The first run used `ghost_token` and `dirtoken`, which matched real
+files elsewhere in `$HOME` - `DataDirTokenTests.swift` contains "DirToken", and the match is
+case-insensitive - so the index looked stale when it was reporting the truth.
+
 ### Is the installed app actually this source?
 
 ```sh
