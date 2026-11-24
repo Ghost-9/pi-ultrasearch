@@ -123,10 +123,10 @@ test("UltraSearchClient multiGrep", { skip: liveOnly }, async () => {
 
 test("UltraSearchClient proximity re-ranking", () => {
   const hits = [
-    { kind: "file" as const, mtime: 0, path: "/Users/batra/repo/other/deep/file.ts", score: 100, size: 0 },
-    { kind: "file" as const, mtime: 0, path: "/Users/batra/repo/src/components/button.ts", score: 100, size: 0 },
+    { kind: "file" as const, mtime: 0, path: "/home/dev/repo/other/deep/file.ts", score: 100, size: 0 },
+    { kind: "file" as const, mtime: 0, path: "/home/dev/repo/src/components/button.ts", score: 100, size: 0 },
   ];
-  const ranked = sharedClient.applyProximityRanking(hits, "/Users/batra/repo/src/components/card.ts");
+  const ranked = sharedClient.applyProximityRanking(hits, "/home/dev/repo/src/components/card.ts");
   assert.ok(ranked[0].path.includes("button.ts"));
   assert.ok(ranked[0].score > ranked[1].score);
 });
@@ -166,9 +166,9 @@ test("sanitize: identifies sensitive environment and credential files", () => {
 });
 
 test("sanitize: path boundary safety and traversal protection", () => {
-  assert.equal(isPathSafe("/Users/batra/repo/src/index.ts", "/Users/batra/repo"), true);
-  assert.equal(isPathSafe("/Users/batra/repo/../../etc/passwd", "/Users/batra/repo"), false);
-  assert.equal(isPathSafe("/Users/batra/.aws/credentials", "/Users/batra/repo"), false);
+  assert.equal(isPathSafe("/home/dev/repo/src/index.ts", "/home/dev/repo"), true);
+  assert.equal(isPathSafe("/home/dev/repo/../../etc/passwd", "/home/dev/repo"), false);
+  assert.equal(isPathSafe("/home/dev/.aws/credentials", "/home/dev/repo"), false);
 });
 
 test("sanitize: ignore pattern matching", () => {

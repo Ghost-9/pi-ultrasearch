@@ -80,11 +80,47 @@ fn result(id: &Value, r: Value) -> Value {
 impl Session {
     fn new(dir: PathBuf) -> Session {
         let home = ultrasearch::env::home();
-        let cwd = std::env::current_dir().map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| home.clone());
-        // Real paths, as the index holds them (/tmp is /private/tmp).
         let real = |p: String| std::fs::canonicalize(&p).map_or(p, |c| c.to_string_lossy().into_owned());
-        let root = real(repo_root(&cwd, &home).unwrap_or(cwd));
+        let env_root = std::env::var("ULTRASEARCH_ROOT").ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+        let root = match env_root {
+            Some(r) => real(r),
+            None => {
+                let cwd = std::env::current_dir().map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| home.clone());
+                real(repo_root(&cwd, &home).unwrap_or(cwd))
+            }
+        };
         Session { dir, home, root, outbox: Vec::new(), asked_roots: 0, asks: Default::default() }
+    }
+
+    fn is_project_scoped(&self) -> bool {
+        !self.root.is_empty() && self.root != self.home && self.root != "/"
+    }
+
+    fn with_root(&self, mut req: Value) -> Value {
+        if self.is_project_scoped()
+            && req.get("root").is_none()
+            && req.get("in").and_then(Value::as_str).is_none_or(|s| within(s, &self.root))
+            && let Some(obj) = req.as_object_mut()
+        {
+            obj.insert("root".into(), json!(self.root));
+        }
+        req
+    }
+
+    fn home_fallback_note(&self, a: &Value) -> Option<String> {
+        let explicit = a["path"].as_str().map(str::trim).is_some_and(|p| !p.is_empty());
+        if !self.is_project_scoped() && !explicit {
+            Some("note: searching full $HOME; pass path or set ULTRASEARCH_ROOT to narrow scope.".into())
+        } else {
+            None
+        }
+    }
+
+    fn join_notes(head: Option<String>, tail: String) -> Option<String> {
+        Some(match head {
+            Some(h) => format!("{h}\n{tail}"),
+            None => tail,
+        })
     }
 
     /// The reply to one message, if it needs one.
@@ -165,7 +201,7 @@ impl Session {
 
     fn ask(&self, req: &Value) -> Result<Value, String> {
         self.spend(1)?;
-        ask_at(&self.dir, req)
+        ask_at(&self.dir, &self.with_root(req.clone()))
     }
 
     /// Two requests, one after the other: two at once that share a names
@@ -176,7 +212,7 @@ impl Session {
         if let Err(e) = self.spend(2) {
             return (Err(e.clone()), Err(e));
         }
-        (ask_at(&self.dir, a), ask_at(&self.dir, b))
+        (ask_at(&self.dir, &self.with_root(a.clone())), ask_at(&self.dir, &self.with_root(b.clone())))
     }
 
     /// Count `n` more daemon requests for this tool call: fallbacks and
@@ -215,8 +251,9 @@ impl Session {
         let max = arg_num(a, "maxResults", 20);
         let offset = cursor(a)?;
         let scope = self.scope(a);
+        let home_note = self.home_fallback_note(a);
         if query.trim().is_empty() || query.trim() == "*" {
-            return self.worked_on(&scope, max);
+            return self.worked_on(&scope, max, home_note);
         }
         let mut p = split(&query, false);
         // A lone `name/`: the folders called that.
@@ -258,7 +295,7 @@ impl Session {
             return Ok(format!("no more files past cursor {offset}"));
         }
         if !hits.is_empty() {
-            return Ok(v.list_files(&hits, &p.words, r["next"].as_u64(), None));
+            return Ok(v.list_files(&hits, &p.words, r["next"].as_u64(), home_note));
         }
         // A short word with two letters swapped ("mian"): the index forgives
         // typos only from five letters.
@@ -274,7 +311,8 @@ impl Session {
                 let Ok(r) = self.ask(&req(&words, true)) else { break };
                 let hits = r["hits"].as_array().cloned().unwrap_or_default();
                 if !hits.is_empty() {
-                    return Ok(v.list_files(&hits, &words, r["next"].as_u64(), Some(format!("0 files match '{w}'; as '{}':", words[i]))));
+                    let note = Self::join_notes(home_note, format!("0 files match '{w}'; as '{}':", words[i]));
+                    return Ok(v.list_files(&hits, &words, r["next"].as_u64(), note));
                 }
             }
         }
@@ -282,7 +320,8 @@ impl Session {
         let r = self.ask(&req(&p.words, false)).unwrap_or_default();
         let hits = r["hits"].as_array().cloned().unwrap_or_default();
         if !hits.is_empty() {
-            return Ok(v.list_files(&hits, &p.words, r["next"].as_u64(), Some("0 matches outside git-ignored files; ignored:".into())));
+            let note = Self::join_notes(home_note, "0 matches outside git-ignored files; ignored:".into());
+            return Ok(v.list_files(&hits, &p.words, r["next"].as_u64(), note));
         }
         // Nothing: drop one word at a time (the last first).
         if p.words.len() > 1 {
@@ -291,8 +330,8 @@ impl Session {
                 let Ok(r) = self.ask(&req(&fewer, true)) else { break };
                 let hits = r["hits"].as_array().cloned().unwrap_or_default();
                 if !hits.is_empty() {
-                    let note = format!("0 files match all of '{}'; without '{}':", p.words.join(" "), p.words[i]);
-                    return Ok(v.list_files(&hits, &fewer, r["next"].as_u64(), Some(note)));
+                    let note = Self::join_notes(home_note, format!("0 files match all of '{}'; without '{}':", p.words.join(" "), p.words[i]));
+                    return Ok(v.list_files(&hits, &fewer, r["next"].as_u64(), note));
                 }
             }
         }
@@ -316,7 +355,7 @@ impl Session {
                 }
             }
             if !fs.is_empty() {
-                let mut out: Vec<String> = v.head.iter().cloned().collect();
+                let mut out: Vec<String> = v.head.iter().cloned().chain(home_note).collect();
                 out.push(format!("0 file names match '{text}'; files containing it:"));
                 for f in fs {
                     let (path, m) = (f["path"].as_str().unwrap_or(""), &f["matches"][0]);
@@ -325,12 +364,17 @@ impl Session {
                 return Ok(out.join("\n"));
             }
         }
-        Ok(format!("0 files match '{query}' in {}", scope.as_deref().unwrap_or("the whole disk")))
+        let mut msg = format!("0 files match '{query}' in {}", scope.as_deref().unwrap_or("the whole disk"));
+        if let Some(n) = home_note {
+            msg.push('\n');
+            msg.push_str(&n);
+        }
+        Ok(msg)
     }
 
     /// No query: what git says is changed, then what you worked on lately
     /// (opened, committed).
-    fn worked_on(&self, scope: &Option<String>, max: usize) -> Result<String, String> {
+    fn worked_on(&self, scope: &Option<String>, max: usize, home_note: Option<String>) -> Result<String, String> {
         let mut changed = json!({"q": "git:modified", "kind": "file", "limit": max, "git": true, "boost": true});
         let mut recent = json!({"op": "recent", "kind": "file", "limit": max, "git": true});
         if let Some(s) = scope {
@@ -344,9 +388,14 @@ impl Session {
             }
         }
         if hits.is_empty() {
-            return Ok("nothing changed in git or worked on lately here; give a query".into());
+            let mut msg = String::from("nothing changed in git or worked on lately here; give a query");
+            if let Some(n) = home_note {
+                msg.push('\n');
+                msg.push_str(&n);
+            }
+            return Ok(msg);
         }
-        Ok(self.view(scope).list_files(&hits, &[], None, Some("changed, then worked on lately:".into())))
+        Ok(self.view(scope).list_files(&hits, &[], None, Self::join_notes(home_note, "changed, then worked on lately:".into())))
     }
 
     fn grep(&self, a: &Value, multi: bool) -> Result<String, String> {
@@ -412,7 +461,7 @@ impl Session {
             }
             r => r?,
         };
-        let mut note = None;
+        let mut note = self.home_fallback_note(a);
         if offset > 0 && files(&r).is_empty() {
             return Ok(format!("no more matches past cursor {offset}"));
         }
@@ -450,7 +499,11 @@ impl Session {
                         a2["query"] = arg_str(a, &["query", "pattern"]).unwrap_or_default().replacen(&pattern, &w, 1).into();
                         return Ok(format!("0 matches for '{pattern}'; as '{w}':\n{}", self.grep(&a2, false)?));
                     }
-                    (r, note) = (r2, Some(why));
+                    r = r2;
+                    note = Some(match note.take() {
+                        Some(n) => format!("{n}\n{why}"),
+                        None => why,
+                    });
                     break;
                 }
             }
@@ -597,7 +650,8 @@ impl View {
             let p = h["path"].as_str().unwrap_or("").to_lowercase();
             words.iter().all(|w| p.contains(&w.to_lowercase()))
         };
-        let weak = note.is_none() && !words.is_empty() && hits.first().is_some_and(|h| !spelled(h));
+        let has_fallback_note = note.as_deref().is_some_and(|n| !n.starts_with("note: searching full $HOME") || n.contains('\n'));
+        let weak = !has_fallback_note && !words.is_empty() && hits.first().is_some_and(|h| !spelled(h));
         let mut out: Vec<String> = self.head.iter().cloned().chain(note).collect();
         if weak {
             out.push(format!("no exact match for '{}'; closest:", words.join(" ")));

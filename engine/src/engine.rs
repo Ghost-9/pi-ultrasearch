@@ -143,6 +143,8 @@ pub struct Status {
     /// A replay/relist is still running: results may miss changes made
     /// during the window.
     pub replay_in_progress: bool,
+    /// Number of times an FSEvents replay window expired without HISTORY_DONE.
+    pub replay_timeouts: u64,
 
     // --- Compaction (#34) ---
     /// Compactions (index rebuild + save) since this daemon started.
@@ -277,6 +279,12 @@ struct Shared {
     /// `now_ns` the index last fell behind a replay (0: caught up). The
     /// non-zero window is `Status::staleness_ms` (#19).
     stale_since: AtomicU64,
+    /// Count of replay window timeouts without HISTORY_DONE.
+    replay_timeouts: AtomicU64,
+    /// Last reconcile trigger time in secs to rate-limit timeout recovery.
+    last_timeout_reconcile: AtomicU64,
+    /// Pending timeout recovery reconcile flag consumed by apply_loop.
+    reconcile_requested: AtomicBool,
     /// The crawl root. The FSEvents stream watches all of `/` (that is how a
     /// whole-disk index stays live), so for an isolated root
     /// (`ULTRASEARCH_SCAN_ROOT`) changes outside it are dropped: otherwise
@@ -492,6 +500,9 @@ impl Engine {
             inflight: AtomicUsize::new(0),
             compact: Mutex::new(CompactStats::default()),
             stale_since: AtomicU64::new(0),
+            replay_timeouts: AtomicU64::new(0),
+            last_timeout_reconcile: AtomicU64::new(0),
+            reconcile_requested: AtomicBool::new(false),
             keep: crate::env::scan_root(),
             started: std::time::Instant::now(),
         });
@@ -702,6 +713,7 @@ impl Engine {
             event_lag: last_event_id.saturating_sub(event_id),
             staleness_ms: self.s.staleness_ms(),
             replay_in_progress: self.s.replaying.load(Ordering::Relaxed),
+            replay_timeouts: self.s.replay_timeouts.load(Ordering::Relaxed),
             compactions: cs.count,
             last_compact_ms: cs.last_ms,
             last_compact_bytes: cs.last_bytes,
@@ -752,6 +764,14 @@ impl Engine {
     /// thread applying it: keep `f` quick).
     pub fn on_change(&self, f: impl Fn(&[(&[u8], bool)]) + Send + Sync + 'static) {
         self.s.on_change.write().unwrap_or_else(|p| p.into_inner()).push(Box::new(f));
+    }
+
+    /// Tombstone any already-indexed content docs excluded by built-in rules or `deny`.
+    pub fn purge_content(&self, deny: &crate::deny::DenyList) -> usize {
+        if !self.s.owner() {
+            return 0;
+        }
+        self.s.content.write().unwrap_or_else(|p| p.into_inner()).purge_excluded(self.s.home.as_bytes(), deny)
     }
 }
 
@@ -986,8 +1006,17 @@ impl Shared {
                 }
                 if me.replaying.load(Ordering::Relaxed) && me.streams.load(Ordering::Relaxed) == n {
                     log("replay window closed by timeout: no HISTORY_DONE arrived");
+                    me.replay_timeouts.fetch_add(1, Ordering::Relaxed);
                     me.replaying.store(false, Ordering::Relaxed);
                     me.mark_caught_up();
+                    let now_secs = crate::query::now_secs() as u64;
+                    let prev = me.last_timeout_reconcile.load(Ordering::Relaxed);
+                    if now_secs.saturating_sub(prev) >= 60
+                        && me.last_timeout_reconcile.compare_exchange(prev, now_secs, Ordering::AcqRel, Ordering::Relaxed).is_ok()
+                    {
+                        me.reconcile_requested.store(true, Ordering::Release);
+                        let _ = me.wake.send(Vec::new());
+                    }
                 }
             });
         }
@@ -1712,6 +1741,9 @@ fn apply_loop(shared: &Arc<Shared>, rx: Receiver<Vec<fsevents::Event>>) {
             let (rec, flat): (Vec<_>, Vec<_>) = dirs.into_iter().partition(|(_, (r, _))| *r);
             trees.extend(rec.into_iter().map(|(p, _)| p));
             let _ = shared.content_tx.send((flat.into_iter().map(|(p, _)| p).collect(), trees));
+        }
+        if shared.reconcile_requested.swap(false, Ordering::AcqRel) && shared.owner() {
+            relist_changed(shared, "replay window timeout recovery", 0);
         }
         let replay = gap.filter(|(_, at)| at.elapsed() >= REPLAY_QUIET).map(|(from, _)| from);
         if rebuild || (replay.is_some() && replays >= 3) {

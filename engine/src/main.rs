@@ -14,16 +14,21 @@ use std::time::Instant;
 static GLOBAL: ultrasearch::alloc::Alloc = ultrasearch::alloc::Alloc;
 
 const USAGE: &str = "usage:
-  ultrasearch <query...> [--json]   search (starts the daemon if needed)
+  ultrasearch <query...> [--in <dir>] [--limit N] [--json]
+                                    search file names (starts the daemon if needed)
+  ultrasearch grep <pattern> [--in <dir>] [--mode literal|regex|symbol] [--case smart|sensitive|insensitive] [--limit N] [--defs] [--json]
+                                    grep file contents via trigram index
+  ultrasearch multi-grep <p1> <p2...> [--in <dir>] [--case smart|sensitive|insensitive] [--limit N] [--json]
+                                    grep several patterns OR'd together
   ultrasearch stdio                 JSON lines on stdin/stdout
   ultrasearch mcp                   MCP server on stdin/stdout, for coding agents
   ultrasearch serve                 run the daemon in the foreground
-  ultrasearch status
-  ultrasearch install [--login]      copy to ~/.local/bin; --login also starts the daemon at login
-                                (needs Full Disk Access granted to ~/.local/bin/ultrasearch-daemon)
+  ultrasearch status [--json]
+  ultrasearch install [--login]     install UltraSearch.app + ~/.local/bin symlinks
   ultrasearch uninstall             remove the login agent (keeps the index)
   ultrasearch bench <query...>      time a query in-process against the saved index
-  ultrasearch init                  not implemented here: harness registration is in the npm CLI";
+  ultrasearch tui|metrics|compact|init
+                                    available via the npm CLI (pi-ultrasearch)";
 
 const LABEL: &str = "mt.nd.ultrasearch";
 
@@ -69,34 +74,170 @@ fn main() {
         ),
         Some("install") => install(args.iter().any(|a| a == "--login"), json_flag(&args)),
         Some("uninstall") => uninstall(json_flag(&args)),
-        // The README documents `ultrasearch init` for harness registration, and that command
-        // lives in the npm CLI, not in this binary. Without an arm here the word fell through to
-        // search: `ultrasearch init --list` quietly listed files matching "init" and exited 0,
-        // so a user following the installer's own next step would think it had worked. Every
-        // other command name already shadows a query; this one says why.
-        Some("init") => {
+        Some("tui" | "metrics" | "compact" | "init") => {
+            let cmd = args[0].as_str();
             let json = json_flag(&args);
-            let note = "`init` is not a command in this binary. Harness registration lives in the \
-                        npm CLI: npm i -g pi-ultrasearch, then `ultrasearch init --list`.";
-            // NOT `print_one`: that sends its argument to the daemon as a request. Handing it an
-            // error object sent `{"ok":false,...}` over the socket, which the daemon read as a
-            // search with no query and answered with every match it could find - so the first
-            // version of this arm printed 5 KB of file paths and then exited 2.
+            let note = if cmd == "init" {
+                "`init` is not a command in this binary. Harness registration lives in the \
+                 npm CLI: npm i -g pi-ultrasearch, then `ultrasearch init --list`."
+                    .to_string()
+            } else {
+                format!(
+                    "`{cmd}` is only available in the npm wrapper CLI (`pi-ultrasearch` / `dist/bin/cli.js`), \
+                     not the native engine binary."
+                )
+            };
             if json {
-                println!("{}", serde_json::json!({"ok": false, "error": note}));
+                println!("{}", serde_json::json!({"ok": false, "error": note, "command": cmd}));
             } else {
                 eprintln!("ultrasearch: {note}");
             }
             std::process::exit(2);
         }
-        Some(_) => {
-            let json = args.iter().any(|a| a == "--json");
-            let q: Vec<&str> = args.iter().map(String::as_str).filter(|a| *a != "--json").collect();
-            // The folder `git:` filters and globs are about, unless `in:` says.
-            let cwd = std::env::current_dir().map(|d| d.to_string_lossy().into_owned()).unwrap_or_default();
-            print_one(&serde_json::json!({"q": q.join(" "), "cwd": cwd}), json);
+        Some("grep") => run_cli_grep(&args[1..], false),
+        Some("multi-grep") => run_cli_grep(&args[1..], true),
+        Some(_) => run_cli_find(&args),
+    }
+}
+
+fn cli_scope_arg(raw: &str) -> String {
+    if raw == "~" || raw.starts_with("~/") {
+        let h = home();
+        if raw == "~" { h } else { format!("{h}{}", &raw[1..]) }
+    } else if raw.starts_with('/') {
+        raw.to_string()
+    } else if let Ok(cwd) = std::env::current_dir() {
+        cwd.join(raw).to_string_lossy().into_owned()
+    } else {
+        raw.to_string()
+    }
+}
+
+fn run_cli_grep(args: &[String], multi: bool) {
+    let mut json = false;
+    let mut scope: Option<String> = None;
+    let mut mode = "literal".to_string();
+    let mut case = "smart".to_string();
+    let mut limit: Option<u64> = None;
+    let mut before: Option<u64> = None;
+    let mut after: Option<u64> = None;
+    let mut defs = false;
+    let mut pats: Vec<String> = Vec::new();
+    let mut i = 0;
+    let mut literal_rest = false;
+    while i < args.len() {
+        let a = &args[i];
+        if !literal_rest && a == "--" {
+            literal_rest = true;
+            i += 1;
+        } else if !literal_rest && a == "--json" {
+            json = true;
+            i += 1;
+        } else if !literal_rest && a == "--defs" {
+            defs = true;
+            i += 1;
+        } else if !literal_rest && a == "--in" && i + 1 < args.len() {
+            scope = Some(cli_scope_arg(&args[i + 1]));
+            i += 2;
+        } else if !literal_rest && a == "--mode" && i + 1 < args.len() {
+            mode = args[i + 1].clone();
+            i += 2;
+        } else if !literal_rest && a == "--case" && i + 1 < args.len() {
+            case = args[i + 1].clone();
+            i += 2;
+        } else if !literal_rest && a == "--limit" && i + 1 < args.len() {
+            limit = args[i + 1].parse().ok();
+            i += 2;
+        } else if !literal_rest && a == "--before" && i + 1 < args.len() {
+            before = args[i + 1].parse().ok();
+            i += 2;
+        } else if !literal_rest && a == "--after" && i + 1 < args.len() {
+            after = args[i + 1].parse().ok();
+            i += 2;
+        } else {
+            pats.push(a.clone());
+            i += 1;
         }
     }
+    if pats.is_empty() {
+        die(if multi { "multi-grep needs at least one pattern" } else { "grep needs a pattern" });
+    }
+    let cwd = std::env::current_dir().map(|d| d.to_string_lossy().into_owned()).unwrap_or_default();
+    let effective_scope = scope.unwrap_or_else(|| cwd.clone());
+    let mut req = if multi || pats.len() > 1 {
+        serde_json::json!({
+            "op": "grep",
+            "patterns": pats,
+            "case": case,
+            "cwd": cwd,
+            "in": effective_scope,
+            "defs": defs,
+        })
+    } else {
+        serde_json::json!({
+            "op": "grep",
+            "pattern": pats[0],
+            "mode": mode,
+            "case": case,
+            "cwd": cwd,
+            "in": effective_scope,
+            "defs": defs,
+        })
+    };
+    if let Some(n) = limit {
+        req["limit"] = n.into();
+    }
+    if let Some(b) = before {
+        req["before"] = b.into();
+    }
+    if let Some(a) = after {
+        req["after"] = a.into();
+    }
+    print_one(&req, json);
+}
+
+fn run_cli_find(args: &[String]) {
+    let mut json = false;
+    let mut scope: Option<String> = None;
+    let mut limit: Option<u64> = None;
+    let mut kind: Option<String> = None;
+    let mut q: Vec<String> = Vec::new();
+    let mut i = 0;
+    let mut literal_rest = false;
+    while i < args.len() {
+        let a = &args[i];
+        if !literal_rest && a == "--" {
+            literal_rest = true;
+            i += 1;
+        } else if !literal_rest && a == "--json" {
+            json = true;
+            i += 1;
+        } else if !literal_rest && a == "--in" && i + 1 < args.len() {
+            scope = Some(cli_scope_arg(&args[i + 1]));
+            i += 2;
+        } else if !literal_rest && a == "--limit" && i + 1 < args.len() {
+            limit = args[i + 1].parse().ok();
+            i += 2;
+        } else if !literal_rest && a == "--kind" && i + 1 < args.len() {
+            kind = Some(args[i + 1].clone());
+            i += 2;
+        } else {
+            q.push(a.clone());
+            i += 1;
+        }
+    }
+    let cwd = std::env::current_dir().map(|d| d.to_string_lossy().into_owned()).unwrap_or_default();
+    let mut req = serde_json::json!({"q": q.join(" "), "cwd": cwd});
+    if let Some(s) = scope {
+        req["in"] = s.into();
+    }
+    if let Some(n) = limit {
+        req["limit"] = n.into();
+    }
+    if let Some(k) = kind {
+        req["kind"] = k.into();
+    }
+    print_one(&req, json);
 }
 
 /// macOS's malloc (27, xzone) keeps freed small blocks dirty and its

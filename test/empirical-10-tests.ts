@@ -2,6 +2,7 @@ process.env.PI_ULTRASEARCH_TEST = "1";
 import { execFileSync } from "node:child_process";
 import { performance } from "node:perf_hooks";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { UltraSearchClient } from "../src/client.ts";
 import { formatGrepFiles } from "../src/formatter.ts";
@@ -35,7 +36,7 @@ export async function runTenEmpiricalTests(): Promise<EmpiricalTestResult[]> {
   const client = new UltraSearchClient();
   await client.ping();
 
-  const repo = "/Users/batra/Search";
+  const repo = process.env.ULTRASEARCH_BENCH_SCOPE ?? path.join(os.homedir(), "Search");
   const results: EmpiricalTestResult[] = [];
   const iters = 20;
 
@@ -146,7 +147,7 @@ export async function runTenEmpiricalTests(): Promise<EmpiricalTestResult[]> {
       // Simulate disk search with bounded depth
       const t0 = performance.now();
       try {
-        execFileSync("find", ["/Users/batra", "-maxdepth", "3", "-name", "Omnibox.swift"], { encoding: "utf-8" });
+        execFileSync("find", [os.homedir(), "-maxdepth", "3", "-name", "Omnibox.swift"], { encoding: "utf-8" });
       } catch {}
       return performance.now() - t0;
     });
@@ -351,8 +352,8 @@ export async function runTenEmpiricalTests(): Promise<EmpiricalTestResult[]> {
 
   // --- TEST 9: Symlink & Jailbreak Traversal Defense ---
   {
-    const safeCheck = isPathSafe("/Users/batra/Search/Sources/Search/Omnibox.swift", repo);
-    const traversalCheck = isPathSafe("/Users/batra/Search/../../etc/passwd", repo);
+    const safeCheck = isPathSafe(path.join(repo, "Sources/Search/Omnibox.swift"), repo);
+    const traversalCheck = isPathSafe(path.join(repo, "../../etc/passwd"), repo);
     const passed = safeCheck === true && traversalCheck === false;
 
     results.push({

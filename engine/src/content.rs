@@ -61,15 +61,18 @@ const DICT: usize = 32;
 /// The gid of a doc that is not text, or a doc no content holds.
 const NONE: u32 = u32::MAX;
 
-/// Directory names whose subtrees are generated, vendored, or caches.
+/// Directory names whose subtrees are generated, vendored, caches, or credentials.
 #[rustfmt::skip]
 const SKIP_DIRS: &[&[u8]] = &[
     b"node_modules", b".git", b"DerivedData", b"__pycache__", b".venv", b"venv", b"site-packages", b"Pods", b".next",
     b".turbo", b".cache", b"Library", b".build", b".rustup", b".cargo", b".npm", b".bun", b".nvm", b"vendor",
     b".pnpm-store", b"coverage", b".Trash", b".svn", b".hg", b".gradle", b".m2", b".pyenv", b".rbenv", b".gem", b".conda",
     b"miniconda3", b"anaconda3", b".docker", b".orbstack", b".colima", b".lima", b".ollama", b".android", b".expo",
-    b".terraform.d", b".wrangler", b".vscode-server",
+    b".terraform.d", b".wrangler", b".vscode-server", b".ssh", b".aws", b".gnupg", b".kube", b".t3", b".ultrasearch-backup",
 ];
+
+/// Credential or sensitive directory names that are NEVER indexed even inside a git repo.
+const NEVER_INDEX_DIRS: &[&[u8]] = &[b".ssh", b".aws", b".gnupg", b".kube", b".t3", b".ultrasearch-backup"];
 
 /// Names that are build output or caches only when the folder says so, by
 /// holding a marker (Linux's drivers/target is source): the Cache Directory
@@ -81,6 +84,8 @@ const MARKERS: &[&[u8]] = &[b"CACHEDIR.TAG", b"CMakeCache.txt", b"build.ninja"];
 #[rustfmt::skip]
 const SKIP_UNDER_HOME: &[&[u8]] = &[
     b"go/pkg", b".cursor/extensions", b".vscode/extensions", b".local/share", b".local/state", b".config/gcloud", b".codex/.tmp",
+    b".config/gh", b".pi/agent/cache/pi-ultrasearch", b"Library/Messages", b"Library/Mail", b"Library/Cookies",
+    b"Library/Application Support/UltraSearch",
 ];
 
 /// Package/library bundles: their insides are app data.
@@ -456,10 +461,13 @@ impl Segment {
     }
 
     fn save_dead(&self, dir: &Path) {
+        use std::os::unix::fs::PermissionsExt;
         let bytes: Vec<u8> = self.dead.iter().flat_map(|w| w.to_le_bytes()).collect();
-        let tmp = dead_path(dir, self.id).with_extension("tmp");
+        let path = dead_path(dir, self.id);
+        let tmp = path.with_extension("tmp");
         if std::fs::write(&tmp, bytes).is_ok() {
-            let _ = std::fs::rename(tmp, dead_path(dir, self.id));
+            let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600));
+            let _ = std::fs::rename(tmp, path);
         }
     }
 }
@@ -1330,6 +1338,7 @@ fn write_segment(dir: &Path, id: u64, docs: &[DocMeta<'_>], own: &[ContentMeta<'
     let p = seg_path(dir, id);
     let tmp = p.with_extension("tmp");
     let write = || -> std::io::Result<()> {
+        use std::os::unix::fs::PermissionsExt;
         let mut f = std::io::BufWriter::new(std::fs::File::create(&tmp)?);
         f.write_all(&hdr)?;
         let mut at = HDR;
@@ -1339,7 +1348,10 @@ fn write_segment(dir: &Path, id: u64, docs: &[DocMeta<'_>], own: &[ContentMeta<'
             at = off[k] + sec.len();
         }
         f.write_all(&vec![0u8; ((at + 63) & !63) - at])?;
-        f.flush()
+        f.flush()?;
+        drop(f);
+        let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600));
+        Ok(())
     };
     write().ok()?;
     std::fs::rename(&tmp, &p).ok()?;
@@ -1472,10 +1484,25 @@ pub fn in_scope(path: &[u8], home: &[u8]) -> bool {
     let rel = rest.strip_prefix(b"/").unwrap_or(rest);
     let mut at = 0;
     for c in rel.split(|&b| b == b'/') {
+        if NEVER_INDEX_DIRS.contains(&c) {
+            return false;
+        }
+        let prefix = &rel[..at + c.len()];
+        if matches!(
+            prefix,
+            b".config/gh"
+                | b".pi/agent/cache/pi-ultrasearch"
+                | b"Library/Messages"
+                | b"Library/Mail"
+                | b"Library/Cookies"
+                | b"Library/Application Support/UltraSearch"
+        ) {
+            return false;
+        }
         if c == b".git" {
             return false;
         }
-        if skipped(&rel[..at + c.len()], c, |m| on_disk(&join(&path[..home.len() + 1 + at + c.len()], m)).is_some()) {
+        if skipped(prefix, c, |m| on_disk(&join(&path[..home.len() + 1 + at + c.len()], m)).is_some()) {
             let mut above = (0..at).filter(|&i| rel[i] == b'/');
             return above.any(|i| on_disk(&join(&path[..home.len() + 1 + i], b".git")).is_some());
         }
@@ -2189,7 +2216,9 @@ impl Content {
 
     /// Open as the owner: also delete what the manifest doesn't list.
     pub fn open(dir: PathBuf) -> Content {
+        use std::os::unix::fs::PermissionsExt;
         std::fs::create_dir_all(&dir).ok();
+        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
         USER_SKIPS.lock().unwrap_or_else(|p| p.into_inner()).0 = dir.parent().map(|d| d.join(SKIP_LIST));
         let c = Content::open_shared(dir);
         // Anything not loaded (old format, crashed build) is garbage.
@@ -2329,10 +2358,13 @@ impl Content {
     }
 
     fn save_manifest(&self) {
+        use std::os::unix::fs::PermissionsExt;
         let s: String = self.segs.iter().map(|s| format!("{}\n", s.id)).collect();
+        let manifest = self.dir.join("manifest");
         let tmp = self.dir.join("manifest.tmp");
         if std::fs::write(&tmp, s).is_ok() {
-            let _ = std::fs::rename(tmp, self.dir.join("manifest"));
+            let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600));
+            let _ = std::fs::rename(tmp, manifest);
         }
     }
 
@@ -2406,6 +2438,54 @@ impl Content {
             let _ = todo.dedup.set(self.dedup());
         }
         todo
+    }
+
+    /// Tombstone every live doc in existing segments that is now excluded by
+    /// `SKIP_*` / `excluded_entry` or `deny`, decrementing content refs and
+    /// dropping emptied segments cleanly.
+    pub fn purge_excluded(&mut self, home: &[u8], deny: &crate::deny::DenyList) -> usize {
+        let mut purged = 0usize;
+        let mut killed = Vec::new();
+        let mut touched = vec![false; self.segs.len()];
+        for (si, s) in self.segs.iter_mut().enumerate() {
+            for d in 0..s.ndocs as u32 {
+                if s.is_dead(d) {
+                    continue;
+                }
+                let path = s.path(d);
+                let name = path.rsplit(|&b| b == b'/').next().unwrap_or(&[]);
+                if !in_scope(&path, home) || deny.blocked(&path) || crate::walk::excluded_entry(name, false) {
+                    let g = s.doc_gid()[d as usize];
+                    if s.kill(d) {
+                        touched[si] = true;
+                        purged += 1;
+                        if g != NONE {
+                            killed.push(g);
+                        }
+                    }
+                }
+            }
+        }
+        if purged == 0 {
+            return 0;
+        }
+        for g in killed {
+            if let Some((a, c)) = self.content_of(g) {
+                self.segs[a].refs.sub(c as usize);
+            }
+        }
+        for (s, t) in self.segs.iter().zip(&touched) {
+            if *t {
+                s.save_dead(&self.dir);
+            }
+        }
+        let empty: Vec<u64> = self.segs.iter().filter(|s| s.live_docs == 0 && s.live_own() == 0).map(|s| s.id).collect();
+        if !empty.is_empty() {
+            self.drop_segments(&empty);
+            self.link();
+            self.save_manifest();
+        }
+        purged
     }
 
     /// What a sync's builds need to index each distinct content once: the
@@ -5711,5 +5791,44 @@ mod decoder_fuzz {
                 }
             }
         }
+    }
+
+    #[test]
+    fn purge_excluded_tombstones_denied_and_skipped_docs() {
+        let base = std::env::temp_dir().join(format!("us-purge-excl-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let home = base.join("home");
+        let cdir = base.join("content");
+        let good_dir = home.join("proj");
+        let secret_dir = home.join("secrets");
+        std::fs::create_dir_all(&good_dir).unwrap();
+        std::fs::create_dir_all(&secret_dir).unwrap();
+        std::fs::create_dir_all(&cdir).unwrap();
+
+        let good_file = good_dir.join("lib.rs");
+        let denied_file = secret_dir.join("note.txt");
+        std::fs::write(&good_file, b"pub fn keep_me() {}\n").unwrap();
+        std::fs::write(&denied_file, b"sensitive line\n").unwrap();
+
+        let mut docs = Docs::default();
+        for p in [&good_file, &denied_file] {
+            let meta = std::fs::metadata(p).unwrap();
+            let pb = p.to_string_lossy().into_owned().into_bytes();
+            docs.push(&pb, meta.len(), 1);
+        }
+        docs.sort();
+        let seg = build_segment(&cdir, 1, &docs, 0..docs.len()).expect("segment built");
+        let mut content = Content::open(cdir.clone());
+        content.push(seg);
+        assert_eq!(content.docs(), 2);
+
+        let deny_file = base.join("deny.txt");
+        std::fs::write(&deny_file, format!("{}\n", secret_dir.display())).unwrap();
+        let deny = crate::deny::DenyList::load(&base).unwrap();
+        let purged = content.purge_excluded(home.to_string_lossy().as_bytes(), &deny);
+        assert_eq!(purged, 1);
+        assert_eq!(content.docs(), 1);
+
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

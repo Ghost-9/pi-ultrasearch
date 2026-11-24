@@ -71,6 +71,17 @@ const EXCLUDE_DEFAULT: &[&[u8]] = &[
     b".m2",
     b".trash",
     b"vendor",
+    b".cache",
+    b".rustup",
+    b".cargo",
+    b".npm",
+    b".bun",
+    b".t3",
+    b".ultrasearch-backup",
+    b".ssh",
+    b".aws",
+    b".gnupg",
+    b".kube",
 ];
 
 /// Prune rules: exact names (directories) and suffixes (`*.log`-style, any

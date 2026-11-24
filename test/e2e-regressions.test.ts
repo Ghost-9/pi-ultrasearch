@@ -45,7 +45,7 @@ const daemonUp = await liveClient.ping();
 // A live daemon only knows what it was told to scan. These fixtures live in `os.tmpdir()`,
 // which is normally NOT under the daemon's scan root, so the two live tests below asked it
 // to find a file it had never been asked to look at and waited the full 45 s before failing.
-// Measured on this machine: `tmp` is /var/folders/... while the daemon indexes /Users/batra.
+// Measured on this machine: `tmp` is /var/folders/... while the daemon indexes $HOME.
 //
 // So prove coverage before asserting on it. A probe file is written into the temp root and
 // looked for; if the daemon does not report it, the fixture path is out of scope and the

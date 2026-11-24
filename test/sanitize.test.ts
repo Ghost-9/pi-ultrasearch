@@ -109,8 +109,8 @@ test("DLP false positives: ordinary code is never scrubbed", () => {
 
 test("DLP never over-redacts a path or an identifier", () => {
   const paths = [
-    "/Users/batra/projects/ultra-search/src/sanitize.ts",
-    "/Users/batra/system-memory/projects/local-memory-agent.md",
+    "/home/dev/projects/ultra-search/src/sanitize.ts",
+    "/home/dev/system-memory/projects/local-memory-agent.md",
     "/var/folders/_s/8tbk7qt16cl4tb8z7bphvzz80000gn/T/build/output.json",
     "src/components/PrivateKeyViewer.tsx",
   ];
@@ -147,8 +147,8 @@ test("query scopes: `in:` inside a query is checked like a tool parameter", () =
   // The daemon's query language has its own `in:` filter, so a query is a
   // second way to name a scope. Both forms must be seen.
   assert.deepEqual(queryScopes("in:/etc/hosts passwd"), ["/etc/hosts"]);
-  assert.deepEqual(queryScopes("alpha in:/Users/batra/repo"), ["/Users/batra/repo"]);
-  assert.deepEqual(queryScopes('in:"/Users/batra/My Docs" alpha'), ["/Users/batra/My Docs"]);
+  assert.deepEqual(queryScopes("alpha in:/home/dev/repo"), ["/home/dev/repo"]);
+  assert.deepEqual(queryScopes('in:"/home/dev/My Docs" alpha'), ["/home/dev/My Docs"]);
   assert.deepEqual(queryScopes("in:~/secret alpha"), ["~/secret"]);
   assert.deepEqual(queryScopes("alpha beta"), []);
   // A word that merely contains `in:` is not a scope.
@@ -156,14 +156,14 @@ test("query scopes: `in:` inside a query is checked like a tool parameter", () =
 });
 
 test("query scopes: an escaping scope is refused, an in-root one is not", () => {
-  const root = "/Users/batra/repo";
+  const root = "/home/dev/repo";
   assert.equal(unsafeQueryScope("in:/etc/passwd x", root), "/etc/passwd");
-  assert.equal(unsafeQueryScope("in:/Users/batra/other x", root), "/Users/batra/other");
+  assert.equal(unsafeQueryScope("in:/home/dev/other x", root), "/home/dev/other");
   assert.equal(unsafeQueryScope("in:../../etc x", root), null, "a relative scope is the daemon's to resolve");
-  assert.equal(unsafeQueryScope("in:/Users/batra/repo/src x", root), null);
-  assert.equal(unsafeQueryScope("in:/Users/batra/repo x", root), null);
+  assert.equal(unsafeQueryScope("in:/home/dev/repo/src x", root), null);
+  assert.equal(unsafeQueryScope("in:/home/dev/repo x", root), null);
   // The offending token is returned as written, so the error can quote it.
-  assert.equal(unsafeQueryScope("in:~/secret x", root, "/Users/batra"), "~/secret");
-  assert.equal(unsafeQueryScope("in:~/repo/src x", root, "/Users/batra"), null);
+  assert.equal(unsafeQueryScope("in:~/secret x", root, "/home/dev"), "~/secret");
+  assert.equal(unsafeQueryScope("in:~/repo/src x", root, "/home/dev"), null);
   assert.equal(unsafeQueryScope("plain words", root), null);
 });

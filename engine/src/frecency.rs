@@ -119,7 +119,12 @@ impl Frecency {
                 }
             }
             let tmp = me.file.with_extension("new");
-            if let Err(e) = std::fs::write(&tmp, out).and_then(|_| std::fs::rename(&tmp, &me.file)) {
+            let write_res = std::fs::write(&tmp, out).and_then(|_| {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600));
+                std::fs::rename(&tmp, &me.file)
+            });
+            if let Err(e) = write_res {
                 eprintln!("{now} frecency: save failed: {e}");
             }
         });

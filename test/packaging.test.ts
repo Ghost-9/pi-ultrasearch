@@ -126,7 +126,8 @@ test("packaging: dry-run plan is complete and performs no bootstrap", { skip: pr
     const res = run(["--dry-run", "--bin", fake]);
     assert.equal(res.status, 0, res.stderr);
     assert.match(res.stdout, /existing install detected|no existing install detected/);
-    assert.match(res.stdout, /\[dry-run\] install -m 0755 .*ultrasearch-daemon/);
+    assert.match(res.stdout, /\[dry-run\] ln -sf .*ultrasearch-daemon/);
+    assert.match(res.stdout, /\[dry-run\] ln -sf .*ultrasearch\b/);
     assert.match(res.stdout, /\[dry-run\] codesign/);
     assert.match(res.stdout, /\[dry-run\] launchctl bootstrap/);
     assert.match(res.stdout, /Full Disk Access/);

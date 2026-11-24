@@ -20,11 +20,15 @@ pub fn socket_path(dir: &Path) -> PathBuf {
 }
 
 pub fn serve(dir: PathBuf, home: String) {
+    use std::os::unix::fs::PermissionsExt;
     // One daemon per socket. (The engine's own lock decides who writes the
     // index: an app embedding ultrasearch may own it while the daemon follows.)
     std::fs::create_dir_all(&dir).ok();
+    let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
     // Opened without truncating: a loser must not wipe the owner's pid.
-    let Ok(mut lock) = std::fs::OpenOptions::new().write(true).create(true).truncate(false).open(dir.join("socket.lock")) else { return };
+    let lock_path = dir.join("socket.lock");
+    let Ok(mut lock) = std::fs::OpenOptions::new().write(true).create(true).truncate(false).open(&lock_path) else { return };
+    let _ = std::fs::set_permissions(&lock_path, std::fs::Permissions::from_mode(0o600));
     if !try_lock(&lock) {
         eprintln!("{} another ultrasearch daemon is running", ultrasearch::query::now_secs());
         return;
@@ -42,7 +46,11 @@ pub fn serve(dir: PathBuf, home: String) {
     };
     let g = git.clone();
     engine.on_change(move |dirs| g.changed(dirs));
-    let cx = Arc::new(Ctx { engine, git, frecency: Frecency::load(dir.join("frecency")), deny: deny::DenyCache::new(dir.clone()) });
+    let deny = deny::DenyCache::new(dir.clone());
+    if let Ok(d) = deny.get() {
+        engine.purge_content(&d);
+    }
+    let cx = Arc::new(Ctx { engine, git, frecency: Frecency::load(dir.join("frecency")), deny, last_deny_ptr: std::sync::Mutex::new(0) });
     let sock = socket_path(&dir);
     let _ = std::fs::remove_file(&sock);
     let listener = match UnixListener::bind(&sock) {
@@ -52,6 +60,7 @@ pub fn serve(dir: PathBuf, home: String) {
             return;
         }
     };
+    let _ = std::fs::set_permissions(&sock, std::fs::Permissions::from_mode(0o600));
     for conn in listener.incoming().flatten() {
         let cx = cx.clone();
         std::thread::spawn(move || handle(conn, &cx));
@@ -66,6 +75,8 @@ struct Ctx {
     frecency: Arc<Frecency>,
     /// The configurable deny-list (#23), checked before any result leaves.
     deny: deny::DenyCache,
+    /// Pointer of the last DenyList generation purged from content segments.
+    last_deny_ptr: std::sync::Mutex<usize>,
 }
 
 fn try_lock(f: &std::fs::File) -> bool {
@@ -153,7 +164,16 @@ fn respond(line: &str, cx: &Ctx, out: &mut Vec<u8>) {
     // diagnostics, which return no indexed path, stay reachable — an operator
     // must be able to ask `status` why everything stopped working.
     let deny = match cx.deny.get() {
-        Ok(d) => d,
+        Ok(d) => {
+            let ptr = Arc::as_ptr(&d) as usize;
+            if let Ok(mut last) = cx.last_deny_ptr.lock()
+                && *last != ptr
+            {
+                *last = ptr;
+                cx.engine.purge_content(&d);
+            }
+            d
+        }
         Err(e) => {
             let op = v.get("op").and_then(Value::as_str).unwrap_or("search");
             return if matches!(op, "ping" | "status" | "save") {

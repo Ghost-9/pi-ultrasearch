@@ -946,8 +946,10 @@ impl Index {
 
     /// Write atomically (tmp + rename), stamping the current event id.
     pub fn save(&self, path: &Path) -> std::io::Result<()> {
+        use std::os::unix::fs::PermissionsExt;
         let tmp = path.with_extension("tmp");
         let mut f = std::fs::File::create(&tmp)?;
+        let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600));
         // The header with the current event id (the rest as built).
         let mut h = self.map[..HDR].to_vec();
         h[8 + 4 * 8..][..16].copy_from_slice(&[self.event_id.to_le_bytes(), (self.synced_at as u64).to_le_bytes()].concat());

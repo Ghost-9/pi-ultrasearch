@@ -1,5 +1,7 @@
 process.env.PI_ULTRASEARCH_TEST = "1";
 import { execFileSync } from "node:child_process";
+import * as os from "node:os";
+import * as path from "node:path";
 import { performance } from "node:perf_hooks";
 import { UltraSearchClient } from "../src/client.ts";
 import { formatGrepFiles } from "../src/formatter.ts";
@@ -30,7 +32,7 @@ export async function runFullBenchmark(options: { iterations?: number } = {}): P
   await client.ping();
 
   const results: BenchmarkResult[] = [];
-  const smallScope = "/Users/batra/Search";
+  const smallScope = process.env.ULTRASEARCH_BENCH_SCOPE ?? path.join(os.homedir(), "Search");
 
   // Helper stats calculator
   function computeStats(

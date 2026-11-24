@@ -1,5 +1,7 @@
 process.env.PI_ULTRASEARCH_TEST = "1";
 import { execFileSync } from "node:child_process";
+import * as os from "node:os";
+import * as path from "node:path";
 import { performance } from "node:perf_hooks";
 import { UltraSearchClient } from "../src/client.ts";
 
@@ -8,7 +10,7 @@ async function runBenchmark() {
   const iterations = 10;
   const targetQuery = "Omnibox.swift";
   const grepPattern = "ultraThinMaterial";
-  const cwd = "/Users/batra/Search";
+  const cwd = process.env.ULTRASEARCH_BENCH_SCOPE ?? path.join(os.homedir(), "Search");
 
   console.log("=== EMPIRICAL SEARCH BENCHMARK (10 runs, Apple Silicon M1/M4) ===\n");
 

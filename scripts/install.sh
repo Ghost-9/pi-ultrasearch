@@ -27,6 +27,7 @@ LABEL="com.pi.ultrasearch"
 APP="/Applications/UltraSearch.app"
 APP_BIN="$APP/Contents/MacOS/UltraSearch"
 DAEMON_BIN="$HOME/.local/bin/ultrasearch-daemon"
+CLI_BIN="$HOME/.local/bin/ultrasearch"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 SUPPORT_DIR="$HOME/Library/Application Support/UltraSearch"
 LOG_FILE="$SUPPORT_DIR/daemon.log"
@@ -47,7 +48,12 @@ fi
 DRY_RUN=0
 UNINSTALL=0
 SOURCE_BIN=""
-CODE_SIGN_IDENTITY="${ULTRASEARCH_CODESIGN_IDENTITY:--}"
+if [ -n "${ULTRASEARCH_CODESIGN_IDENTITY+x}" ]; then
+  CODE_SIGN_IDENTITY="$ULTRASEARCH_CODESIGN_IDENTITY"
+else
+  DETECTED_ID="$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Apple Development:/{print $2; exit}' || true)"
+  CODE_SIGN_IDENTITY="${DETECTED_ID:--}"
+fi
 
 usage() {
   cat <<'EOF'
@@ -131,6 +137,17 @@ plist_content() {
   </array>
   <key>WorkingDirectory</key>
   <string>$HOME</string>
+EOF
+  if [ -n "${ULTRASEARCH_EXCLUDE_NAMES:-}" ]; then
+    cat <<EOF
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>ULTRASEARCH_EXCLUDE_NAMES</key>
+    <string>$ULTRASEARCH_EXCLUDE_NAMES</string>
+  </dict>
+EOF
+  fi
+  cat <<EOF
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
@@ -233,11 +250,16 @@ if [ "$UNINSTALL" = 1 ]; then
     ok "no LaunchAgent at $PLIST"
   fi
 
-  if [ -f "$DAEMON_BIN" ]; then
-    run mv "$DAEMON_BIN" "$DAEMON_BIN.uninstalled-$STAMP"
-    ok "moved daemon binary to $DAEMON_BIN.uninstalled-$STAMP"
+  if [ -L "$DAEMON_BIN" ] || [ -f "$DAEMON_BIN" ]; then
+    run rm -f "$DAEMON_BIN"
+    ok "removed $DAEMON_BIN"
   else
     ok "no daemon binary at $DAEMON_BIN"
+  fi
+
+  if [ -L "$CLI_BIN" ]; then
+    run rm -f "$CLI_BIN"
+    ok "removed $CLI_BIN symlink"
   fi
 
   if [ -d "$APP" ]; then
@@ -288,9 +310,9 @@ ok "source binary: $SOURCE_BIN ($(shasum -a 256 "$SOURCE_BIN" | cut -c1-12))"
 DETECTED=0
 [ -f "$PLIST" ] && DETECTED=1
 [ -f "$APP_BIN" ] && DETECTED=1
-[ -f "$DAEMON_BIN" ] && DETECTED=1
+{ [ -e "$DAEMON_BIN" ] || [ -L "$DAEMON_BIN" ]; } && DETECTED=1
 if [ "$DETECTED" = 1 ]; then
-  ok "existing install detected (plist=$([ -f "$PLIST" ] && echo yes || echo no), app=$([ -f "$APP_BIN" ] && echo yes || echo no), daemon=$([ -f "$DAEMON_BIN" ] && echo yes || echo no))"
+  ok "existing install detected (plist=$([ -f "$PLIST" ] && echo yes || echo no), app=$([ -f "$APP_BIN" ] && echo yes || echo no), daemon=$([ -e "$DAEMON_BIN" ] || [ -L "$DAEMON_BIN" ] && echo yes || echo no))"
   if job_loaded; then
     ok "$LABEL job is loaded"
   else
@@ -300,16 +322,7 @@ else
   ok "no existing install detected (fresh install)"
 fi
 
-# 3. Install the CLI-side daemon binary.
-run mkdir -p "$(dirname "$DAEMON_BIN")"
-if [ -f "$DAEMON_BIN" ] && [ ! "$SOURCE_BIN" -ef "$DAEMON_BIN" ] && cmp -s "$SOURCE_BIN" "$DAEMON_BIN" 2>/dev/null; then
-  ok "unchanged $DAEMON_BIN"
-else
-  run install -m 0755 "$SOURCE_BIN" "$DAEMON_BIN"
-  ok "installed $DAEMON_BIN"
-fi
-
-# 4. Install the app-bundle binary (what launchd runs and what holds the FDA
+# 3. Install the app-bundle binary (what launchd runs and what holds the FDA
 #    grant). The bundle is created when missing so a fresh machine needs one
 #    command, not a manual mkdir.
 run mkdir -p "$APP/Contents/MacOS"
@@ -324,6 +337,15 @@ else
   run install -m 0755 "$SOURCE_BIN" "$APP_BIN"
   ok "installed $APP_BIN"
 fi
+
+# 4. Symlink both CLI helpers in ~/.local/bin to the single signed app binary so
+#    daemon, CLI, and TCC identity never drift across copies.
+run mkdir -p "$(dirname "$DAEMON_BIN")"
+run ln -sf "$APP_BIN" "$DAEMON_BIN"
+ok "linked $DAEMON_BIN -> $APP_BIN"
+run mkdir -p "$(dirname "$CLI_BIN")"
+run ln -sf "$APP_BIN" "$CLI_BIN"
+ok "linked $CLI_BIN -> $APP_BIN"
 
 # The bundle identity must exist even when the binary was unchanged, so the
 # FDA grant and codesign identifiers resolve. An existing Info.plist is never
@@ -368,23 +390,25 @@ else
   ok "keeping existing $APP/Contents/Info.plist (identity preserved)"
 fi
 
-# 5. Sign the app and helper. Ad-hoc remains the default for a frictionless
-#    install; a stable Keychain identity can be selected with the environment
-#    variable documented above.
+# 5. Sign the app bundle. Prefers an Apple Development Keychain identity when
+#    present so the TCC Full Disk Access grant survives rebuilds; falls back to
+#    ad-hoc when none is installed.
 if [ "$CODE_SIGN_IDENTITY" = "-" ]; then
   run codesign --force --deep --sign - \
     --identifier "$LABEL" \
     --requirements "=designated => identifier \"$LABEL\"" \
     "$APP"
-  run codesign --force --sign - --identifier "$LABEL.daemon" "$DAEMON_BIN"
-  ok "signed $APP and $DAEMON_BIN ad hoc; Full Disk Access may need to be re-granted after a re-sign"
+  ok "signed $APP ad hoc; Full Disk Access may need to be re-granted after a re-sign"
 else
   run codesign --force --deep --sign "$CODE_SIGN_IDENTITY" --identifier "$LABEL" "$APP"
-  run codesign --force --sign "$CODE_SIGN_IDENTITY" --identifier "$LABEL.daemon" "$DAEMON_BIN"
-  ok "signed $APP and $DAEMON_BIN with identity: $CODE_SIGN_IDENTITY"
+  ok "signed $APP with identity: $CODE_SIGN_IDENTITY"
 fi
 
-# 6. Install and (re)start the LaunchAgent.
+# 6. Install and (re)start the LaunchAgent. Rotate daemon.log if >10 MB first.
+if [ -f "$LOG_FILE" ] && [ "$(wc -c <"$LOG_FILE" 2>/dev/null || echo 0)" -gt 10485760 ]; then
+  run mv "$LOG_FILE" "$LOG_FILE.1"
+  ok "rotated $LOG_FILE -> $LOG_FILE.1"
+fi
 write_file "$PLIST" < <(plist_content)
 if job_loaded; then
   run launchctl bootout "gui/$(id -u)/$LABEL" || true

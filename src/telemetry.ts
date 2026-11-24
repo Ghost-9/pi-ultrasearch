@@ -1,5 +1,5 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 /**
@@ -99,7 +99,7 @@ function auditDir(): string {
 export function getTestAuditFilePath(): string {
   const explicit = process.env.PI_ULTRASEARCH_TEST_LOG?.trim();
   if (explicit) return explicit;
-  return join(auditDir(), `test_audit.${process.pid}.jsonl`);
+  return join(tmpdir(), "pi-ultrasearch-test", `test_audit.${process.pid}.jsonl`);
 }
 
 export function getAuditFilePath(): string {
