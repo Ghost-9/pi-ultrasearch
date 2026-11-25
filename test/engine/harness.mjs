@@ -36,7 +36,10 @@ export function ensureEngineBuilt() {
 
 let seq = 0;
 export function tmpdir(prefix = "us-engine-") {
-  const d = fs.mkdtempSync(path.join(os.tmpdir(), `${prefix}${process.pid}-${seq++}-`));
+  // Keep Unix domain socket paths safely below macOS SUN_LEN (104 bytes) when sandbox $TMPDIR is deep.
+  const sysTmp = os.tmpdir();
+  const base = sysTmp.length > 40 && fs.existsSync("/tmp") ? "/tmp" : sysTmp;
+  const d = fs.mkdtempSync(path.join(base, `${prefix}${process.pid}-${seq++}-`));
   return d;
 }
 

@@ -36,6 +36,14 @@ test("packaging: install.sh is executable, valid bash, and documents --dry-run/-
   assert.match(help.stdout, /--bin <path>/);
 });
 
+test("packaging: native engine binary reports --version cleanly", () => {
+  const engineBin = path.join(repoRoot, "engine", "target", "release", "ultrasearch");
+  if (!fs.existsSync(engineBin)) return;
+  const ver = spawnSync(engineBin, ["--version"], { encoding: "utf-8" });
+  assert.equal(ver.status, 0, ver.stderr);
+  assert.match(ver.stdout.trim(), /^ultrasearch 0\.3\.7\b/);
+});
+
 test("packaging: extension installer dry-run plans clone, npm install/build, and Pi reload without writes", () => {
   assert.ok(fs.existsSync(extensionScript), "scripts/install-extension.sh missing");
   assert.ok((fs.statSync(extensionScript).mode & 0o111) !== 0, "install-extension.sh must be executable");

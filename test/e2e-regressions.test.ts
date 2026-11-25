@@ -9,6 +9,7 @@ import * as path from "node:path";
 import { UltraSearchClient } from "../src/client.ts";
 import { MockDaemon } from "./helpers/mock-daemon.ts";
 import { loadPiHarness, waitFor } from "./helpers/pi-harness.ts";
+import { EngineHarness, HAS_ENGINE, tmpdir as engineTmpdir } from "./engine/harness.mjs";
 
 /**
  * End-to-end regression suite (issue #22). Every test here fails if the feature
@@ -64,10 +65,9 @@ if (!liveScope) {
     liveScope = `UltraSearch daemon does not index ${tmp} (live regression skipped)`;
   }
 }
-// Only these two need the daemon to have INDEXED a file under `tmp`; the frecency test
-// drives a mock daemon and is fine with any live one.
+// Only the two temp-root live tests below need the daemon to have INDEXED a file under `tmp`;
+// the frecency test runs hermetically against its own EngineHarness instance.
 const liveIndexing = liveScope;
-const liveOnly = daemonUp ? false : "UltraSearch daemon not running (live regression skipped)";
 
 // ---------------------------------------------------------------------------
 // Frecency: the tool_execution_end hook must forward an open to the daemon
@@ -99,30 +99,38 @@ test("frecency hook: unrelated tools do not touch frecency", async () => {
   assert.equal(daemon.countOps("open"), 0);
 });
 
-test("frecency ranking: an opened file outranks an untouched sibling", { skip: liveOnly }, async () => {
-  const dir = path.join(tmp, "frecency-rank");
-  fs.mkdirSync(dir, { recursive: true });
+test("frecency ranking: an opened file outranks an untouched sibling", { skip: !HAS_ENGINE && "engine binary not built" }, async () => {
+  const dir = fs.realpathSync(engineTmpdir("ults-frecency-"));
   const a = path.join(dir, "aaa.txt");
   const b = path.join(dir, "zzz.txt");
   fs.writeFileSync(a, "a\n");
   fs.writeFileSync(b, "b\n");
 
-  // Wait for both to be visible in the scope before ranking them.
-  await waitFor(async () => {
-    const probe = await liveClient.search("*zzz*", { in: dir, limit: 5, skipAudit: true });
-    return (probe.hits ?? []).length > 0;
-  }, 45000);
+  const h = new EngineHarness({ root: dir });
+  try {
+    await h.start();
+    const client = track(new UltraSearchClient({ socketPath: h.socket, autoSpawnDaemon: false, maxReconnectRetries: 0 }));
 
-  assert.equal(await liveClient.open(b), true);
+    // Wait for both to be visible in the isolated daemon before ranking them.
+    const visible = await waitFor(async () => {
+      const probe = await client.search("*zzz*", { in: dir, limit: 5, skipAudit: true });
+      return (probe.hits ?? []).length > 0;
+    }, 10000);
+    assert.ok(visible, "fixture file was not indexed in isolated EngineHarness");
 
-  const ranked = await waitFor(async () => {
-    const res = await liveClient.recent(dir, 5);
-    const hits = res.hits ?? [];
-    return hits[0]?.path?.endsWith("zzz.txt") ? hits : null;
-  }, 15000);
+    assert.equal(await client.open(b), true);
 
-  assert.ok(ranked, "the opened file never became the top frecency result");
-  assert.ok(ranked[0].path.endsWith("zzz.txt"));
+    const ranked = await waitFor(async () => {
+      const res = await client.recent(dir, 5);
+      const hits = res.hits ?? [];
+      return hits[0]?.path?.endsWith("zzz.txt") ? hits : null;
+    }, 5000);
+
+    assert.ok(ranked, "the opened file never became the top frecency result");
+    assert.ok(ranked[0].path.endsWith("zzz.txt"));
+  } finally {
+    h.cleanup();
+  }
 });
 
 // ---------------------------------------------------------------------------

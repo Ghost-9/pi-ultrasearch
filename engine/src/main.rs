@@ -28,7 +28,8 @@ const USAGE: &str = "usage:
   ultrasearch uninstall             remove the login agent (keeps the index)
   ultrasearch bench <query...>      time a query in-process against the saved index
   ultrasearch tui|metrics|compact|init
-                                    available via the npm CLI (pi-ultrasearch)";
+                                    available via the npm CLI (pi-ultrasearch)
+  ultrasearch -h | --help | -V | --version";
 
 const LABEL: &str = "mt.nd.ultrasearch";
 
@@ -57,6 +58,7 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         None | Some("-h" | "--help") => eprintln!("{USAGE}"),
+        Some("-V" | "--version") => println!("ultrasearch {}", env!("CARGO_PKG_VERSION")),
         Some("serve") => {
             space_efficient();
             server::serve(data_dir(), home())

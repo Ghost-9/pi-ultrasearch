@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.7] — Native CLI `--version`, `SUN_LEN`-safe test harness & live content scoping
+
+### Fixed & Improved
+- **UTF-8 glob parsing panic fix (`engine/src/query.rs`)**: Fixed a char-boundary slice panic in `Part::of` when a glob token contained both wildcards (`?`/`[`) and multi-byte UTF-8 characters (e.g. `businesses?id=eq.…&deleted_at=is.null`).
+- **Native `--version` / `-V` flag (`engine/src/main.rs`)**: `ultrasearch --version` now prints `ultrasearch 0.3.7` instead of searching for files matching `version`.
+- **`SUN_LEN`-safe engine test temp dir (`test/engine/harness.mjs`)**: `tmpdir()` uses `/tmp` when `os.tmpdir()` exceeds 40 chars, preventing macOS 104-byte Unix socket `SUN_LEN` failures in deep sandbox temp directories without requiring manual `TMPDIR=/tmp`.
+
 ## [2026-10-20] — scan-mode grep stops reading what git ignores
 ### Added — file-scoped grep, regex fallback, `us-rg`
 - **A named file is read directly.** `file` is now on the client, Pi tool, MCP schema and CLI

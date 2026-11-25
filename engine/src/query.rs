@@ -1012,7 +1012,7 @@ impl Part {
         let (mut re, mut run, mut longest) = (String::from("(?is-u)^"), String::new(), String::new());
         let mut cs = s.char_indices();
         while let Some((i, c)) = cs.next() {
-            let close = s[i + 1..].find(']').filter(|_| c == '[');
+            let close = (c == '[').then(|| s[i + 1..].find(']')).flatten();
             if matches!(c, '*' | '?') || close.is_some() {
                 if run.len() > longest.len() {
                     longest = std::mem::take(&mut run);
@@ -4671,6 +4671,14 @@ mod tests {
         // token rather than splitting it, which is pinned here because it is surprising.
         for s in ["\t", "\n"] {
             assert!(!parsed(s).tokens.is_empty(), "{s:?} is a token, not a separator");
+        }
+    }
+
+    #[test]
+    fn glob_with_multibyte_utf8_and_wildcards_does_not_panic() {
+        for pat in ["businesses?id=eq.…&deleted_at=is.null", "café?*.md", "[a-z]…*"] {
+            let res = Part::of(pat);
+            assert!(res.is_ok(), "Part::of({pat:?}) failed: {res:?}");
         }
     }
 }
