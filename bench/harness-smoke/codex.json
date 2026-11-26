@@ -2,10 +2,10 @@
   "schema": "ultrasearch/harness-smoke@1",
   "id": "codex",
   "label": "Codex CLI",
-  "generatedAt": "2026-11-26T04:17:42.341Z",
-  "commit": "71d942801012582f31c539c201bc0253a5529aae",
+  "generatedAt": "2026-11-26T05:32:24.281Z",
+  "commit": "f48b11bd3429be5d648f9262140f82b3bafa65db",
   "worktreeDirty": false,
-  "serverVersion": "0.5.0",
+  "serverVersion": "0.5.1",
   "supportedProtocolVersions": [
     "2025-06-18",
     "2025-03-26",
@@ -47,7 +47,7 @@
       "negotiatedProtocolVersion": "2025-06-18",
       "serverInfo": {
         "name": "pi-ultrasearch",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "toolCount": 6,
       "toolNames": [
@@ -116,7 +116,7 @@
               "protocolVersion": "2025-06-18",
               "serverInfo": {
                 "name": "pi-ultrasearch",
-                "version": "0.5.0"
+                "version": "0.5.1"
               },
               "capabilities": {
                 "tools": {
@@ -213,14 +213,14 @@
           "command": "codex mcp add ultrasearch -- <server>",
           "code": 0,
           "stdout": "Added global MCP server 'ultrasearch'.\n",
-          "stderr": "WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-XQIKoJ\" (codex_home: AbsolutePathBuf(\"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-XQIKoJ/ults-smoke-codex-V2fUl0/codex-home\"))\n"
+          "stderr": "WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-Yf0bO3\" (codex_home: AbsolutePathBuf(\"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-Yf0bO3/ults-smoke-codex-7Xzq8t/codex-home\"))\n"
         },
         {
           "dir": "cli",
           "command": "codex mcp list",
           "code": 0,
           "stdout": "Name         Command                                       Args                                                                                   Env  Cwd  Status   Auth       \nultrasearch  /opt/homebrew/Cellar/node/26.13.1_4/bin/node  /Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/dist/bin/mcp-server.js  -    -    enabled  Unsupported\n",
-          "stderr": "WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-XQIKoJ\" (codex_home: AbsolutePathBuf(\"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-XQIKoJ/ults-smoke-codex-V2fUl0/codex-home\"))\n"
+          "stderr": "WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-Yf0bO3\" (codex_home: AbsolutePathBuf(\"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-Yf0bO3/ults-smoke-codex-7Xzq8t/codex-home\"))\n"
         }
       ],
       "registeredEntry": {

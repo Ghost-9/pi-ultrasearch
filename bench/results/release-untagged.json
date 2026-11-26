@@ -1,0 +1,76 @@
+{
+  "schema": "ultrasearch.release/v1",
+  "tag": null,
+  "commit": "f48b11bd3429be5d648f9262140f82b3bafa65db",
+  "commitShort": "f48b11b",
+  "dirty": true,
+  "generatedAt": "2026-11-26T05:32:27.640Z",
+  "package": {
+    "name": "pi-ultrasearch",
+    "version": "0.5.1"
+  },
+  "platform": {
+    "os": "darwin",
+    "arch": "arm64",
+    "node": "v26.13.1",
+    "hostname": "Mayanks-MacBook-Pro.local",
+    "cpus": 10
+  },
+  "checks": [],
+  "referenceMeasurements": [
+    {
+      "path": "bench/verification/after/checks-gate-floor.json",
+      "present": true,
+      "status": "final",
+      "sha256": "57ef96505e723b0c9e3e15ac709ebbf67467b1f69f690d71d47c8acb76adcc5f",
+      "bytes": 1216
+    },
+    {
+      "path": "bench/verification/after/equivalence-golden.json",
+      "present": true,
+      "status": "final",
+      "sha256": "8663cfbd75f5f18acec7edcdc2e4ad12b427169fd31c5712939a5bf7f5dd2102",
+      "bytes": 120053
+    },
+    {
+      "path": "bench/verification/after/tokens-baseline.json",
+      "present": true,
+      "status": "final",
+      "sha256": "2178b8bf7688c61d4ef49960617f99fe7c9c00214e72a7ff92ec4ee2c5e4d7af",
+      "bytes": 19809
+    },
+    {
+      "path": "bench/verification/after/zeroresult-baseline.json",
+      "present": true,
+      "status": "final",
+      "sha256": "7143ee9b839054d9f567f9487fd57dab85d41e48b4217f234ed507de64cf9938",
+      "bytes": 25195
+    },
+    {
+      "path": "bench/baseline/results/latency-2026-10-14.json",
+      "present": true,
+      "status": "provisional",
+      "sha256": "8913f44d0b38bcb0bc210c4ee94d00050c0f00678ab19d23b25a3b4eb10aa78f",
+      "bytes": 40397
+    },
+    {
+      "path": "bench/verification/after/latency-2026-10-15.json",
+      "present": true,
+      "status": "provisional",
+      "sha256": "a7d5230eba2eec59581771fff1e603c590fab5168118d19100a71c00760ae0cc",
+      "bytes": 40227
+    },
+    {
+      "path": "bench/verification/wave1-summary.json",
+      "present": true,
+      "status": null,
+      "sha256": "05ef930b842ad5f6e3f1a681e7905639cd7a1721119da04989ced14e1b13c658",
+      "bytes": 118949
+    }
+  ],
+  "method": {
+    "claim": "This artifact states what was verified at this commit, not what this machine's latency was.",
+    "latency": "Latency claims come from bench/verification and bench/baseline artifacts, which carry their own status; see docs/sla.md.",
+    "gate": "npm run test:gate — hermetic mock gate strict; the live gate derives its floor in-run (docs/decisions/0012)."
+  }
+}

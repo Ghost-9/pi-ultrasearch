@@ -2,10 +2,10 @@
   "schema": "ultrasearch/harness-smoke@1",
   "id": "vscode",
   "label": "VS Code",
-  "generatedAt": "2026-11-26T04:17:44.574Z",
-  "commit": "71d942801012582f31c539c201bc0253a5529aae",
+  "generatedAt": "2026-11-26T05:32:26.631Z",
+  "commit": "f48b11bd3429be5d648f9262140f82b3bafa65db",
   "worktreeDirty": false,
-  "serverVersion": "0.5.0",
+  "serverVersion": "0.5.1",
   "supportedProtocolVersions": [
     "2025-06-18",
     "2025-03-26",
@@ -44,7 +44,7 @@
       "negotiatedProtocolVersion": "2025-06-18",
       "serverInfo": {
         "name": "pi-ultrasearch",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "toolCount": 6,
       "toolNames": [
@@ -113,7 +113,7 @@
               "protocolVersion": "2025-06-18",
               "serverInfo": {
                 "name": "pi-ultrasearch",
-                "version": "0.5.0"
+                "version": "0.5.1"
               },
               "capabilities": {
                 "tools": {

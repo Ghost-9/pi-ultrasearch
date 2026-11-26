@@ -2,10 +2,10 @@
   "schema": "ultrasearch/harness-smoke@1",
   "id": "pi",
   "label": "Pi Agent",
-  "generatedAt": "2026-11-26T04:17:41.267Z",
-  "commit": "71d942801012582f31c539c201bc0253a5529aae",
+  "generatedAt": "2026-11-26T05:32:22.929Z",
+  "commit": "f48b11bd3429be5d648f9262140f82b3bafa65db",
   "worktreeDirty": false,
-  "serverVersion": "0.5.0",
+  "serverVersion": "0.5.1",
   "supportedProtocolVersions": [
     "2025-06-18",
     "2025-03-26",
@@ -47,7 +47,7 @@
       "negotiatedProtocolVersion": "2025-06-18",
       "serverInfo": {
         "name": "pi-ultrasearch",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "toolCount": 6,
       "toolNames": [
@@ -116,7 +116,7 @@
               "protocolVersion": "2025-06-18",
               "serverInfo": {
                 "name": "pi-ultrasearch",
-                "version": "0.5.0"
+                "version": "0.5.1"
               },
               "capabilities": {
                 "tools": {
@@ -206,12 +206,12 @@
         "testExitZero": true
       },
       "failures": [],
-      "durationMs": 944,
+      "durationMs": 1213,
       "transcript": [
         {
           "dir": "cli",
           "code": 0,
-          "stdout": "✔ declarations: generated text matches the committed golden (drift fails the build) (0.789ms)\n✔ declarations: every registry tool appears exactly once, with no hand-written extra (0.538792ms)\n✔ mcp: MCP_TOOLS is generated from the registry, not hand-maintained (0.201792ms)\n✔ mcp: the Pi tool parameters match the registry parameter sets (surface drift guard) (5.755875ms)\n✔ recipes: search -> grep -…",
+          "stdout": "✔ declarations: generated text matches the committed golden (drift fails the build) (1.221625ms)\n✔ declarations: every registry tool appears exactly once, with no hand-written extra (0.57775ms)\n✔ mcp: MCP_TOOLS is generated from the registry, not hand-maintained (0.203417ms)\n✔ mcp: the Pi tool parameters match the registry parameter sets (surface drift guard) (7.040958ms)\n✔ recipes: search -> grep…",
           "stderr": ""
         }
       ]

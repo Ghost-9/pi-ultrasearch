@@ -2,10 +2,10 @@
   "schema": "ultrasearch/harness-smoke@1",
   "id": "claude-code",
   "label": "Claude Code",
-  "generatedAt": "2026-11-26T04:17:42.510Z",
-  "commit": "71d942801012582f31c539c201bc0253a5529aae",
+  "generatedAt": "2026-11-26T05:32:24.457Z",
+  "commit": "f48b11bd3429be5d648f9262140f82b3bafa65db",
   "worktreeDirty": false,
-  "serverVersion": "0.5.0",
+  "serverVersion": "0.5.1",
   "supportedProtocolVersions": [
     "2025-06-18",
     "2025-03-26",
@@ -47,7 +47,7 @@
       "negotiatedProtocolVersion": "2025-06-18",
       "serverInfo": {
         "name": "pi-ultrasearch",
-        "version": "0.5.0"
+        "version": "0.5.1"
       },
       "toolCount": 6,
       "toolNames": [
@@ -116,7 +116,7 @@
               "protocolVersion": "2025-06-18",
               "serverInfo": {
                 "name": "pi-ultrasearch",
-                "version": "0.5.0"
+                "version": "0.5.1"
               },
               "capabilities": {
                 "tools": {
@@ -220,14 +220,14 @@
           "dir": "cli",
           "command": "claude mcp add --scope user ultrasearch -- node probe-server.mjs -- <server>",
           "code": 0,
-          "stdout": "Added stdio MCP server ultrasearch with command: /opt/homebrew/Cellar/node/26.13.1_4/bin/node /Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/bench/harness-smoke/probe-server.mjs --log /Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-XQIKoJ/ults-smoke-claude-VQcuB6/client-frames.jsonl -- /opt/homebrew/Cellar/node/26.13.1_4/bin/node /Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/dist/bin/mcp-server.js to user config\nFile modified: /Users/batra/.t3/userdata…",
+          "stdout": "Added stdio MCP server ultrasearch with command: /opt/homebrew/Cellar/node/26.13.1_4/bin/node /Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/bench/harness-smoke/probe-server.mjs --log /Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-Yf0bO3/ults-smoke-claude-UYeWlw/client-frames.jsonl -- /opt/homebrew/Cellar/node/26.13.1_4/bin/node /Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/dist/bin/mcp-server.js to user config\nFile modified: /Users/batra/.t3/userdata…",
           "stderr": ""
         },
         {
           "dir": "cli",
           "command": "claude mcp list",
           "code": 0,
-          "stdout": "Checking MCP server health…\n\nultrasearch: /opt/homebrew/Cellar/node/26.13.1_4/bin/node /Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/bench/harness-smoke/probe-server.mjs --log /Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-XQIKoJ/ults-smoke-claude-VQcuB6/client-frames.jsonl -- /opt/homebrew/Cellar/node/26.13.1_4/bin/node /Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/dist/bin/mcp-server.js - ✔ Connected\n",
+          "stdout": "Checking MCP server health…\n\nultrasearch: /opt/homebrew/Cellar/node/26.13.1_4/bin/node /Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/bench/harness-smoke/probe-server.mjs --log /Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-Yf0bO3/ults-smoke-claude-UYeWlw/client-frames.jsonl -- /opt/homebrew/Cellar/node/26.13.1_4/bin/node /Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/dist/bin/mcp-server.js - ✔ Connected\n",
           "stderr": ""
         }
       ],
