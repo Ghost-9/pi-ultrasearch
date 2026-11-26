@@ -12,7 +12,7 @@ import { appendHistory } from "./history.ts";
 /**
  * Version reported in `initialize.serverInfo`. Keep in sync with package.json.
  */
-export const SERVER_VERSION = "0.5.0";
+export const SERVER_VERSION = "0.5.1";
 
 /**
  * MCP protocol revisions this server understands, newest first. The server

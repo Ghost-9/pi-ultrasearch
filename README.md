@@ -2,7 +2,7 @@
 
 > Whole-disk filesystem search, trigram content grep, and git-aware code discovery for **Pi Agent**, **T3 Code**, and MCP clients — backed by a persistent resident Rust daemon (`ultrasearch`).
 
-[![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.5.1-blue.svg)](CHANGELOG.md)
 [![License: AGPL 3.0](https://img.shields.io/badge/License-AGPL%203.0-purple.svg)](LICENSE)
 [![CI](https://github.com/Ghost-9/pi-ultrasearch/actions/workflows/ci.yml/badge.svg)](https://github.com/Ghost-9/pi-ultrasearch/actions/workflows/ci.yml)
 [![Platform: macOS Apple Silicon](https://img.shields.io/badge/platform-macOS%20Apple%20Silicon-black.svg)]()
@@ -20,14 +20,15 @@ Two artifacts version independently, and that is deliberate:
 
 | Artifact | Where | Current |
 |---|---|---|
-| **Engine + app** | `engine/Cargo.toml` — the daemon, the CLI and the MCP server | `0.5.0` |
-| **Pi extension** | `package.json` — the native tool surface Pi loads | `0.5.0` |
+| **Engine + app** | `engine/Cargo.toml` — the daemon, the CLI and the MCP server | `0.5.1` |
+| **Pi extension** | `package.json` — the native tool surface Pi loads | `0.5.1` |
 
-### Recent hardening (`v0.3.6` – `v0.5.0`)
+### Recent hardening (`v0.3.6` – `v0.5.1`)
 - **`v0.3.6`:** Fail-closed `deny.txt` (`12` absolute path rules, `0600`) + `ULTRASEARCH_EXCLUDE_NAMES`, content cache pruning on deny-rule reloads (`purge_content`), `root`-scoped MCP server boundaries, CLI grep forwarding, and symlink-safe app packaging.
 - **`v0.3.7`:** Native `--version` / `-V` CLI flag, UTF-8 char-boundary panic fix in `Part::of` glob parsing, `SUN_LEN`-safe engine test harness, hermetic `frecency ranking` E2E test, and live `coverage.json` content scoping (`17` roots, `4` warm; content store trimmed from `152.1 MiB` baseline to `38.9 MiB` / `28,500` docs with `full_disk_access: true`).
 - **`v0.4.0`:** Added parallel `rayon`-backed `op: "batch_resolve"` (`protocol_version: "1.1"`, resolving `8` repo symbols in `6.15 ms` live), per-hit `deny.txt`/`root` enforcement, hermetic `test/engine/batch-resolve.test.mjs`, and `ULTRASEARCH_COMPACT_PENDING` churn tuning.
 - **`v0.5.0`:** Fixed scoped FSEvents `HISTORY_DONE` / drop-event ordering (`classify_event` + `ULTRASEARCH_REPLAY_WINDOW_SECS`, cutting startup replay timeouts to `0` and landing `replay done` in `1–6 s`), bounded `op: "grep"` `fetch_kept` retry growth (`growth = 2`), aligned MCP `SERVER_VERSION` to `"0.5.0"`, refreshed the `10`-harness smoke matrix, and recorded fresh A/B prompt-token (`85.3%–93.9%` smaller on grep tasks) and multi-scope (`100%` equivalent across all `9` cells) benchmarks (`degraded`: Battery Power / `load1m 4.401`). Verification: `147` Rust tests (`113` lib + `34` bin), `278` TS tests (`2` `.t3` skips), `50/50` `test:engine`, `8/8` `test:gate`, `0` `gitleaks` findings (`163.72 MB`).
+- **`v0.5.1`:** Eliminated a Rayon work-stealing + writer-preferring `RwLock` deadlock between `batch_resolve` (`engine/src/server.rs`) and `Content::search_with` (`engine/src/content.rs:2954`) under concurrent writes by replacing Rayon `par_iter()` with bounded non-Rayon scoped OS threads (`std::thread::scope`, up to `4` workers) and sequential `sort_unstable()`, pinned by `batch_resolve_does_not_deadlock_under_concurrent_writes` (`148` Rust tests [`113` lib + `35` bin], `278` TS tests + `2` `.t3` skips, `50/50` `test:engine`, `8/8` `test:gate`, `0` `gitleaks`).
 
 `install.sh` reads the engine version from `Cargo.toml` and writes it into both
 `CFBundleShortVersionString` and `CFBundleVersion`, so the app bundle, the crate

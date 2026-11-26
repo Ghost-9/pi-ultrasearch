@@ -2951,7 +2951,7 @@ impl Content {
                         continue;
                     }
                     if at > 0 {
-                        rest[at..].par_sort_unstable();
+                        rest[at..].sort_unstable();
                     }
                     let f = at + from(end - at);
                     let (more, done) = verify_from(g, f, end, limit - r.files.len(), Reading::Index, t, |i| path(&rest[i]));

@@ -1275,9 +1275,15 @@ fn resolve_batch_symbol(
     (None, withheld, grep_complete && Instant::now() < deadline)
 }
 
-/// Resolve multiple symbols in parallel under one shared deadline and single socket turn (#v0.4).
+/// Resolve multiple symbols in parallel under one shared deadline and single socket turn (#v0.5.1).
+///
+/// Uses bounded non-Rayon scoped OS threads rather than Rayon `par_iter()`: inside each lookup,
+/// `Engine::grep_excluding` holds `content.read()` (`std::sync::RwLock`) and invokes parallel
+/// scans on shared pools. Running outer `batch_resolve` tasks on Rayon lets work-stealing
+/// re-enter `Engine` locks on the same worker while `ultrasearch-apply` or `ultrasearch-content`
+/// queues a writer on macOS's writer-preferring `RwLock`, deadlocking the daemon.
 fn batch_resolve(v: &Value, cx: &Ctx, root: Option<&[u8]>, deny: &DenyList) -> Result<Value, String> {
-    use rayon::prelude::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     let engine = &cx.engine;
     let symbols = parse_batch_symbols(v)?;
@@ -1293,25 +1299,48 @@ fn batch_resolve(v: &Value, cx: &Ctx, root: Option<&[u8]>, deny: &DenyList) -> R
     let t = Instant::now();
     let deadline = t + Duration::from_millis(budget_ms);
 
-    let outcomes: Vec<(String, Option<Value>, usize, bool)> = symbols
-        .par_iter()
-        .map(|sym| {
-            let (hit, withheld, done) = resolve_batch_symbol(sym, &base_q, engine.home(), engine, root, deny, deadline);
-            (sym.clone(), hit, withheld, done)
-        })
-        .collect();
+    let workers = symbols.len().min(4);
+    let mut outcomes: Vec<(usize, &str, Option<Value>, usize, bool)> = if workers <= 1 {
+        symbols
+            .iter()
+            .enumerate()
+            .map(|(idx, sym)| {
+                let (hit, withheld, done) = resolve_batch_symbol(sym, &base_q, engine.home(), engine, root, deny, deadline);
+                (idx, sym.as_str(), hit, withheld, done)
+            })
+            .collect()
+    } else {
+        let next = AtomicUsize::new(0);
+        let collected = std::sync::Mutex::new(Vec::with_capacity(symbols.len()));
+        std::thread::scope(|scope| {
+            for _ in 0..workers {
+                scope.spawn(|| {
+                    let mut local = Vec::new();
+                    loop {
+                        let idx = next.fetch_add(1, Ordering::Relaxed);
+                        let Some(sym) = symbols.get(idx) else { break };
+                        let (hit, withheld, done) = resolve_batch_symbol(sym, &base_q, engine.home(), engine, root, deny, deadline);
+                        local.push((idx, sym.as_str(), hit, withheld, done));
+                    }
+                    collected.lock().unwrap_or_else(|p| p.into_inner()).extend(local);
+                });
+            }
+        });
+        collected.into_inner().unwrap_or_else(|p| p.into_inner())
+    };
+    outcomes.sort_unstable_by_key(|(idx, ..)| *idx);
 
     let mut hits = serde_json::Map::with_capacity(outcomes.len());
     let mut resolved = 0usize;
     let mut withheld = 0usize;
     let mut complete = true;
-    for (sym, hit, w, done) in outcomes {
+    for (_, sym, hit, w, done) in outcomes {
         if hit.is_some() {
             resolved += 1;
         }
         withheld += w;
         complete &= done;
-        hits.insert(sym, hit.unwrap_or(Value::Null));
+        hits.insert(sym.to_string(), hit.unwrap_or(Value::Null));
     }
 
     Ok(json!({
@@ -1671,5 +1700,74 @@ mod tests {
         )
         .unwrap();
         assert_eq!(seen_eight, vec![11, 88]);
+    }
+
+    #[test]
+    fn batch_resolve_does_not_deadlock_under_concurrent_writes() {
+        let base = std::env::temp_dir().join(format!("ultrasearch-batch-rwlock-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let home = base.join("home");
+        let idx = base.join("idx");
+        std::fs::create_dir_all(home.join("src")).unwrap();
+        std::fs::create_dir_all(&idx).unwrap();
+        for i in 0..4 {
+            std::fs::write(
+                home.join(format!("src/mod_{i}.rs")),
+                format!("pub fn sym_batch_a_{i}() {{}}\npub fn sym_batch_b_{i}() {{}}\npub fn sym_batch_c_{i}() {{}}\n"),
+            )
+            .unwrap();
+        }
+        let home_s = home.to_string_lossy().into_owned();
+        let engine =
+            Engine::start(Options { dir: idx.clone(), home: home_s.clone(), skip: Some(vec![PathBuf::from("/nonexistent-ultrasearch-skip/")]) })
+                .unwrap();
+        for _ in 0..100 {
+            if engine.status().ready {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let cx = Ctx {
+            engine,
+            git: Git::new(&home_s),
+            frecency: Frecency::load(idx.join("frecency")),
+            deny: deny::DenyCache::new(idx.clone()),
+            last_deny_ptr: std::sync::Mutex::new(0),
+        };
+        let deny_none = DenyList::none();
+        let symbols: Vec<String> = (0..12)
+            .map(|i| {
+                let kind = ["a", "b", "c"][i % 3];
+                format!("sym_batch_{kind}_{}", i % 4)
+            })
+            .collect();
+        let req = json!({
+            "op": "batch_resolve",
+            "symbols": symbols,
+            "in": home_s,
+            "budget_ms": 250,
+        });
+
+        let stop = std::sync::atomic::AtomicBool::new(false);
+        std::thread::scope(|outer| {
+            outer.spawn(|| {
+                while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                    cx.engine.purge_content(&deny_none);
+                    std::thread::yield_now();
+                }
+            });
+            std::thread::scope(|readers| {
+                for _ in 0..4 {
+                    readers.spawn(|| {
+                        for _ in 0..5 {
+                            let out = batch_resolve(&req, &cx, None, &deny_none).expect("batch_resolve ok");
+                            assert_eq!(out["ok"], true);
+                        }
+                    });
+                }
+            });
+            stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        });
+        let _ = std::fs::remove_dir_all(&base);
     }
 }

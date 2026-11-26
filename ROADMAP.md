@@ -9,7 +9,7 @@ Semantic versioning (`MAJOR.MINOR.PATCH`):
 - **0.2.x** — resilience, worktree scoping, rebrand, license, observability foundations (released)
 - **0.3.x** — git filters, ranking, multi-grep, TUI, learner, MCP server, **hardened 0.3.6 / 0.3.7** (released)
 - **0.4.x** — parallel `batch_resolve` (`protocol 1.1`) + LaunchAgent churn tuning (released)
-- **0.5.x** — FSEvents replay reliability under scoped roots, bounded grep retry growth, A/B prompt-token & multi-scope benchmarks, fresh harness smoke matrix (current: `0.5.0`)
+- **0.5.x** — FSEvents replay reliability under scoped roots, bounded grep retry growth, deadlock-free scoped `batch_resolve`, A/B prompt-token & multi-scope benchmarks, fresh harness smoke matrix (current: `0.5.1`)
 - **1.0.0** — production gates: AC-power `final` SLA promotion in `docs/sla.md`, Linux daemon support (`docs/linux-daemon-blockers.md`)
 
 ---
@@ -52,13 +52,13 @@ Legend: ✅ shipped & reachable · 🟡 partial / limited · ❌ not delivered a
       declared rules only — built-in defaults stay opt-in
 - [x] #13 Enterprise patterns (Slack, Stripe, GCP, AWS STS) + fail-closed `deny.txt` (`12` rules, `0600`), cache pruning (`purge_content`), `root` scope containment across `search` / `grep` / `recent`, UTF-8 glob panic fix (`0.3.7`), and `coverage.json` content scoping (`152.1 MiB` → `38.9 MiB`)
 
-### Milestone 5 — MCP & interop — ✅ **shipped (`v0.5.0`)**
+### Milestone 5 — MCP & interop — ✅ **shipped (`v0.5.1`)**
 - [x] #14 stdio MCP server (`find_files`, `grep`, `multi_grep`) wired through Magpie Hub into Claude, Antigravity, Codex, and Pi (`tools/list` verified live)
 - [x] #14b Native CLI `--version` / `-V` (`0.3.7`) and `SUN_LEN`-safe engine test harness
-- [x] #14 remaining (`v0.5.0`): refreshed `10`-harness smoke matrix in CI (`npm run smoke:harness && npm run matrix:harness -- --check --require-fresh`) + live multi-hub `scripts/hub-smoke.py`
+- [x] #14 remaining (`v0.5.0` / `v0.5.1`): refreshed `10`-harness smoke matrix in CI (`npm run matrix:harness -- --check --require-fresh`), deadlock-free scoped `batch_resolve` (`0.5.1`), and live multi-hub `scripts/hub-smoke.py`
 
-### Milestone 6 — Production CI & latency gates — ✅ **shipped (`v0.5.0`; `final` SLA promotion pending AC idle gate)**
-- [x] #15 🔧 Hermetic CI + real isolated daemon `EngineHarness` suite (`147` Rust tests, `278` TS tests, `50/50` `test:engine`, `8/8` `test:gate` passing on live `v0.5.0`)
+### Milestone 6 — Production CI & latency gates — ✅ **shipped (`v0.5.1`; `final` SLA promotion pending AC idle gate)**
+- [x] #15 🔧 Hermetic CI + real isolated daemon `EngineHarness` suite (`148` Rust tests, `278` TS tests, `50/50` `test:engine`, `8/8` `test:gate` passing on live `v0.5.1`)
 - [x] #15b (`v0.5.0`): Multi-scope A/B benchmark fixtures (`small`/`monorepo`/`home`, `100%` equivalent across all `9` cells) and A/B prompt-token accounting recorded honestly in [`docs/sla.md`](docs/sla.md) & [`bench/results/TOKENS.md`](bench/results/TOKENS.md) (`degraded` under Battery Power / `load1m 4.401`)
 
 ### SLAs and release artifacts (#33)

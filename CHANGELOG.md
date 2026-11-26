@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.1] — Eliminate batch_resolve + RwLock deadlock via scoped worker threads
+
+### Fixed
+- **Eliminate `batch_resolve` + `RwLock` deadlock (`engine/src/server.rs`, `engine/src/content.rs`)**: Replaced Rayon `symbols.par_iter()` inside `batch_resolve()` with bounded non-Rayon scoped OS threads (`std::thread::scope`, up to `4` workers) and replaced `rest[at..].par_sort_unstable()` inside `Content::search_with()` with `sort_unstable()`, preventing Rayon work-stealing from re-entering `Engine` read locks on the same worker while `ultrasearch-apply` / `ultrasearch-content` queues a write lock on macOS's writer-preferring `RwLock`. Added `batch_resolve_does_not_deadlock_under_concurrent_writes` regression test and synced version `0.5.1` across `Cargo.toml`, `package.json`, `src/mcp.ts`, and `UltraSearch.app` (`148` Rust tests [`113` lib + `35` bin], `50/50` `test:engine`, `8/8` `test:gate`, `278` TS tests + `2` `.t3` skips, `0` `gitleaks`).
+
 ## [0.5.0] — Scoped FSEvents replay fix, bounded grep retries & A/B benchmarks
 
 ### Fixed & Improved
