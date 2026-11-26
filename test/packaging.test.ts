@@ -39,9 +39,10 @@ test("packaging: install.sh is executable, valid bash, and documents --dry-run/-
 test("packaging: native engine binary reports --version cleanly", () => {
   const engineBin = path.join(repoRoot, "engine", "target", "release", "ultrasearch");
   if (!fs.existsSync(engineBin)) return;
+  const pkg = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
   const ver = spawnSync(engineBin, ["--version"], { encoding: "utf-8" });
   assert.equal(ver.status, 0, ver.stderr);
-  assert.match(ver.stdout.trim(), /^ultrasearch 0\.3\.7\b/);
+  assert.equal(ver.stdout.trim(), `ultrasearch ${pkg.version}`);
 });
 
 test("packaging: extension installer dry-run plans clone, npm install/build, and Pi reload without writes", () => {

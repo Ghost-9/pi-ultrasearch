@@ -39,7 +39,7 @@ const REPLAY_WINDOW_SECS: u64 = 30;
 /// The daemon wire protocol this build speaks. A **major** bump is a breaking
 /// change to the request/response contract; a minor bump only adds optional
 /// fields or ops. Frozen and documented in `docs/protocol.md` (#50).
-pub const PROTOCOL_VERSION: &str = "1.0";
+pub const PROTOCOL_VERSION: &str = "1.1";
 const COMPACT_EVERY: Duration = Duration::from_secs(12 * 3600);
 const SCAN_THREADS: usize = 8;
 const CONTENT_QUIET: Duration = Duration::from_secs(2);

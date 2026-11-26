@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.0] — Parallel `batch_resolve` (`protocol 1.1`) & LaunchAgent churn tuning
+
+### Added & Improved
+- **Parallel `op: "batch_resolve"` (`engine/src/server.rs`, `protocol_version: "1.1"`)**: Resolves up to 64 unique code/file symbols concurrently in a single Unix socket roundtrip using `rayon` (`grep` + path-search fallback under shared `budget_ms`), enforcing per-hit `deny.txt` and `root` containment with `withheld` accounting (measured live at `6.15 ms` for `8` repository symbols).
+- **Protocol & E2E verification (`docs/protocol.md`, `src/protocol.ts`, `test/engine/batch-resolve.test.mjs`)**: Bumped wire protocol to `1.1`, documented `batch_resolve` in the normative schema, and added hermetic `EngineHarness` tests covering content matches, path fallback, `deny.txt` blocking, and `root` scoping (`144` Rust tests, `278` TS tests + `2` `.t3` skips, `50/50` `test:engine` tests, `0` `gitleaks` findings across `163.72 MB`).
+
 ## [0.3.7] — Native CLI `--version`, `SUN_LEN`-safe test harness & live content scoping
 
 ### Fixed & Improved

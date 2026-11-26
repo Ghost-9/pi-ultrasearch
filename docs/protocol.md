@@ -6,7 +6,7 @@ per request. This document is normative: the conformance tests in
 `test/interop-surface.test.ts` and `test/engine/status.test.mjs` fail if the
 code and this document disagree.
 
-Current version: **1.0**
+Current version: **1.1**
 
 ```
 client ──► {"op":"search","q":"README","in":"/repo","limit":10}      + "\n"
@@ -93,6 +93,7 @@ Ops the **daemon** implements (`engine/src/server.rs::run`):
 | `search` | `q`, `in`, `limit`, `glob`, `offset`/`cursor`, `git`, `ignored`, `boost`, `near`, `budget_ms`, `candidates`, `early_exit`, `low_run` | name-search response, section 6.1 |
 | `glob` | as `search`, plus `pattern` (the glob) | name-search response with `next` |
 | `grep` | `pattern` **or** `patterns`, `q`, `in`, `file`, `mode`, `case`, `limit`, `offset`/`cursor`, `context`/`before`/`after`, `per_file`, `defs`, `git`, `ignored`, `budget_ms` | grep response, section 6.2 |
+| `batch_resolve` | `symbols` (required list, capped at 64), `in`, `budget_ms` | parallel symbol/path resolution map, section 6.2b |
 | `recent` | `in`, `limit`, `git` | name-search response; `took_us` is `0` |
 | `status` | — | section 6.3 |
 | `open` | `path` xor `paths` | `{ok:true,"scores":[…]}` (frecency boost per path) |
@@ -173,6 +174,22 @@ requested (`defs`, `context`). `def` on a file is `8` when it declares the
 queried name. `indexing` is `content_pending`: non-zero means the content
 index is still building and a scope may answer from a scan.
 
+### 6.2b Batch resolve (`batch_resolve`)
+
+```json
+{
+  "ok": true, "id": 8, "took_us": 1240,
+  "resolved": 2, "complete": true, "withheld": 0,
+  "hits": {
+    "write_note": {"path": "/repo/src/propose.rs", "line": 42},
+    "src/lib.rs": {"path": "/repo/src/lib.rs"},
+    "missing_sym": null
+  }
+}
+```
+
+Each symbol resolves via scoped literal content grep first and falls back to filename search when the symbol contains `/` or `.`. Policy checks (`deny` and `root`) are enforced identically per scope and per resolved hit; withheld hits count toward `withheld`.
+
 ### 6.3 Status
 
 ```json
@@ -218,7 +235,7 @@ also carries `deny_error`.
 ## 7. Versioning and compatibility rule
 
 - The daemon reports the wire version it speaks as `protocol_version` in every
-  `status` reply. Current version: **1.0**.
+  `status` reply. Current version: **1.1**.
 - **Same major = compatible.** A minor bump may only *add* optional request
   fields, new ops, or new response fields. A client written against 1.0 must
   keep working against 1.x by ignoring unknown response fields.

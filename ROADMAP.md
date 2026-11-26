@@ -7,8 +7,8 @@ session, not merely what exists in the tree.
 Semantic versioning (`MAJOR.MINOR.PATCH`):
 - **0.1.x** — socket client, core tool bindings (released)
 - **0.2.x** — resilience, worktree scoping, rebrand, license, observability foundations (released)
-- **0.3.x** — git filters, ranking, multi-grep, TUI, learner, MCP server, **hardened 0.3.6 / 0.3.7** (current)
-- **0.4.x** — hardening + measured performance overhaul: parallel `batch_resolve` (`protocol 1.1`) + churn tuning (in execution)
+- **0.3.x** — git filters, ranking, multi-grep, TUI, learner, MCP server, **hardened 0.3.6 / 0.3.7** (released)
+- **0.4.x** — hardening + measured performance overhaul: parallel `batch_resolve` (`protocol 1.1`) + churn tuning (current)
 - **0.5.x** — interop parity, FSEvents replay reliability, cross-platform groundwork
 - **1.0.0** — production gates: deterministic multi-scope benchmark suite, hermetic CI, documented SLAs
 
@@ -86,15 +86,17 @@ Legend: ✅ shipped & reachable · 🟡 partial / limited · ❌ not delivered a
 
 ---
 
-## Next: v0.4.0 — parallel `batch_resolve` (`protocol 1.1`) & churn tuning (In Execution)
+## Shipped in v0.4.0 & Next: v0.5.0
 
-Full detail, evidence and expected impact in [`OPTIMIZATIONS.md`](OPTIMIZATIONS.md).
+Full detail, evidence and measured impact in [`OPTIMIZATIONS.md`](OPTIMIZATIONS.md) and [`CHANGELOG.md`](CHANGELOG.md).
 
-**Roadmap priorities (current execution + v0.5 follow-up)**
-1. **Daemon `op: "batch_resolve"` (`protocol_version: "1.1"`)**: Parallel `rayon` multi-symbol resolution (content `grep` + filename `search` fallback under shared `budget_ms`, with per-hit `deny` + `root` censoring) so downstream symbiosis resolves up to 32–64 symbols in one Unix socket roundtrip.
-2. **LaunchAgent churn tuning (`ULTRASEARCH_COMPACT_PENDING=150000`)**: Prevent unnecessary `50k` -> `100k` -> `200k` compaction backoffs during active git/build sessions.
-3. **End-to-end hermetic `batch_resolve` gate** (`test/engine/batch-resolve.test.mjs`) and protocol conformance docs (`docs/protocol.md` v1.1).
-4. **Tail-latency & replay follow-up (`v0.5.0`)**: Search-side streaming/incremental FSEvents recovery tuning (`replay_timeouts`), A/B prompt-token accounting harness, and multi-scope benchmark artifacts (`docs/sla.md`).
+**Completed in `v0.4.0`**
+- [x] **Daemon `op: "batch_resolve"` (`protocol_version: "1.1"`)**: Parallel `rayon` multi-symbol resolution (content `grep` + filename `search` fallback under shared `budget_ms`, with per-hit `deny` + `root` censoring); live socket resolves 8 symbols in `6.15 ms` (`6,150 µs`).
+- [x] **LaunchAgent churn tuning (`ULTRASEARCH_COMPACT_PENDING=150000`)**: Configured in `com.pi.ultrasearch.plist` to avoid repeated `50k` -> `100k` -> `200k` compaction backoffs during active git/build sessions (`content_pending=0`, `replay_timeouts=0`).
+- [x] **End-to-end hermetic `batch_resolve` gate & conformance docs**: Added `test/engine/batch-resolve.test.mjs` (`50/50` engine suite passing) and documented `batch_resolve` in `docs/protocol.md` (`1.1`).
+
+**Next: `v0.5.0`**
+1. **Tail-latency & replay follow-up (`v0.5.0`)**: Search-side streaming/incremental FSEvents recovery tuning (`replay_timeouts`), A/B prompt-token accounting harness, and multi-scope benchmark artifacts (`docs/sla.md`).
 
 ---
 

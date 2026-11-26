@@ -420,6 +420,7 @@ fn run(v: &Value, cx: &Ctx, root: Option<&[u8]>, deny: &DenyList) -> Result<Repl
             Ok(Reply::Value(json!({"ok": true, "scheduled": true})))
         }
         _ if is_grep => grep(v, cx, root, deny).map(Reply::Value),
+        "batch_resolve" => batch_resolve(v, cx, root, deny).map(Reply::Value),
         "open" => {
             // An editor or agent opened these: they rank higher for a while.
             let paths: Vec<&str> = match (v.get("path"), v.get("paths")) {
@@ -1183,6 +1184,141 @@ fn grep(v: &Value, cx: &Ctx, root: Option<&[u8]>, deny: &DenyList) -> Result<Val
     Ok(out)
 }
 
+const MAX_BATCH_SYMBOLS: usize = 64;
+
+fn parse_batch_symbols(v: &Value) -> Result<Vec<String>, String> {
+    let arr = v.get("symbols").and_then(Value::as_array).ok_or_else(|| "batch_resolve needs a symbols array".to_string())?;
+    let mut seen = std::collections::HashSet::with_capacity(arr.len().min(MAX_BATCH_SYMBOLS));
+    let mut out = Vec::with_capacity(arr.len().min(MAX_BATCH_SYMBOLS));
+    for item in arr {
+        if let Some(s) = item.as_str().map(str::trim)
+            && !s.is_empty()
+            && seen.insert(s.to_string())
+        {
+            out.push(s.to_string());
+            if out.len() >= MAX_BATCH_SYMBOLS {
+                break;
+            }
+        }
+    }
+    Ok(out)
+}
+
+fn path_allowed(path: &[u8], deny: &DenyList, root: Option<&[u8]>) -> bool {
+    !deny.blocked(path) && root.is_none_or(|r| deny::within(path, r))
+}
+
+fn resolve_batch_symbol(
+    sym: &str,
+    base_q: &Query,
+    home: &str,
+    engine: &Engine,
+    root: Option<&[u8]>,
+    deny: &DenyList,
+    deadline: Instant,
+) -> (Option<Value>, usize, bool) {
+    let now = Instant::now();
+    if now >= deadline {
+        return (None, 0, false);
+    }
+    let mut withheld = 0usize;
+    let mut grep_complete = true;
+
+    if let Ok(mut g) = ultrasearch::Grep::with_case(sym, GrepMode::Literal, ultrasearch::Case::Smart) {
+        g.max_per_file = 1;
+        g.budget = Some(deadline.saturating_duration_since(now));
+        let mut gq = base_q.clone();
+        gq.limit = 8;
+        if let Ok((res, _)) = engine.grep_excluding(&gq, &g, true) {
+            grep_complete = res.complete;
+            for f in res.files {
+                if !path_allowed(&f.path, deny, root) {
+                    withheld += 1;
+                    continue;
+                }
+                let path_str = String::from_utf8_lossy(&f.path).into_owned();
+                let line = f.lines.first().map(|(n, _)| *n);
+                let hit = match line {
+                    Some(l) => json!({ "path": path_str, "line": l }),
+                    None => json!({ "path": path_str }),
+                };
+                return (Some(hit), withheld, true);
+            }
+        }
+    }
+
+    if (sym.contains('/') || sym.contains('.'))
+        && Instant::now() < deadline
+        && let Ok(mut nq) = Query::parse(sym, home)
+    {
+        nq.scope = base_q.scope.clone();
+        nq.kind = Some(KIND_FILE);
+        nq.limit = 8;
+        nq.deadline = Some(deadline);
+        if let Ok(found) = engine.search(&nq) {
+            for f in found {
+                let p = f.path.as_os_str().as_bytes();
+                if !path_allowed(p, deny, root) {
+                    withheld += 1;
+                    continue;
+                }
+                return (Some(json!({ "path": f.path.to_string_lossy() })), withheld, grep_complete);
+            }
+        }
+    }
+
+    (None, withheld, grep_complete && Instant::now() < deadline)
+}
+
+/// Resolve multiple symbols in parallel under one shared deadline and single socket turn (#v0.4).
+fn batch_resolve(v: &Value, cx: &Ctx, root: Option<&[u8]>, deny: &DenyList) -> Result<Value, String> {
+    use rayon::prelude::*;
+
+    let engine = &cx.engine;
+    let symbols = parse_batch_symbols(v)?;
+    let mut scope_req = serde_json::Map::new();
+    if let Some(in_val) = v.get("in").and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty()) {
+        scope_req.insert("in".into(), Value::String(in_val.to_string()));
+    }
+    let (base_q, _) = parse_request(&Value::Object(scope_req), engine.home())?;
+    guard_scope(root, base_q.scope.as_deref())?;
+    guard_denied(deny, base_q.scope.as_deref())?;
+
+    let budget_ms = v.get("budget_ms").and_then(Value::as_u64).unwrap_or(250).clamp(10, 2_000);
+    let t = Instant::now();
+    let deadline = t + Duration::from_millis(budget_ms);
+
+    let outcomes: Vec<(String, Option<Value>, usize, bool)> = symbols
+        .par_iter()
+        .map(|sym| {
+            let (hit, withheld, done) = resolve_batch_symbol(sym, &base_q, engine.home(), engine, root, deny, deadline);
+            (sym.clone(), hit, withheld, done)
+        })
+        .collect();
+
+    let mut hits = serde_json::Map::with_capacity(outcomes.len());
+    let mut resolved = 0usize;
+    let mut withheld = 0usize;
+    let mut complete = true;
+    for (sym, hit, w, done) in outcomes {
+        if hit.is_some() {
+            resolved += 1;
+        }
+        withheld += w;
+        complete &= done;
+        hits.insert(sym, hit.unwrap_or(Value::Null));
+    }
+
+    Ok(json!({
+        "ok": true,
+        "took_us": t.elapsed().as_micros() as u64,
+        "resolved": resolved,
+        "complete": complete,
+        "withheld": withheld,
+        "hits": hits,
+    }))
+}
+
 /// `q` is the query language; any filter key may also be given as its own
 /// JSON field (`{"q": "main", "ext": "rs", "in": "~/Developer"}`). Its
 /// `git:` filters come back apart (see `Extras`).
@@ -1483,5 +1619,18 @@ mod tests {
         let mut r = serde_json::json!({"ok": true, "matches": 3});
         assert_eq!(censor_files(&mut r, &deny, None), 0);
         assert_eq!(r["matches"], 3, "the response is unchanged");
+    }
+
+    #[test]
+    fn batch_resolve_validates_symbols_and_path_policy() {
+        assert!(parse_batch_symbols(&json!({})).is_err());
+        assert!(parse_batch_symbols(&json!({"symbols": "foo"})).is_err());
+        let parsed = parse_batch_symbols(&json!({"symbols": [" a ", "", "a", "b"]})).unwrap();
+        assert_eq!(parsed, vec!["a".to_string(), "b".to_string()]);
+
+        let deny = DenyList::from_prefixes(&["/secret"]);
+        assert!(path_allowed(b"/root/ok.rs", &deny, Some(b"/root")));
+        assert!(!path_allowed(b"/secret/key.rs", &deny, None));
+        assert!(!path_allowed(b"/elsewhere/ok.rs", &deny, Some(b"/root")));
     }
 }

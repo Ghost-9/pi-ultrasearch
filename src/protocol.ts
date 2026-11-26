@@ -10,7 +10,7 @@
  * changing the meaning of anything, or narrowing a default, is a major bump.
  * `client.status()` surfaces a mismatch instead of guessing.
  */
-export const PROTOCOL_VERSION = "1.0";
+export const PROTOCOL_VERSION = "1.1";
 
 /** The major part of a `<major>.<minor>` protocol version. */
 export function protocolMajor(version: string): string {
