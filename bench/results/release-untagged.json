@@ -1,10 +1,10 @@
 {
   "schema": "ultrasearch.release/v1",
   "tag": null,
-  "commit": "f48b11bd3429be5d648f9262140f82b3bafa65db",
-  "commitShort": "f48b11b",
+  "commit": "05a65c1d3086d38cf3dde870f255e8d50e6d39dc",
+  "commitShort": "05a65c1",
   "dirty": true,
-  "generatedAt": "2026-11-26T05:32:27.640Z",
+  "generatedAt": "2026-11-26T05:41:36.994Z",
   "package": {
     "name": "pi-ultrasearch",
     "version": "0.5.1"

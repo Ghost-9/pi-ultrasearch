@@ -2,8 +2,8 @@
   "schema": "ultrasearch/harness-smoke@1",
   "id": "codex",
   "label": "Codex CLI",
-  "generatedAt": "2026-11-26T05:32:24.281Z",
-  "commit": "f48b11bd3429be5d648f9262140f82b3bafa65db",
+  "generatedAt": "2026-11-26T05:41:33.394Z",
+  "commit": "05a65c1d3086d38cf3dde870f255e8d50e6d39dc",
   "worktreeDirty": false,
   "serverVersion": "0.5.1",
   "supportedProtocolVersions": [
@@ -213,14 +213,14 @@
           "command": "codex mcp add ultrasearch -- <server>",
           "code": 0,
           "stdout": "Added global MCP server 'ultrasearch'.\n",
-          "stderr": "WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-Yf0bO3\" (codex_home: AbsolutePathBuf(\"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-Yf0bO3/ults-smoke-codex-7Xzq8t/codex-home\"))\n"
+          "stderr": "WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-Yf0bO3\" (codex_home: AbsolutePathBuf(\"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-Yf0bO3/ults-smoke-codex-hImCZF/codex-home\"))\n"
         },
         {
           "dir": "cli",
           "command": "codex mcp list",
           "code": 0,
           "stdout": "Name         Command                                       Args                                                                                   Env  Cwd  Status   Auth       \nultrasearch  /opt/homebrew/Cellar/node/26.13.1_4/bin/node  /Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/dist/bin/mcp-server.js  -    -    enabled  Unsupported\n",
-          "stderr": "WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-Yf0bO3\" (codex_home: AbsolutePathBuf(\"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-Yf0bO3/ults-smoke-codex-7Xzq8t/codex-home\"))\n"
+          "stderr": "WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-Yf0bO3\" (codex_home: AbsolutePathBuf(\"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-Yf0bO3/ults-smoke-codex-hImCZF/codex-home\"))\n"
         }
       ],
       "registeredEntry": {

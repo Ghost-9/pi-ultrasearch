@@ -2,8 +2,8 @@
   "schema": "ultrasearch/harness-smoke@1",
   "id": "cursor",
   "label": "Cursor",
-  "generatedAt": "2026-11-26T05:32:26.254Z",
-  "commit": "f48b11bd3429be5d648f9262140f82b3bafa65db",
+  "generatedAt": "2026-11-26T05:41:35.624Z",
+  "commit": "05a65c1d3086d38cf3dde870f255e8d50e6d39dc",
   "worktreeDirty": false,
   "serverVersion": "0.5.1",
   "supportedProtocolVersions": [
