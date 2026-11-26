@@ -5795,8 +5795,10 @@ mod decoder_fuzz {
 
     #[test]
     fn purge_excluded_tombstones_denied_and_skipped_docs() {
-        let base = std::env::temp_dir().join(format!("us-purge-excl-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&base);
+        let raw_base = std::env::temp_dir().join(format!("us-purge-excl-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&raw_base);
+        std::fs::create_dir_all(&raw_base).unwrap();
+        let base = std::fs::canonicalize(&raw_base).unwrap();
         let home = base.join("home");
         let cdir = base.join("content");
         let good_dir = home.join("proj");
