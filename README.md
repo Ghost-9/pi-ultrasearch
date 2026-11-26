@@ -2,7 +2,7 @@
 
 > Whole-disk filesystem search, trigram content grep, and git-aware code discovery for **Pi Agent**, **T3 Code**, and MCP clients — backed by a persistent resident Rust daemon (`ultrasearch`).
 
-[![Version](https://img.shields.io/badge/version-0.3.5-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.3.7-blue.svg)](CHANGELOG.md)
 [![License: AGPL 3.0](https://img.shields.io/badge/License-AGPL%203.0-purple.svg)](LICENSE)
 [![CI](https://github.com/Ghost-9/pi-ultrasearch/actions/workflows/ci.yml/badge.svg)](https://github.com/Ghost-9/pi-ultrasearch/actions/workflows/ci.yml)
 [![Platform: macOS Apple Silicon](https://img.shields.io/badge/platform-macOS%20Apple%20Silicon-black.svg)]()
@@ -20,8 +20,12 @@ Two artifacts version independently, and that is deliberate:
 
 | Artifact | Where | Current |
 |---|---|---|
-| **Engine + app** | `engine/Cargo.toml` — the daemon, the CLI and the MCP server | `0.2.1` |
-| **Pi extension** | `package.json` — the native tool surface Pi loads | `0.3.3` |
+| **Engine + app** | `engine/Cargo.toml` — the daemon, the CLI and the MCP server | `0.3.7` |
+| **Pi extension** | `package.json` — the native tool surface Pi loads | `0.3.7` |
+
+### Recent hardening (`v0.3.6` – `v0.3.7`)
+- **`v0.3.6`:** Fail-closed `deny.txt` (`12` absolute path rules, `0600`) + `ULTRASEARCH_EXCLUDE_NAMES`, content cache pruning on deny-rule reloads (`purge_content`), `root`-scoped MCP server boundaries, CLI grep forwarding, and symlink-safe app packaging.
+- **`v0.3.7`:** Native `--version` / `-V` CLI flag, UTF-8 char-boundary panic fix in `Part::of` glob parsing, `SUN_LEN`-safe engine test harness, hermetic `frecency ranking` E2E test, and live `coverage.json` content scoping (`17` roots, `4` warm; content store trimmed from `152.1 MiB` baseline to `38.9 MiB` / `28,500` docs with `full_disk_access: true`). Verification: `143` Rust tests (`111` lib + `32` bin), `278` TS tests (`2` `.t3` sandbox skips), `49/49` `test:engine` tests, `0` `gitleaks` findings (`159.32 MB`).
 
 `install.sh` reads the engine version from `Cargo.toml` and writes it into both
 `CFBundleShortVersionString` and `CFBundleVersion`, so the app bundle, the crate

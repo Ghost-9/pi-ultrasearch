@@ -7,9 +7,9 @@ session, not merely what exists in the tree.
 Semantic versioning (`MAJOR.MINOR.PATCH`):
 - **0.1.x** — socket client, core tool bindings (released)
 - **0.2.x** — resilience, worktree scoping, rebrand, license, observability foundations (released)
-- **0.3.x** — git filters, ranking, multi-grep, TUI, learner, MCP server, **honesty release 0.3.1** (current)
-- **0.4.x** — hardening + measured performance overhaul (`OPTIMIZATIONS.md` P0/P1)
-- **0.5.x** — interop polish: MCP parity across clients, Code Mode pipelines, cross-platform groundwork
+- **0.3.x** — git filters, ranking, multi-grep, TUI, learner, MCP server, **hardened 0.3.6 / 0.3.7** (current)
+- **0.4.x** — hardening + measured performance overhaul: parallel `batch_resolve` (`protocol 1.1`) + churn tuning (in execution)
+- **0.5.x** — interop parity, FSEvents replay reliability, cross-platform groundwork
 - **1.0.0** — production gates: deterministic multi-scope benchmark suite, hermetic CI, documented SLAs
 
 ---
@@ -47,30 +47,19 @@ Legend: ✅ shipped & reachable · 🟡 partial / limited · ❌ not delivered a
 - [x] #10 Proximity re-ranking (`near:`)
 - [x] #11 `ultrasearch_multi_grep`
 
-### Milestone 4 — Security & ignore rules (v0.4.0) — 🟡 **in progress** (was mislabelled complete)
+### Milestone 4 — Security & ignore rules (`0.3.6` / `0.3.7`) — ✅ **shipped**
 - [x] #12 🔧 `.gitignore` / `.ignore` evaluation **wired into search & grep results** (0.3.1) with a per-scope cache;
       declared rules only — built-in defaults stay opt-in
-- [x] #13 Enterprise patterns (Slack, Stripe, GCP, AWS STS) — present
-- [ ] #13 remaining: configurable fail-closed directory blocklists; DLP applied to query path output;
-      PEM regex fix (tracked in `OPTIMIZATIONS.md` §F)
+- [x] #13 Enterprise patterns (Slack, Stripe, GCP, AWS STS) + fail-closed `deny.txt` (`12` rules, `0600`), cache pruning (`purge_content`), `root` scope containment across `search` / `grep` / `recent`, UTF-8 glob panic fix (`0.3.7`), and `coverage.json` content scoping (`152.1 MiB` → `38.9 MiB`)
 
-### Milestone 5 — MCP & interop (v0.5.0) — 🟡 **in progress** (was mislabelled complete)
-- [x] #14 stdio MCP server (`src/mcp.ts`, dual `ultrasearch_*` / `ultrasearch_*` names, semantic mode, context, tags)
-- [x] #14 🔧 registered in **Antigravity**, **VS Code**, and **Claude Desktop** (0.3.1)
-- [ ] #14 remaining: T3 Code has no generic user-level MCP registry — documented; Pi deliberately uses the native
-      extension instead of a duplicate MCP tool surface
+### Milestone 5 — MCP & interop — 🟡 **in progress**
+- [x] #14 stdio MCP server (`find_files`, `grep`, `multi_grep`) wired through Magpie Hub into Claude, Antigravity, Codex, and Pi (`tools/list` verified live)
+- [x] #14b Native CLI `--version` / `-V` (`0.3.7`) and `SUN_LEN`-safe engine test harness
+- [ ] #14 remaining: shared cross-harness live smoke matrix in CI
 
-### Milestone 6 — Production CI & latency gates (v1.0.0) — 🟡 **in progress** (was mislabelled complete)
-- [x] #15 🔧 CI is now **hermetic and green-capable**: daemon-dependent integration tests skip cleanly on a bare
-      runner, and a **mock-socket latency gate** runs everywhere (0.3.1)
-- [x] #15 🔧 CI is a platform matrix: `test-macos` (engine `cargo test`, `test:engine` on a real isolated daemon,
-      `test:gate`) and `test-linux` (client tests + hermetic gate + no-daemon CLI smoke), plus a non-gating
-      `linux-daemon-blockers` job that archives the compiler output (`docs/linux-daemon-blockers.md`) (wave 2)
-- [x] #15 🔧 the live gate derives its threshold from a **measured floor measured in the same run**
-      (`max(12 ms, rawP95×2+1)`, client overhead < 3 ms), and a cold/stale window can no longer skip a real client
-      regression (`docs/decisions/0012`, `docs/sla.md`) (wave 2)
-- [ ] #15 remaining: real multi-scope benchmark fixtures (repo / monorepo / home / whole disk) with medians,
-      confidence intervals, and output-equivalence checks — see `OPTIMIZATIONS.md` §E
+### Milestone 6 — Production CI & latency gates — 🟡 **in progress**
+- [x] #15 🔧 Hermetic CI + real isolated daemon `EngineHarness` suite (`143` Rust tests, `278` TS tests, `49/49` `test:engine` incl. hermetic `frecency ranking` & `coverage` tests)
+- [ ] #15 remaining: real multi-scope benchmark fixtures (repo / monorepo / home / whole disk) with medians and final SLAs in `docs/sla.md`
 
 ### SLAs and release artifacts (#33)
 - [x] per-scope contracts (warm path, cold/global with `budget_ms`, content grep, explicitly unmeasured scan path),
@@ -97,32 +86,15 @@ Legend: ✅ shipped & reachable · 🟡 partial / limited · ❌ not delivered a
 
 ---
 
-## Next: v0.4.0 — hardening & performance overhaul
+## Next: v0.4.0 — parallel `batch_resolve` (`protocol 1.1`) & churn tuning (In Execution)
 
 Full detail, evidence and expected impact in [`OPTIMIZATIONS.md`](OPTIMIZATIONS.md).
 
-**Engine**
-0. The daemon that ships is the vendored fork at `engine/` (Wave 1 engine work: `budget_ms`/`candidates` with
-   `complete`/`scanned`/`considered`, `status` freshness + compaction metrics, fail-closed deny-list and caller
-   `root` containment, configurable content coverage + warm-up). Upstream sync re-applies
-   `docs/engine-changes.md` after `engine/rebrand.sh`; the two README fixups it needs are in `engine/BUILD.md`.
-
-**Performance (engine & client)**
-1. Search-side `budget_ms` deadlines and partial-result streaming for cold/global queries (tail: 1.7–4.0 s observed).
-2. Content-index coverage configuration + warm-up on daemon start (currently ~129 k docs / 3.7 M entries).
-3. Socket concurrency (connection lanes) to remove head-of-line blocking for parallel agent calls.
-4. Staleness metric in `status` (FSEvents drops + compaction windows) and agent-visible freshness hints.
-5. Token accounting harness: replace `150 + 75 × hits` estimate with measured A/B prompt-token deltas.
-
-**Quality**
-6. Multi-scope benchmark fixtures + medians/CI; per-scope regression thresholds in CI.
-7. End-to-end regression tests: frecency hook, two-linked-worktree scoping, ignore rules, semantic mode.
-8. Security: PEM regex fix, DLP on path results, scope containment for `query`, fail-closed blocklists.
-
-**Features**
-9. AST/symbol index (tree-sitter) so `mode: symbol` ranks real definitions, not regex shapes.
-10. `ults watch` (query on file-change) and multi-root workspace support.
-11. Cross-platform daemon distribution + Linux CI matrix.
+**Roadmap priorities (current execution + v0.5 follow-up)**
+1. **Daemon `op: "batch_resolve"` (`protocol_version: "1.1"`)**: Parallel `rayon` multi-symbol resolution (content `grep` + filename `search` fallback under shared `budget_ms`, with per-hit `deny` + `root` censoring) so downstream symbiosis resolves up to 32–64 symbols in one Unix socket roundtrip.
+2. **LaunchAgent churn tuning (`ULTRASEARCH_COMPACT_PENDING=150000`)**: Prevent unnecessary `50k` -> `100k` -> `200k` compaction backoffs during active git/build sessions.
+3. **End-to-end hermetic `batch_resolve` gate** (`test/engine/batch-resolve.test.mjs`) and protocol conformance docs (`docs/protocol.md` v1.1).
+4. **Tail-latency & replay follow-up (`v0.5.0`)**: Search-side streaming/incremental FSEvents recovery tuning (`replay_timeouts`), A/B prompt-token accounting harness, and multi-scope benchmark artifacts (`docs/sla.md`).
 
 ---
 
