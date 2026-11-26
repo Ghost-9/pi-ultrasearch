@@ -2,9 +2,9 @@
   "schema": "ultrasearch/harness-smoke@1",
   "id": "vscode",
   "label": "VS Code",
-  "generatedAt": "2026-11-26T04:07:27.650Z",
-  "commit": "a777cef33fa9641c6dd5f604f2a9aa1f039d4983",
-  "worktreeDirty": true,
+  "generatedAt": "2026-11-26T04:17:44.574Z",
+  "commit": "71d942801012582f31c539c201bc0253a5529aae",
+  "worktreeDirty": false,
   "serverVersion": "0.5.0",
   "supportedProtocolVersions": [
     "2025-06-18",
