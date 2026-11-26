@@ -12,6 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] — Scoped FSEvents replay fix, bounded grep retries & A/B benchmarks
+
+### Fixed & Improved
+- **FSEvents `HISTORY_DONE` & root drop ordering (`engine/src/engine.rs`, `engine/src/env.rs`)**: Extracted `classify_event()` so `HISTORY_DONE` and root `USER_DROPPED`/`KERNEL_DROPPED` control events are processed before `shared.keep` (`ULTRASEARCH_SCAN_ROOT`) filtering, added early caught-up exit against `target_head` in `Shared::watch()`, and exposed `ULTRASEARCH_REPLAY_WINDOW_SECS` (`5..=300`, default `30`). Eliminated 30 s startup replay timeouts and redundant 1.6 s folder relists (`replay done` completes in `1–6 s` live with `replay_timeouts=0`).
+- **Bounded `op: "grep"` retry growth (`engine/src/server.rs`)**: Parameterized `fetch_kept()` with `growth = 2` for disk-reading `grep` retries (keeping `8` for in-memory `search|glob`), cutting `Live CI Gate: grep` `client p50` to `9.07 ms` (`p95 15.18 ms`, `+0.32 ms` overhead over raw socket, **8/8** `test:gate` pass).
+- **MCP surface & benchmark hygiene (`src/mcp.ts`, `bench/baseline/*`, `bench/results/TOKENS.md`)**: Aligned `SERVER_VERSION` to `"0.5.0"`, removed hardcoded user home / pre-rebrand client references in `bench/baseline/*`, recorded fresh `v0.5.0` A/B prompt-token (`85.3%–93.9%` grep reduction, `degraded` under Battery Power / `load1m 4.401`) and multi-scope (`100%` equivalent across all 9 cells) measurements, and refreshed all 10 harness smoke matrix artifacts (`147` Rust tests [`113` lib + `34` bin], `278` TS tests + `2` `.t3` skips, `50/50` `test:engine`, `8/8` `test:gate`).
+
 ## [0.4.0] — Parallel `batch_resolve` (`protocol 1.1`) & LaunchAgent churn tuning
 
 ### Added & Improved

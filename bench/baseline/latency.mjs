@@ -10,6 +10,7 @@
 //
 // Raw samples are stored in results/latency-<date>.json.
 
+import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import {
@@ -48,7 +49,7 @@ const SCOPES = [
     id: "repo",
     dir: REPO_ROOT,
     pathQuery: "package.json",
-    grep: "FSearchClient",
+    grep: "UltraSearchClient",
     multi: ["recordAudit", "formatGrepFiles"],
   },
   {
@@ -195,8 +196,9 @@ async function main() {
   log(`environment gate: ${preGate.status} (ac=${preGate.checks.ac_power}, load1<1.5=${preGate.checks.load1_lt_gate}, no-cargo=${preGate.checks.no_cargo_rustc})`);
 
   // Scope inventory.
+  const activeScopes = SCOPES.filter((s) => fs.existsSync(s.dir));
   const scopes = {};
-  for (const s of SCOPES) {
+  for (const s of activeScopes) {
     const inv = countFiles(s.dir);
     scopes[s.id] = {
       dir: s.dir,
@@ -215,7 +217,7 @@ async function main() {
   const runs = {};
 
   // 1-3. Per-scope ops: path search, trigram grep, multi-grep.
-  for (const s of SCOPES) {
+  for (const s of activeScopes) {
     const client = makeClient();
     try {
       const pg = nativePathCmd(s.dir, s.pathQuery);

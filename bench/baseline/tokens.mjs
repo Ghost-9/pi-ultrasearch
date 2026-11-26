@@ -9,6 +9,7 @@
 //
 // Outputs: results/tokens-baseline.json and TOKENS.md
 
+import * as os from "node:os";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 import {
@@ -65,9 +66,9 @@ const TASKS = [
     id: "t04",
     tool: "ultrasearch_grep",
     scope: REPO_ROOT,
-    params: { pattern: "FSearchClient", limit: 30, context: 0, mode: "literal" },
+    params: { pattern: "UltraSearchClient", limit: 30, context: 0, mode: "literal" },
     run: (c) =>
-      c.grep("FSearchClient", { in: REPO_ROOT, limit: 30, budget_ms: 2500, context: 0 }),
+      c.grep("UltraSearchClient", { in: REPO_ROOT, limit: 30, budget_ms: 2500, context: 0 }),
   },
   {
     id: "t05",
@@ -308,7 +309,7 @@ async function main() {
   for (const r of results) {
     const p = JSON.stringify(r.params).replace(/\|/g, "\\|");
     md.push(
-      `| ${r.id} | ${r.tool} | ${r.scope ? r.scope.replace(/^\/Users\/batra/, "~") : "(global)"} | \`${p}\` | ${r.hit_count} | ${r.tool_text_chars} | ${r.estimated_tokens} | ${r.formatter_token_count ?? "—"} | ${r.raw_json_chars} |`,
+      `| ${r.id} | ${r.tool} | ${r.scope ? r.scope.replace(os.homedir(), "~") : "(global)"} | \`${p}\` | ${r.hit_count} | ${r.tool_text_chars} | ${r.estimated_tokens} | ${r.formatter_token_count ?? "—"} | ${r.raw_json_chars} |`,
     );
   }
   md.push("");

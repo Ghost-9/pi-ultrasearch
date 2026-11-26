@@ -1,6 +1,6 @@
 # Prompt-token A/B — measured output vs native tools (issue #20)
 
-Generated 2026-10-14 · 30 paired observations · status: degraded
+Generated 2026-11-26 · 30 paired observations · status: degraded
 
 ## Method (and what is an estimate)
 
@@ -11,19 +11,19 @@ Generated 2026-10-14 · 30 paired observations · status: degraded
 
 ## Result
 
-- ultra-search median: **18.0 estimated tokens** (p95 584.0)
-- native median: **155.0 estimated tokens** (p95 2471.0)
-- saved fraction (1 − ultra/native): **0.884 [0.884, 0.884]**
-- paired delta (native − ultra): **137.0 [0.0, 137.0] estimated tokens**
+- ultra-search median: **61.0 estimated tokens** (p95 1388.0)
+- native median: **34.0 estimated tokens** (p95 22934.0)
+- saved fraction (1 − ultra/native): **-0.794 [-2.050, 0.860]**
+- paired delta (native − ultra): **-27.0 [-41.0, -27.0] estimated tokens**
 
 | task | n | ultra (est. tokens) | native (est. tokens) | median savings |
 | --- | --- | --- | --- | --- |
-| find-file | 5 | 18.0 | 155.0 | 88.4% |
-| find-definition | 5 | 274.0 | 275.0 | 0.1% |
-| locate-config | 5 | 14.0 | 44.0 | 68.2% |
-| grep-literal | 5 | 294.0 | 295.0 | 0.4% |
-| find-config | 5 | 15.0 | 4.0 | -262.5% |
-| grep-symbol | 5 | 584.0 | 2471.0 | 76.4% |
+| find-file | 5 | 30.0 | 34.0 | 13.3% |
+| find-definition | 5 | 975.0 | 6646.0 | 85.3% |
+| locate-config | 5 | 61.0 | 20.0 | -214.3% |
+| grep-literal | 5 | 604.0 | 4308.0 | 86.0% |
+| find-config | 5 | 22.0 | 4.0 | -450.0% |
+| grep-symbol | 5 | 1388.0 | 22934.0 | 93.9% |
 
 ## Heuristic vs measurement
 
@@ -31,11 +31,11 @@ The `150 + 75 × hits` formula remains an estimate. On identical runs:
 
 | task | hits used | heuristic saved (est.) | measured output saved (est.) | heuristic overstates |
 | --- | --- | --- | --- | --- |
-| find-file | 13 | n/a | 137 | n/a |
-| find-definition | 9 | 825 | 1 | true |
-| locate-config | 5 | n/a | 30 | n/a |
-| grep-literal | 11 | 975 | 1 | true |
-| find-config | 1 | n/a | -11 | n/a |
-| grep-symbol | 103 | 7875 | 1887 | true |
+| find-file | 4 | n/a | 4 | n/a |
+| find-definition | 182 | 13800 | 5671 | true |
+| locate-config | 3 | n/a | -41 | n/a |
+| grep-literal | 135 | 10275 | 3704 | true |
+| find-config | 1 | n/a | -18 | n/a |
+| grep-symbol | 645 | 48525 | 21546 | true |
 
-Raw JSON: `bench/results/tokens-2026-10-14-degraded.json`
+Raw JSON: `bench/results/tokens-2026-11-26-degraded.json`

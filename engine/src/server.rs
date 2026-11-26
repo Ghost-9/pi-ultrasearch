@@ -536,6 +536,7 @@ fn run(v: &Value, cx: &Ctx, root: Option<&[u8]>, deny: &DenyList) -> Result<Repl
                     &x,
                     want,
                     MAX_FETCH,
+                    8,
                     |f| x.keep(&cx.git, &path(f)),
                     |n| {
                         q.limit = n;
@@ -822,17 +823,20 @@ const MAX_GREP: usize = 2_000;
 /// Results passing `keep`, best first, more than `want` of them unless
 /// the search runs dry, stops early (out of time: then true) or reaches
 /// `cap`. `search(n)` gives the best `n` (and whether it stopped early);
-/// it's asked for more and more until enough pass.
+/// it's asked for more and more until enough pass, scaling each retry by
+/// `growth` (clamped >= 2 so disk-reading retries stay bounded).
 fn fetch_kept<T>(
     x: &Extras,
     want: usize,
     cap: usize,
+    growth: usize,
     keep: impl Fn(&T) -> bool,
     mut search: impl FnMut(usize) -> Result<(Vec<T>, bool), String>,
 ) -> Result<(Vec<T>, bool), String> {
     // Room for some to fail the filters (not for ignored files: few name
     // or content hits are); more if too many do.
     let mut fetch = if x.globs.is_empty() && x.sels.is_empty() { want.saturating_add(1) } else { want.saturating_mul(2).saturating_add(16) };
+    let step = growth.max(2);
     loop {
         let n = fetch.min(cap);
         let (mut got, cut) = search(n)?;
@@ -841,7 +845,7 @@ fn fetch_kept<T>(
         if got.len() > want || !full || n == cap || cut {
             return Ok((got, cut));
         }
-        fetch = fetch.saturating_mul(8);
+        fetch = fetch.saturating_mul(step);
     }
 }
 
@@ -1104,6 +1108,7 @@ fn grep(v: &Value, cx: &Ctx, root: Option<&[u8]>, deny: &DenyList) -> Result<Val
             &x,
             x.offset.saturating_add(limit),
             MAX_GREP,
+            2,
             |f: &ultrasearch::FileMatches| x.keep(&cx.git, &f.path),
             |n| {
                 q.limit = n;
@@ -1632,5 +1637,39 @@ mod tests {
         assert!(path_allowed(b"/root/ok.rs", &deny, Some(b"/root")));
         assert!(!path_allowed(b"/secret/key.rs", &deny, None));
         assert!(!path_allowed(b"/elsewhere/ok.rs", &deny, Some(b"/root")));
+    }
+
+    #[test]
+    fn fetch_kept_respects_growth_factor() {
+        let x = Extras::default();
+        let mut seen_two = Vec::new();
+        let _ = fetch_kept(
+            &x,
+            10,
+            200,
+            2,
+            |v: &usize| (*v).is_multiple_of(2),
+            |n| {
+                seen_two.push(n);
+                Ok(((0..n).collect(), seen_two.len() >= 2))
+            },
+        )
+        .unwrap();
+        assert_eq!(seen_two, vec![11, 22]);
+
+        let mut seen_eight = Vec::new();
+        let _ = fetch_kept(
+            &x,
+            10,
+            200,
+            8,
+            |v: &usize| (*v).is_multiple_of(2),
+            |n| {
+                seen_eight.push(n);
+                Ok(((0..n).collect(), seen_eight.len() >= 2))
+            },
+        )
+        .unwrap();
+        assert_eq!(seen_eight, vec![11, 88]);
     }
 }

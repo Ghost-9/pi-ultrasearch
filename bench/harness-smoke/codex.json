@@ -2,10 +2,10 @@
   "schema": "ultrasearch/harness-smoke@1",
   "id": "codex",
   "label": "Codex CLI",
-  "generatedAt": "2026-10-15T20:52:47.665Z",
-  "commit": "630bc5b98be9dbb686b4cb112ba341bbab5c455a",
-  "worktreeDirty": false,
-  "serverVersion": "0.3.1",
+  "generatedAt": "2026-11-26T04:07:25.254Z",
+  "commit": "a777cef33fa9641c6dd5f604f2a9aa1f039d4983",
+  "worktreeDirty": true,
+  "serverVersion": "0.5.0",
   "supportedProtocolVersions": [
     "2025-06-18",
     "2025-03-26",
@@ -18,7 +18,7 @@
     "configPresent": true,
     "installed": true,
     "installEvidence": [
-      "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+      "/opt/homebrew/bin/codex",
       "/Users/batra/.codex"
     ],
     "entryShapeSource": "machine-measured",
@@ -32,9 +32,11 @@
     "protocol": {
       "status": "pass",
       "launch": {
-        "command": "/Users/batra/.local/bin/ultrasearch-mcp",
-        "args": [],
-        "source": "installed",
+        "command": "/opt/homebrew/Cellar/node/26.13.1_4/bin/node",
+        "args": [
+          "/Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/dist/bin/mcp-server.js"
+        ],
+        "source": "explicit",
         "configPath": "/Users/batra/.codex/config.toml"
       },
       "client": {
@@ -45,7 +47,7 @@
       "negotiatedProtocolVersion": "2025-06-18",
       "serverInfo": {
         "name": "pi-ultrasearch",
-        "version": "0.3.1"
+        "version": "0.5.0"
       },
       "toolCount": 6,
       "toolNames": [
@@ -62,15 +64,15 @@
           "filename": "package.json"
         },
         "isError": false,
-        "textSample": "/Users/batra/.pi/agent/extensions/pi-ultrasearch/package.json",
+        "textSample": "/Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/package.json",
         "meta": {
           "complete": false,
           "truncated": false,
           "truncatedCount": 0,
           "engineCapped": false,
           "filteredCount": 0,
-          "tokenCount": 16,
-          "charCount": 62,
+          "tokenCount": 19,
+          "charCount": 76,
           "source": "index",
           "deadlineExceeded": false,
           "rawCount": 1,
@@ -114,7 +116,7 @@
               "protocolVersion": "2025-06-18",
               "serverInfo": {
                 "name": "pi-ultrasearch",
-                "version": "0.3.1"
+                "version": "0.5.0"
               },
               "capabilities": {
                 "tools": {
@@ -173,7 +175,7 @@
               "content": [
                 {
                   "type": "text",
-                  "text": "/Users/batra/.pi/agent/extensions/pi-ultrasearch/package.json"
+                  "text": "/Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/package.json"
                 }
               ],
               "_meta": {
@@ -182,8 +184,8 @@
                 "truncatedCount": 0,
                 "engineCapped": false,
                 "filteredCount": 0,
-                "tokenCount": 16,
-                "charCount": 62,
+                "tokenCount": 19,
+                "charCount": 76,
                 "source": "index",
                 "deadlineExceeded": false,
                 "rawCount": 1,
@@ -199,7 +201,7 @@
     "native": {
       "status": "pass",
       "mode": "config-only",
-      "binary": "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+      "binary": "/opt/homebrew/bin/codex",
       "checks": {
         "listed": true,
         "registeredEntry": true
@@ -211,18 +213,21 @@
           "command": "codex mcp add ultrasearch -- <server>",
           "code": 0,
           "stdout": "Added global MCP server 'ultrasearch'.\n",
-          "stderr": ""
+          "stderr": "WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-XQIKoJ\" (codex_home: AbsolutePathBuf(\"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-XQIKoJ/ults-smoke-codex-QmJNUx/codex-home\"))\n"
         },
         {
           "dir": "cli",
           "command": "codex mcp list",
           "code": 0,
-          "stdout": "Name         Command                                  Args  Env  Cwd  Status   Auth       \nultrasearch  /Users/batra/.local/bin/ultrasearch-mcp  -     -    -    enabled  Unsupported\n",
-          "stderr": ""
+          "stdout": "Name         Command                                       Args                                                                                   Env  Cwd  Status   Auth       \nultrasearch  /opt/homebrew/Cellar/node/26.13.1_4/bin/node  /Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/dist/bin/mcp-server.js  -    -    enabled  Unsupported\n",
+          "stderr": "WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir \"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-XQIKoJ\" (codex_home: AbsolutePathBuf(\"/Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-XQIKoJ/ults-smoke-codex-QmJNUx/codex-home\"))\n"
         }
       ],
       "registeredEntry": {
-        "command": "/Users/batra/.local/bin/ultrasearch-mcp"
+        "command": "/opt/homebrew/Cellar/node/26.13.1_4/bin/node",
+        "args": [
+          "/Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/dist/bin/mcp-server.js"
+        ]
       },
       "note": "`codex mcp list` validates the config but does not handshake; the protocol arm covers the handshake"
     }

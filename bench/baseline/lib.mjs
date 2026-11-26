@@ -16,7 +16,7 @@ export const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(HERE, "../..");
 export const RESULTS_DIR = path.join(HERE, "results");
 export const FIXTURE_ROOT = path.join(os.homedir(), ".cache", "pi-ultrasearch-bench", "fixture-5k");
-export const SEARCH_SCOPE = "/Users/batra/Search";
+export const SEARCH_SCOPE = process.env.ULTRASEARCH_BENCH_SEARCH_SCOPE ?? path.join(os.homedir(), "Search");
 
 // ---------------------------------------------------------------- env / client
 

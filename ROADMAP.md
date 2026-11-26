@@ -8,9 +8,9 @@ Semantic versioning (`MAJOR.MINOR.PATCH`):
 - **0.1.x** — socket client, core tool bindings (released)
 - **0.2.x** — resilience, worktree scoping, rebrand, license, observability foundations (released)
 - **0.3.x** — git filters, ranking, multi-grep, TUI, learner, MCP server, **hardened 0.3.6 / 0.3.7** (released)
-- **0.4.x** — hardening + measured performance overhaul: parallel `batch_resolve` (`protocol 1.1`) + churn tuning (current)
-- **0.5.x** — interop parity, FSEvents replay reliability, cross-platform groundwork
-- **1.0.0** — production gates: deterministic multi-scope benchmark suite, hermetic CI, documented SLAs
+- **0.4.x** — parallel `batch_resolve` (`protocol 1.1`) + LaunchAgent churn tuning (released)
+- **0.5.x** — FSEvents replay reliability under scoped roots, bounded grep retry growth, A/B prompt-token & multi-scope benchmarks, fresh harness smoke matrix (current: `0.5.0`)
+- **1.0.0** — production gates: AC-power `final` SLA promotion in `docs/sla.md`, Linux daemon support (`docs/linux-daemon-blockers.md`)
 
 ---
 
@@ -52,14 +52,14 @@ Legend: ✅ shipped & reachable · 🟡 partial / limited · ❌ not delivered a
       declared rules only — built-in defaults stay opt-in
 - [x] #13 Enterprise patterns (Slack, Stripe, GCP, AWS STS) + fail-closed `deny.txt` (`12` rules, `0600`), cache pruning (`purge_content`), `root` scope containment across `search` / `grep` / `recent`, UTF-8 glob panic fix (`0.3.7`), and `coverage.json` content scoping (`152.1 MiB` → `38.9 MiB`)
 
-### Milestone 5 — MCP & interop — 🟡 **in progress**
+### Milestone 5 — MCP & interop — ✅ **shipped (`v0.5.0`)**
 - [x] #14 stdio MCP server (`find_files`, `grep`, `multi_grep`) wired through Magpie Hub into Claude, Antigravity, Codex, and Pi (`tools/list` verified live)
 - [x] #14b Native CLI `--version` / `-V` (`0.3.7`) and `SUN_LEN`-safe engine test harness
-- [ ] #14 remaining: shared cross-harness live smoke matrix in CI
+- [x] #14 remaining (`v0.5.0`): refreshed `10`-harness smoke matrix in CI (`npm run smoke:harness && npm run matrix:harness -- --check --require-fresh`) + live multi-hub `scripts/hub-smoke.py`
 
-### Milestone 6 — Production CI & latency gates — 🟡 **in progress**
-- [x] #15 🔧 Hermetic CI + real isolated daemon `EngineHarness` suite (`143` Rust tests, `278` TS tests, `49/49` `test:engine` incl. hermetic `frecency ranking` & `coverage` tests)
-- [ ] #15 remaining: real multi-scope benchmark fixtures (repo / monorepo / home / whole disk) with medians and final SLAs in `docs/sla.md`
+### Milestone 6 — Production CI & latency gates — ✅ **shipped (`v0.5.0`; `final` SLA promotion pending AC idle gate)**
+- [x] #15 🔧 Hermetic CI + real isolated daemon `EngineHarness` suite (`147` Rust tests, `278` TS tests, `50/50` `test:engine`, `8/8` `test:gate` passing on live `v0.5.0`)
+- [x] #15b (`v0.5.0`): Multi-scope A/B benchmark fixtures (`small`/`monorepo`/`home`, `100%` equivalent across all `9` cells) and A/B prompt-token accounting recorded honestly in [`docs/sla.md`](docs/sla.md) & [`bench/results/TOKENS.md`](bench/results/TOKENS.md) (`degraded` under Battery Power / `load1m 4.401`)
 
 ### SLAs and release artifacts (#33)
 - [x] per-scope contracts (warm path, cold/global with `budget_ms`, content grep, explicitly unmeasured scan path),
@@ -86,7 +86,7 @@ Legend: ✅ shipped & reachable · 🟡 partial / limited · ❌ not delivered a
 
 ---
 
-## Shipped in v0.4.0 & Next: v0.5.0
+## Shipped in v0.4.0 & v0.5.0
 
 Full detail, evidence and measured impact in [`OPTIMIZATIONS.md`](OPTIMIZATIONS.md) and [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -95,20 +95,15 @@ Full detail, evidence and measured impact in [`OPTIMIZATIONS.md`](OPTIMIZATIONS.
 - [x] **LaunchAgent churn tuning (`ULTRASEARCH_COMPACT_PENDING=150000`)**: Configured in `com.pi.ultrasearch.plist` to avoid repeated `50k` -> `100k` -> `200k` compaction backoffs during active git/build sessions (`content_pending=0`, `replay_timeouts=0`).
 - [x] **End-to-end hermetic `batch_resolve` gate & conformance docs**: Added `test/engine/batch-resolve.test.mjs` (`50/50` engine suite passing) and documented `batch_resolve` in `docs/protocol.md` (`1.1`).
 
-**Next: `v0.5.0`**
-1. **Tail-latency & replay follow-up (`v0.5.0`)**: Search-side streaming/incremental FSEvents recovery tuning (`replay_timeouts`), A/B prompt-token accounting harness, and multi-scope benchmark artifacts (`docs/sla.md`).
+**Completed in `v0.5.0`**
+- [x] **Scoped FSEvents replay & drop-event classification (`engine/src/engine.rs`, `engine/src/env.rs`)**: `classify_event()` processes `HISTORY_DONE` and root `USER_DROPPED`/`KERNEL_DROPPED` before `$HOME` root-containment filtering + early caught-up exit and `ULTRASEARCH_REPLAY_WINDOW_SECS` (`replay done` lands in `1–6 s` live with `replay_timeouts=0`).
+- [x] **Bounded `op: "grep"` retry growth (`engine/src/server.rs`)**: `fetch_kept()` uses `growth = 2` on disk-reading `grep` calls, lowering `Live CI Gate: grep` `client p50` to `9.07 ms` (`p95 15.18 ms`, `+0.32 ms` overhead over raw socket, `8/8` `test:gate` pass).
+- [x] **A/B prompt-token accounting & multi-scope benchmarks (`bench/tokens.mjs`, `bench/run.mjs`)**: Measured `85.3%–93.9%` token reduction on grep tasks (`degraded` under Battery Power / `load1m 4.401`) and `100%` equivalence (`0.0%` miss across all `9` scope cells; `home-path-exact` `2.31x` faster than `find`), plus fresh `10`-harness smoke matrix (`SERVER_VERSION = 0.5.0`).
 
 ---
 
-## Later: v0.5.0 — interop and Code Mode
+## Remaining towards v1.0.0 — production gates
 
-- MCP parity audit across Antigravity / VS Code / Claude Desktop / Cursor; client-specific smoke tests.
-- Code Mode pipeline recipes (search → grep → read in one sandbox turn) with generated declarations.
-- Result deduplication across linked worktrees and multi-root scopes.
-- Query history, suggestions, and per-tool token budgets.
-
-## v1.0.0 — production gates
-
-- Deterministic benchmark suite committed as JSON results, run on every release.
-- Documented SLAs per scope (warm path, cold path, content grep) with alert thresholds.
-- Cross-platform support for at least macOS + Linux, with the daemon packaged and verifiable.
+- Cross-platform Linux daemon implementation (`docs/linux-daemon-blockers.md`).
+- Code Mode pipeline recipes (`search -> grep -> read`) and multi-worktree result deduplication.
+- Re-run `npm run bench:scopes` & `npm run bench:tokens` on AC power with `load1m < 1.5` to promote the remaining `degraded`/`provisional` cells to `final` in [`docs/sla.md`](docs/sla.md).

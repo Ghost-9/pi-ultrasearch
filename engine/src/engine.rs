@@ -17,13 +17,13 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Condvar, Mutex, RwLock, RwLockReadGuard};
 use std::time::{Duration, Instant};
 
-/// How long a stream may run without `HISTORY_DONE` before the replay window is closed.
-///
-/// fseventsd keeps a bounded history; a saved event id older than it yields no replay and
-/// no completion flag. Long enough that a real 14-hour catch-up is not cut short (the events
-/// arrive within seconds when fseventsd still has them), short enough that a daemon does not
-/// report itself stale for its whole uptime.
-const REPLAY_WINDOW_SECS: u64 = 30;
+// How long a stream may run without `HISTORY_DONE` before the replay window is closed
+// (configurable via `ULTRASEARCH_REPLAY_WINDOW_SECS`, default 30 s).
+//
+// fseventsd keeps a bounded history; a saved event id older than it yields no replay and
+// no completion flag. Long enough that a real 14-hour catch-up is not cut short (the events
+// arrive within seconds when fseventsd still has them), short enough that a daemon does not
+// report itself stale for its whole uptime.
 
 // Every search scans the whole overlay (~1 ms per 100k entries), and a
 // follower starting up replays everything since the save, so fold it into
@@ -971,7 +971,9 @@ impl Shared {
         // that closes the window below never arrives. Treating that stream as
         // replaying reported `staleness_ms` forever and marked every answer
         // stale. There is history only when the id is in the past.
-        let replay = since < fsevents::current_id();
+        let target_head = fsevents::current_id();
+        let replay = since < target_head;
+        let window_secs = env::replay_window_secs();
         self.replaying.store(replay, Ordering::Relaxed);
         if replay {
             self.mark_stale();
@@ -995,12 +997,19 @@ impl Shared {
         if replay {
             let me = self.clone();
             spawn("ultrasearch-replay-window", move || {
-                for _ in 0..REPLAY_WINDOW_SECS {
+                for _ in 0..window_secs {
                     std::thread::sleep(Duration::from_secs(1));
                     if !me.replaying.load(Ordering::Relaxed) {
                         return;
                     }
                     if me.streams.load(Ordering::Relaxed) != n {
+                        return;
+                    }
+                    let caught_up = me.live.read().ok().and_then(|g| g.as_ref().map(|l| l.event_id >= target_head)).unwrap_or(false);
+                    if caught_up {
+                        log("replay window closed: caught up to target event id");
+                        me.replaying.store(false, Ordering::Relaxed);
+                        me.mark_caught_up();
                         return;
                     }
                 }
@@ -1614,6 +1623,37 @@ impl Pace {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum EventAction {
+    HistoryDone,
+    RootDrop,
+    RootMustScan(u32),
+    ApplyPath,
+    SkipOutsideKeep,
+}
+
+/// Classify an incoming FSEvents item before filtering by `keep`.
+///
+/// `HISTORY_DONE` (`path == b""` or `b"/"`) and root-level drops (`path == b"/"`
+/// with `MUST_SCAN_SUBDIRS`) arrive on `/` even when `ULTRASEARCH_SCAN_ROOT`
+/// scopes `keep` to `$HOME`, so control/drop signals must be handled before
+/// dropping paths outside `keep`.
+fn classify_event(path: &[u8], flags: u32, keep: &[u8]) -> EventAction {
+    if flags & HISTORY_DONE != 0 {
+        return EventAction::HistoryDone;
+    }
+    if path == b"/" && flags & MUST_SCAN_SUBDIRS != 0 {
+        if flags & (USER_DROPPED | KERNEL_DROPPED) == USER_DROPPED {
+            return EventAction::RootDrop;
+        }
+        return EventAction::RootMustScan(flags);
+    }
+    if !crate::deny::within(path, keep) {
+        return EventAction::SkipOutsideKeep;
+    }
+    EventAction::ApplyPath
+}
+
 fn apply_loop(shared: &Arc<Shared>, rx: Receiver<Vec<fsevents::Event>>) {
     let mut last_save = Instant::now();
     let mut last_follow = Instant::now();
@@ -1649,24 +1689,22 @@ fn apply_loop(shared: &Arc<Shared>, rx: Receiver<Vec<fsevents::Event>>) {
             let mut last_good = shared.live.read().unwrap_or_else(|p| p.into_inner()).as_ref().map_or(0, |l| l.event_id);
             let current = shared.streams.load(Ordering::Relaxed);
             for e in events {
-                // An isolated crawl root: only its own changes may be applied
-                // (see `Shared::keep`).
-                if !crate::deny::within(&e.path, &shared.keep) {
-                    // `ULTRASEARCH_DEBUG_KEEP=1`: say what an isolated
-                    // crawl root is filtering out (a change reported on a
-                    // folder above the root is not applied).
-                    if std::env::var_os("ULTRASEARCH_DEBUG_KEEP").is_some() {
-                        log(format!("keeping out (outside ULTRASEARCH_SCAN_ROOT): {}", String::from_utf8_lossy(&e.path)));
+                match classify_event(&e.path, e.flags, &shared.keep) {
+                    EventAction::SkipOutsideKeep => {
+                        // An isolated crawl root: only its own changes may be applied
+                        // (see `Shared::keep`). `ULTRASEARCH_DEBUG_KEEP=1`: say what an
+                        // isolated crawl root is filtering out.
+                        if std::env::var_os("ULTRASEARCH_DEBUG_KEEP").is_some() {
+                            log(format!("keeping out (outside ULTRASEARCH_SCAN_ROOT): {}", String::from_utf8_lossy(&e.path)));
+                        }
+                        continue;
                     }
-                    continue;
-                }
-                if e.path == b"/" && e.flags & MUST_SCAN_SUBDIRS != 0 {
-                    // fseventsd still logged what it dropped for us (a kernel
-                    // drop never reached it): replay from the last event we
-                    // did get, once the drops stop; a drop during a replay
-                    // starts that replay over. A replaced stream's drop is
-                    // covered by the stream that replaced it.
-                    if e.flags & (USER_DROPPED | KERNEL_DROPPED) == USER_DROPPED {
+                    EventAction::RootDrop => {
+                        // fseventsd still logged what it dropped for us (a kernel
+                        // drop never reached it): replay from the last event we
+                        // did get, once the drops stop; a drop during a replay
+                        // starts that replay over. A replaced stream's drop is
+                        // covered by the stream that replaced it.
                         if e.stream == current {
                             let from = if shared.replaying.load(Ordering::Relaxed) { shared.since.load(Ordering::Relaxed) } else { last_good };
                             gap = Some((gap.map_or(from, |(g, _)| g.min(from)), Instant::now()));
@@ -1676,25 +1714,37 @@ fn apply_loop(shared: &Arc<Shared>, rx: Receiver<Vec<fsevents::Event>>) {
                         }
                         continue;
                     }
-                    root_flags |= e.flags;
-                }
-                max_id = max_id.max(e.id);
-                if gap.is_none() {
-                    last_good = last_good.max(e.id);
-                }
-                if e.flags & HISTORY_DONE != 0 {
-                    log("replay done");
-                    shared.replaying.store(false, Ordering::Relaxed);
-                    if gap.is_none() {
-                        shared.mark_caught_up();
+                    EventAction::HistoryDone => {
+                        max_id = max_id.max(e.id);
+                        if gap.is_none() {
+                            last_good = last_good.max(e.id);
+                        }
+                        log("replay done");
+                        shared.replaying.store(false, Ordering::Relaxed);
+                        if gap.is_none() {
+                            shared.mark_caught_up();
+                            replays = 0;
+                        }
+                        continue;
                     }
-                    if gap.is_none() {
-                        replays = 0;
+                    EventAction::RootMustScan(flags) => {
+                        root_flags |= flags;
+                        max_id = max_id.max(e.id);
+                        if gap.is_none() {
+                            last_good = last_good.max(e.id);
+                        }
+                        let d = dirs.entry(crate::live::normalize(&e.path)).or_insert((false, e.id));
+                        *d = (true, d.1.min(e.id));
                     }
-                    continue;
+                    EventAction::ApplyPath => {
+                        max_id = max_id.max(e.id);
+                        if gap.is_none() {
+                            last_good = last_good.max(e.id);
+                        }
+                        let d = dirs.entry(crate::live::normalize(&e.path)).or_insert((false, e.id));
+                        *d = (d.0 | (e.flags & MUST_SCAN_SUBDIRS != 0), d.1.min(e.id));
+                    }
                 }
-                let d = dirs.entry(crate::live::normalize(&e.path)).or_insert((false, e.id));
-                *d = (d.0 | (e.flags & MUST_SCAN_SUBDIRS != 0), d.1.min(e.id));
             }
         }
         let now = Instant::now();
@@ -1904,5 +1954,17 @@ mod tests {
     fn skip_entries() {
         follower("skip", "/h");
         assert!(walk::blocked(b"/nonexistent-ultrasearch-skip/x") && !walk::blocked(b"/usr"));
+    }
+
+    #[test]
+    fn classify_event_preserves_history_done_and_root_drops_under_scoped_root() {
+        let keep = b"/Users/example";
+        assert_eq!(classify_event(b"", HISTORY_DONE, keep), EventAction::HistoryDone);
+        assert_eq!(classify_event(b"/", HISTORY_DONE, keep), EventAction::HistoryDone);
+        assert_eq!(classify_event(b"/", MUST_SCAN_SUBDIRS | USER_DROPPED, keep), EventAction::RootDrop);
+        assert_eq!(classify_event(b"/", MUST_SCAN_SUBDIRS | KERNEL_DROPPED, keep), EventAction::RootMustScan(MUST_SCAN_SUBDIRS | KERNEL_DROPPED));
+        assert_eq!(classify_event(b"/Users/example/src", 0, keep), EventAction::ApplyPath);
+        assert_eq!(classify_event(b"/Users/example-other/src", 0, keep), EventAction::SkipOutsideKeep);
+        assert_eq!(classify_event(b"/System/Library", 0, keep), EventAction::SkipOutsideKeep);
     }
 }

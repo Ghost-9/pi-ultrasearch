@@ -32,6 +32,8 @@ A cold or replaying index (`status.replay_in_progress`, `staleness_ms > 0`,
 | Zero-result / fallback | absent 1.0, present 0.0, 0 fallbacks | `bench/verification/after/zeroresult-baseline.json` | **final** |
 | Full latency suite (n=30, all scopes) | medians per scope | `bench/verification/after/latency-2026-10-15.json` | **provisional** — load1 4.9–13.9 during the run; **not an SLA basis** |
 | Judgment scoring | recall@10 0.674, nDCG@10 0.705 | `bench/verification/after/judgments-baseline.json` | **provisional / needs re-run** (verifier F10) |
+| v0.5.0 multi-scope A/B (`small`/`monorepo`/`home`, n=30 each) | `home-path-exact` p50 `5.59 ms` vs `12.89 ms` find (`2.31x`); `100%` equivalent (`0.0%` miss across all 9 cells) | `bench/results/scopes-2026-11-26-degraded.json` (gitignored) | **degraded** — Battery Power, `load1m 4.401`; **not an SLA basis** |
+| v0.5.0 prompt-token A/B (`6` tasks × `5` pairs) | grep tasks `85.3%` / `86.0%` / `93.9%` smaller (`975t`/`604t`/`1388t` vs `6646t`/`4308t`/`22934t`); header overhead on 1-hit locate | `bench/results/TOKENS.md` | **degraded** — Battery Power, `load1m 4.401`; **not an SLA basis** |
 
 The rendered README/ROADMAP summary numbers stay sourced from the final artifacts
 above. When the latency suite is re-run under a passing gate, its medians may be

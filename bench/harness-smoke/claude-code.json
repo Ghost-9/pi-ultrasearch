@@ -2,10 +2,10 @@
   "schema": "ultrasearch/harness-smoke@1",
   "id": "claude-code",
   "label": "Claude Code",
-  "generatedAt": "2026-10-15T20:52:47.992Z",
-  "commit": "630bc5b98be9dbb686b4cb112ba341bbab5c455a",
-  "worktreeDirty": false,
-  "serverVersion": "0.3.1",
+  "generatedAt": "2026-11-26T04:07:25.481Z",
+  "commit": "a777cef33fa9641c6dd5f604f2a9aa1f039d4983",
+  "worktreeDirty": true,
+  "serverVersion": "0.5.0",
   "supportedProtocolVersions": [
     "2025-06-18",
     "2025-03-26",
@@ -32,9 +32,11 @@
     "protocol": {
       "status": "pass",
       "launch": {
-        "command": "/Users/batra/.local/bin/ultrasearch-mcp",
-        "args": [],
-        "source": "installed",
+        "command": "/opt/homebrew/Cellar/node/26.13.1_4/bin/node",
+        "args": [
+          "/Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/dist/bin/mcp-server.js"
+        ],
+        "source": "explicit",
         "configPath": "/Users/batra/.claude.json"
       },
       "client": {
@@ -45,7 +47,7 @@
       "negotiatedProtocolVersion": "2025-06-18",
       "serverInfo": {
         "name": "pi-ultrasearch",
-        "version": "0.3.1"
+        "version": "0.5.0"
       },
       "toolCount": 6,
       "toolNames": [
@@ -62,15 +64,15 @@
           "filename": "package.json"
         },
         "isError": false,
-        "textSample": "/Users/batra/.pi/agent/extensions/pi-ultrasearch/package.json",
+        "textSample": "/Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/package.json",
         "meta": {
           "complete": false,
           "truncated": false,
           "truncatedCount": 0,
           "engineCapped": false,
           "filteredCount": 0,
-          "tokenCount": 16,
-          "charCount": 62,
+          "tokenCount": 19,
+          "charCount": 76,
           "source": "index",
           "deadlineExceeded": false,
           "rawCount": 1,
@@ -114,7 +116,7 @@
               "protocolVersion": "2025-06-18",
               "serverInfo": {
                 "name": "pi-ultrasearch",
-                "version": "0.3.1"
+                "version": "0.5.0"
               },
               "capabilities": {
                 "tools": {
@@ -173,7 +175,7 @@
               "content": [
                 {
                   "type": "text",
-                  "text": "/Users/batra/.pi/agent/extensions/pi-ultrasearch/package.json"
+                  "text": "/Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/package.json"
                 }
               ],
               "_meta": {
@@ -182,8 +184,8 @@
                 "truncatedCount": 0,
                 "engineCapped": false,
                 "filteredCount": 0,
-                "tokenCount": 16,
-                "charCount": 62,
+                "tokenCount": 19,
+                "charCount": 76,
                 "source": "index",
                 "deadlineExceeded": false,
                 "rawCount": 1,
@@ -204,7 +206,7 @@
       "measuredClientInfo": {
         "name": "claude-code",
         "title": "Claude Code",
-        "version": "2.1.299",
+        "version": "2.1.326",
         "description": "Anthropic's agentic coding tool",
         "websiteUrl": "https://claude.com/claude-code"
       },
@@ -218,14 +220,14 @@
           "dir": "cli",
           "command": "claude mcp add --scope user ultrasearch -- node probe-server.mjs -- <server>",
           "code": 0,
-          "stdout": "Added stdio MCP server ultrasearch with command: /opt/homebrew/Cellar/node/26.11.1/bin/node /Users/batra/.pi/agent/extensions/pi-ultrasearch/bench/harness-smoke/probe-server.mjs --log /var/folders/_s/8tbk7qt16cl4tb8z7bphvzz80000gn/T/ults-smoke-claude-Fxm2dP/client-frames.jsonl -- /Users/batra/.local/bin/ultrasearch-mcp to user config\nFile modified: /var/folders/_s/8tbk7qt16cl4tb8z7bphvzz80000gn/T/ults-smoke-claude-Fxm2dP/home/.claude.json\n",
+          "stdout": "Added stdio MCP server ultrasearch with command: /opt/homebrew/Cellar/node/26.13.1_4/bin/node /Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/bench/harness-smoke/probe-server.mjs --log /Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-XQIKoJ/ults-smoke-claude-EIkBHM/client-frames.jsonl -- /opt/homebrew/Cellar/node/26.13.1_4/bin/node /Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/dist/bin/mcp-server.js to user config\nFile modified: /Users/batra/.t3/userdata…",
           "stderr": ""
         },
         {
           "dir": "cli",
           "command": "claude mcp list",
           "code": 0,
-          "stdout": "Checking MCP server health…\n\nultrasearch: /opt/homebrew/Cellar/node/26.11.1/bin/node /Users/batra/.pi/agent/extensions/pi-ultrasearch/bench/harness-smoke/probe-server.mjs --log /var/folders/_s/8tbk7qt16cl4tb8z7bphvzz80000gn/T/ults-smoke-claude-Fxm2dP/client-frames.jsonl -- /Users/batra/.local/bin/ultrasearch-mcp - ✔ Connected\n",
+          "stdout": "Checking MCP server health…\n\nultrasearch: /opt/homebrew/Cellar/node/26.13.1_4/bin/node /Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/bench/harness-smoke/probe-server.mjs --log /Users/batra/.t3/userdata/antigravity-tmp/7be9b928ae8c/run-XQIKoJ/ults-smoke-claude-EIkBHM/client-frames.jsonl -- /opt/homebrew/Cellar/node/26.13.1_4/bin/node /Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/dist/bin/mcp-server.js - ✔ Connected\n",
           "stderr": ""
         }
       ],

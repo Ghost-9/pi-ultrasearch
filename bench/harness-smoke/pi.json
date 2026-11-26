@@ -2,10 +2,10 @@
   "schema": "ultrasearch/harness-smoke@1",
   "id": "pi",
   "label": "Pi Agent",
-  "generatedAt": "2026-10-15T20:52:46.387Z",
-  "commit": "630bc5b98be9dbb686b4cb112ba341bbab5c455a",
-  "worktreeDirty": false,
-  "serverVersion": "0.3.1",
+  "generatedAt": "2026-11-26T04:07:24.185Z",
+  "commit": "a777cef33fa9641c6dd5f604f2a9aa1f039d4983",
+  "worktreeDirty": true,
+  "serverVersion": "0.5.0",
   "supportedProtocolVersions": [
     "2025-06-18",
     "2025-03-26",
@@ -18,7 +18,7 @@
     "configPresent": true,
     "installed": true,
     "installEvidence": [
-      "/Users/batra/.pi/agent/bin/pi",
+      "/Users/batra/.local/bin/pi",
       "/Users/batra/.pi/agent"
     ],
     "entryShapeSource": "machine-measured",
@@ -32,9 +32,11 @@
     "protocol": {
       "status": "pass",
       "launch": {
-        "command": "/Users/batra/.local/bin/ultrasearch-mcp",
-        "args": [],
-        "source": "installed",
+        "command": "/opt/homebrew/Cellar/node/26.13.1_4/bin/node",
+        "args": [
+          "/Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/dist/bin/mcp-server.js"
+        ],
+        "source": "explicit",
         "configPath": "/Users/batra/.pi/agent/mcp.json"
       },
       "client": {
@@ -45,7 +47,7 @@
       "negotiatedProtocolVersion": "2025-06-18",
       "serverInfo": {
         "name": "pi-ultrasearch",
-        "version": "0.3.1"
+        "version": "0.5.0"
       },
       "toolCount": 6,
       "toolNames": [
@@ -62,15 +64,15 @@
           "filename": "package.json"
         },
         "isError": false,
-        "textSample": "/Users/batra/.pi/agent/extensions/pi-ultrasearch/package.json",
+        "textSample": "/Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/package.json",
         "meta": {
           "complete": false,
           "truncated": false,
           "truncatedCount": 0,
           "engineCapped": false,
           "filteredCount": 0,
-          "tokenCount": 16,
-          "charCount": 62,
+          "tokenCount": 19,
+          "charCount": 76,
           "source": "index",
           "deadlineExceeded": false,
           "rawCount": 1,
@@ -114,7 +116,7 @@
               "protocolVersion": "2025-06-18",
               "serverInfo": {
                 "name": "pi-ultrasearch",
-                "version": "0.3.1"
+                "version": "0.5.0"
               },
               "capabilities": {
                 "tools": {
@@ -173,7 +175,7 @@
               "content": [
                 {
                   "type": "text",
-                  "text": "/Users/batra/.pi/agent/extensions/pi-ultrasearch/package.json"
+                  "text": "/Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/package.json"
                 }
               ],
               "_meta": {
@@ -182,8 +184,8 @@
                 "truncatedCount": 0,
                 "engineCapped": false,
                 "filteredCount": 0,
-                "tokenCount": 16,
-                "charCount": 62,
+                "tokenCount": 19,
+                "charCount": 76,
                 "source": "index",
                 "deadlineExceeded": false,
                 "rawCount": 1,
@@ -204,12 +206,12 @@
         "testExitZero": true
       },
       "failures": [],
-      "durationMs": 1132,
+      "durationMs": 942,
       "transcript": [
         {
           "dir": "cli",
           "code": 0,
-          "stdout": "✔ declarations: generated text matches the committed golden (drift fails the build) (0.856084ms)\n✔ declarations: every registry tool appears exactly once, with no hand-written extra (0.590167ms)\n✔ mcp: MCP_TOOLS is generated from the registry, not hand-maintained (0.247375ms)\n✔ mcp: the Pi tool parameters match the registry parameter sets (surface drift guard) (5.508041ms)\n✔ recipes: search -> gre…",
+          "stdout": "✔ declarations: generated text matches the committed golden (drift fails the build) (0.869542ms)\n✔ declarations: every registry tool appears exactly once, with no hand-written extra (0.569625ms)\n✔ mcp: MCP_TOOLS is generated from the registry, not hand-maintained (0.214792ms)\n✔ mcp: the Pi tool parameters match the registry parameter sets (surface drift guard) (5.438708ms)\n✔ recipes: search -> gre…",
           "stderr": ""
         }
       ]

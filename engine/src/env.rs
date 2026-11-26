@@ -96,6 +96,15 @@ pub fn compact_pending() -> usize {
     var("ULTRASEARCH_COMPACT_PENDING").and_then(|v| v.trim().parse::<usize>().ok()).filter(|n| *n >= 1_000).unwrap_or(DEFAULT)
 }
 
+/// How long an FSEvents replay stream may wait for `HISTORY_DONE` (in seconds)
+/// before timing out and closing the stale replay window.
+///
+/// `ULTRASEARCH_REPLAY_WINDOW_SECS` allows tuning the 30s default between 5 and 300s.
+pub fn replay_window_secs() -> u64 {
+    const DEFAULT: u64 = 30;
+    var("ULTRASEARCH_REPLAY_WINDOW_SECS").and_then(|v| v.trim().parse::<u64>().ok()).filter(|n| (5..=300).contains(n)).unwrap_or(DEFAULT)
+}
+
 /// Extra directory names to keep out of the name index, comma- or
 /// colon-separated, lowercased. Added to the built-in cache list in `walk.rs`
 /// rather than replacing it: an operator naming one more folder should not
@@ -262,6 +271,32 @@ mod tests {
             std::env::set_var("ULTRASEARCH_SCAN_ROOT", "/tmp");
             assert!(scan_root_error().is_none(), "/tmp is listable");
             std::env::remove_var("ULTRASEARCH_SCAN_ROOT");
+        }
+    }
+
+    #[test]
+    fn replay_window_secs_is_configurable() {
+        // SAFETY: see above.
+        unsafe {
+            std::env::remove_var("ULTRASEARCH_REPLAY_WINDOW_SECS");
+            assert_eq!(replay_window_secs(), 30);
+
+            std::env::set_var("ULTRASEARCH_REPLAY_WINDOW_SECS", "12");
+            assert_eq!(replay_window_secs(), 12);
+
+            std::env::set_var("ULTRASEARCH_REPLAY_WINDOW_SECS", " 120 ");
+            assert_eq!(replay_window_secs(), 120);
+
+            std::env::set_var("ULTRASEARCH_REPLAY_WINDOW_SECS", "4");
+            assert_eq!(replay_window_secs(), 30);
+
+            std::env::set_var("ULTRASEARCH_REPLAY_WINDOW_SECS", "301");
+            assert_eq!(replay_window_secs(), 30);
+
+            std::env::set_var("ULTRASEARCH_REPLAY_WINDOW_SECS", "abc");
+            assert_eq!(replay_window_secs(), 30);
+
+            std::env::remove_var("ULTRASEARCH_REPLAY_WINDOW_SECS");
         }
     }
 }

@@ -2,10 +2,10 @@
   "schema": "ultrasearch/harness-smoke@1",
   "id": "vscode",
   "label": "VS Code",
-  "generatedAt": "2026-10-15T20:52:50.285Z",
-  "commit": "630bc5b98be9dbb686b4cb112ba341bbab5c455a",
-  "worktreeDirty": false,
-  "serverVersion": "0.3.1",
+  "generatedAt": "2026-11-26T04:07:27.650Z",
+  "commit": "a777cef33fa9641c6dd5f604f2a9aa1f039d4983",
+  "worktreeDirty": true,
+  "serverVersion": "0.5.0",
   "supportedProtocolVersions": [
     "2025-06-18",
     "2025-03-26",
@@ -15,12 +15,9 @@
   "harness": {
     "surface": "mcp-stdio",
     "configPath": "/Users/batra/Library/Application Support/Code/User/mcp.json",
-    "configPresent": true,
-    "installed": true,
-    "installEvidence": [
-      "/Applications/Visual Studio Code.app",
-      "/Users/batra/Library/Application Support/Code"
-    ],
+    "configPresent": false,
+    "installed": false,
+    "installEvidence": [],
     "entryShapeSource": "machine-observed",
     "declaredProtocolVersion": "2025-06-18",
     "declaredProtocolVersionSource": "assumed",
@@ -32,9 +29,11 @@
     "protocol": {
       "status": "pass",
       "launch": {
-        "command": "/Users/batra/.local/bin/ultrasearch-mcp",
-        "args": [],
-        "source": "config",
+        "command": "/opt/homebrew/Cellar/node/26.13.1_4/bin/node",
+        "args": [
+          "/Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/dist/bin/mcp-server.js"
+        ],
+        "source": "explicit",
         "configPath": "/Users/batra/Library/Application Support/Code/User/mcp.json"
       },
       "client": {
@@ -45,7 +44,7 @@
       "negotiatedProtocolVersion": "2025-06-18",
       "serverInfo": {
         "name": "pi-ultrasearch",
-        "version": "0.3.1"
+        "version": "0.5.0"
       },
       "toolCount": 6,
       "toolNames": [
@@ -62,15 +61,15 @@
           "filename": "package.json"
         },
         "isError": false,
-        "textSample": "/Users/batra/.pi/agent/extensions/pi-ultrasearch/package.json",
+        "textSample": "/Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/package.json",
         "meta": {
           "complete": false,
           "truncated": false,
           "truncatedCount": 0,
           "engineCapped": false,
           "filteredCount": 0,
-          "tokenCount": 16,
-          "charCount": 62,
+          "tokenCount": 19,
+          "charCount": 76,
           "source": "index",
           "deadlineExceeded": false,
           "rawCount": 1,
@@ -114,7 +113,7 @@
               "protocolVersion": "2025-06-18",
               "serverInfo": {
                 "name": "pi-ultrasearch",
-                "version": "0.3.1"
+                "version": "0.5.0"
               },
               "capabilities": {
                 "tools": {
@@ -173,7 +172,7 @@
               "content": [
                 {
                   "type": "text",
-                  "text": "/Users/batra/.pi/agent/extensions/pi-ultrasearch/package.json"
+                  "text": "/Users/batra/Downloads/Deepseek Workspace/_work/pi-ultrasearch/package.json"
                 }
               ],
               "_meta": {
@@ -182,8 +181,8 @@
                 "truncatedCount": 0,
                 "engineCapped": false,
                 "filteredCount": 0,
-                "tokenCount": 16,
-                "charCount": 62,
+                "tokenCount": 19,
+                "charCount": 76,
                 "source": "index",
                 "deadlineExceeded": false,
                 "rawCount": 1,
@@ -199,7 +198,7 @@
     "native": {
       "status": "skipped",
       "mode": "none",
-      "reason": "skipped:no-non-interactive-mcp-cli"
+      "reason": "skipped:harness-not-installed-on-this-machine"
     }
   },
   "status": "partial"
